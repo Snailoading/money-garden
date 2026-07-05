@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#0E7C66" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Meridian" />
+<title>Meridian — Personal Finance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<style>
+  :root, [data-theme="light"] {
+    --bg: #F6F7F9; --surface: #FFFFFF; --surface2: #F1F3F6;
+    --border: #E3E7ED; --ink: #14181F; --soft: #66707F; --faint: #98A1AE;
+    --accent: #0E7C66; --accent-ink: #FFFFFF; --accent-soft: #E3F2EE;
+    --good: #0E9F6E; --warn: #C77E14; --bad: #D64545;
+    --good-soft: #E4F5EE; --warn-soft: #FBF1DE; --bad-soft: #FBE9E9;
+    --shadow: 0 1px 2px rgba(16,24,32,.05), 0 4px 16px rgba(16,24,32,.05);
+  }
+  [data-theme="dark"] {
+    --bg: #0C1117; --surface: #131A23; --surface2: #1A2330;
+    --border: #263140; --ink: #E8ECF2; --soft: #9AA6B5; --faint: #66707F;
+    --accent: #2FBF9C; --accent-ink: #08110E; --accent-soft: #123B32;
+    --good: #34C08B; --warn: #E2A33C; --bad: #E86A6A;
+    --good-soft: #10352A; --warn-soft: #3A2E14; --bad-soft: #3D1B1B;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: 'Inter', system-ui, sans-serif; font-size: 14.5px; line-height: 1.5; transition: background .25s ease, color .25s ease; }
+  h1,h2,h3 { font-family: 'Sora', 'Inter', sans-serif; margin: 0; }
+  .num { font-variant-numeric: tabular-nums; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); }
+  input, select, button { font-family: inherit; font-size: 14px; color: var(--ink); }
+  input, select { width: 100%; height: 38px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface2); -webkit-appearance: none; appearance: none; }
+  input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+  input[type="checkbox"] { width: 16px; height: 16px; appearance: auto; -webkit-appearance: auto; }
+  select { background-image: linear-gradient(45deg, transparent 50%, var(--soft) 50%), linear-gradient(135deg, var(--soft) 50%, transparent 50%); background-position: calc(100% - 16px) 55%, calc(100% - 11px) 55%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 26px; }
+  input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button { cursor: pointer; }
+  .btn { border: none; border-radius: 9px; padding: 9px 16px; font-weight: 600; background: var(--accent); color: var(--accent-ink); transition: transform .07s ease, opacity .15s; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn:active:not(:disabled) { transform: scale(.97); }
+  .btn.ghost { background: transparent; color: var(--soft); border: 1px solid var(--border); }
+  .btn.tiny { padding: 5px 10px; font-size: 12.5px; border-radius: 8px; }
+  .row:hover { background: var(--surface2); }
+  .tag { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; padding: 3px 8px; border-radius: 999px; text-transform: uppercase; }
+  .fade-in { animation: fade .25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  ::placeholder { color: var(--faint); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="env,react">
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+/* ================= constants & helpers ================= */
+const CATS = [
+  { id: "housing",   label: "Housing",       kind: "need", budget: 1400 },
+  { id: "groceries", label: "Groceries",     kind: "need", budget: 450 },
+  { id: "utilities", label: "Utilities",     kind: "need", budget: 180 },
+  { id: "transport", label: "Transport",     kind: "need", budget: 160 },
+  { id: "health",    label: "Health",        kind: "need", budget: 120 },
+  { id: "dining",    label: "Dining out",    kind: "want", budget: 220 },
+  { id: "leisure",   label: "Leisure",       kind: "want", budget: 150 },
+  { id: "shopping",  label: "Shopping",      kind: "want", budget: 180 },
+  { id: "subs",      label: "Subscriptions", kind: "want", budget: 60 },
+  { id: "other",     label: "Other",         kind: "want", budget: 100 },
+];
+const catLabel = (id) => (CATS.find((c) => c.id === id) || {}).label || id;
+const DEFAULT_INVEST = { holdings: [], monthly: 0, ret: 7, age: 30, retireAge: 65, wr: 4, retireSpend: 0 };
+const KEY = "meridian:v1";
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const monthKey = (d) => (d || "").slice(0, 7);
+const fmt = (n) => "$" + Math.abs(Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+const fmtK = (v) => { const n = Number(v) || 0; if (n >= 1e6) return "$" + (n/1e6).toFixed(1) + "M"; if (n >= 1e3) return "$" + Math.round(n/1e3) + "k"; return "$" + Math.round(n); };
+const pctS = (x) => Math.round(x * 100) + "%";
+
+const clampDay = (y, m, d) => Math.min(Math.max(1, Number(d) || 1), new Date(y, m + 1, 0).getDate());
+function nextDue(c) {
+  const now = new Date(); now.setHours(0,0,0,0);
+  let dt;
+  if (c.cadence === "annual") {
+    const m = (Number(c.payMonth) || 1) - 1;
+    dt = new Date(now.getFullYear(), m, clampDay(now.getFullYear(), m, c.payDay));
+    if (dt < now) dt = new Date(now.getFullYear() + 1, m, clampDay(now.getFullYear() + 1, m, c.payDay));
+  } else {
+    dt = new Date(now.getFullYear(), now.getMonth(), clampDay(now.getFullYear(), now.getMonth(), c.payDay));
+    if (dt < now) dt = new Date(now.getFullYear(), now.getMonth() + 1, clampDay(now.getFullYear(), now.getMonth() + 1, c.payDay));
+  }
+  return dt;
+}
+const ended = (c) => c.kind === "inst" ? (c.paidCount || 0) >= (c.totalPayments || 1) : (c.endDate ? nextDue(c) > new Date(c.endDate + "T23:59:59") : false);
+const daysUntil = (dt) => { const n = new Date(); n.setHours(0,0,0,0); return Math.round((dt - n) / 86400000); };
+const shortDate = (dt) => MONTHS[dt.getMonth()] + " " + dt.getDate();
+
+/* ================= storage adapter =================
+   Order: Claude artifact storage -> browser localStorage -> memory */
+const mem = {};
+const store = {
+  mode: "memory",
+  async get(k) {
+    try { if (window.storage && window.storage.get) { const r = await window.storage.get(k); this.mode = "cloud"; return r && r.value != null ? r.value : null; } } catch (e) {}
+    try { const v = localStorage.getItem(k); this.mode = "local"; return v; } catch (e) {}
+    this.mode = "memory"; return mem[k] != null ? mem[k] : null;
+  },
+  async set(k, v) {
+    try { if (window.storage && window.storage.set) { await window.storage.set(k, v); this.mode = "cloud"; return; } } catch (e) {}
+    try { localStorage.setItem(k, v); this.mode = "local"; return; } catch (e) {}
+    this.mode = "memory"; mem[k] = v;
+  },
+};
+
+/* ================= sample & empty state ================= */
+function emptyState() {
+  return { theme: "light", income: 0, budgets: Object.fromEntries(CATS.map((c) => [c.id, c.budget])), transactions: [], goals: [], invest: { ...DEFAULT_INVEST }, commitments: [] };
+}
+function sampleState() {
+  const d = (n) => { const t = new Date(); t.setDate(t.getDate() - n); return t.toISOString().slice(0, 10); };
+  return {
+    theme: "light", income: 4300,
+    budgets: Object.fromEntries(CATS.map((c) => [c.id, c.budget])),
+    transactions: [
+      { id: uid(), type: "expense", amount: 1400, category: "housing",   note: "Rent",              date: d(4) },
+      { id: uid(), type: "expense", amount: 96.4, category: "groceries", note: "Weekly groceries",  date: d(3) },
+      { id: uid(), type: "expense", amount: 42.5, category: "dining",    note: "Dinner with Sam",   date: d(2) },
+      { id: uid(), type: "expense", amount: 15.99,category: "subs",      note: "Streaming",         date: d(2) },
+      { id: uid(), type: "saving",  amount: 350,  category: "other",     note: "Auto-transfer",     date: d(1) },
+      { id: uid(), type: "expense", amount: 63.2, category: "transport", note: "Fuel",              date: d(1) },
+      { id: uid(), type: "income",  amount: 380,  category: "other",     note: "Freelance invoice", date: d(0) },
+    ],
+    goals: [
+      { id: uid(), name: "Emergency fund", target: 6000, saved: 2150, isEmergency: true },
+      { id: uid(), name: "Japan trip",     target: 2800, saved: 640,  isEmergency: false },
+    ],
+    invest: { holdings: [ { id: uid(), name: "Global index fund", value: 14200 }, { id: uid(), name: "Retirement account", value: 9800 } ], monthly: 400, ret: 7, age: 29, retireAge: 65, wr: 4, retireSpend: 0 },
+    commitments: [
+      { id: uid(), kind: "sub",  name: "Streaming bundle", amount: 15.99, cadence: "monthly", payDay: 12, payMonth: 1, endDate: "", category: "subs" },
+      { id: uid(), kind: "sub",  name: "Gym membership",   amount: 35,    cadence: "monthly", payDay: 1,  payMonth: 1, endDate: "", category: "subs" },
+      { id: uid(), kind: "sub",  name: "Car insurance",    amount: 640,   cadence: "annual",  payDay: 15, payMonth: 9, endDate: "", category: "transport" },
+      { id: uid(), kind: "inst", name: "Tax bill plan",    amount: 240,   cadence: "monthly", payDay: 20, payMonth: 1, totalPayments: 6, paidCount: 2, category: "other" },
+    ],
+  };
+}
+
+/* ================= insights engine ================= */
+function buildInsights(state, d) {
+  const out = [];
+  const push = (p, title, body) => out.push({ p, title, body });
+  const f = d.fire, cm = d.commit;
+
+  if (state.transactions.length === 0) {
+    push(1, "Start by logging a few transactions", "Every figure in Meridian is computed from your real entries. Add a couple of expenses and your income — or load the sample data from Settings to explore first.");
+    return out;
+  }
+  // emergency fund
+  if (!d.emergency) push(1, "No emergency fund yet", `The standard starting point is 3–6 months of expenses — roughly ${fmt(d.monthlyExpenses * 3)}–${fmt(d.monthlyExpenses * 6)} for you. Create a goal and mark it as your emergency fund; it becomes the foundation everything else stands on.`);
+  else if (d.emergencyMonths < 3) push(1, `Emergency fund covers ~${d.emergencyMonths.toFixed(1)} months`, `You've set aside ${fmt(d.emergency.saved)}; a 3-month cushion at your spending pace is ${fmt(d.monthlyExpenses * 3)}. Building this before other goals is the classic ordering — it prevents one surprise from becoming debt.`);
+  else push(3, `Emergency fund is healthy (~${d.emergencyMonths.toFixed(1)} months)`, "You're above the 3-month floor. Past 6 months of cover, extra cash usually works harder invested than idle.");
+
+  // savings rate
+  if (d.income > 0) {
+    const r = d.savingsRate;
+    if (r >= 0.2) push(3, `Savings rate: ${pctS(r)} — above the 20% benchmark`, "Excellent. Consider routing the surplus into investments automatically so the default is growth, not drift.");
+    else if (r >= 0.1) push(2, `Savings rate: ${pctS(r)}`, `The common target is 20%. Closing the gap means finding about ${fmt(d.income * (0.2 - r))} this month — usually easiest in the largest 'want' categories.`);
+    else if (r >= 0) push(1, `Savings rate: ${pctS(r)} so far this month`, "Try paying yourself first: schedule a transfer to savings on payday, before discretionary spending starts. What remains becomes the real budget.");
+    else push(1, "Spending exceeds income this month", `You're ${fmt(d.spent + d.saved - d.income)} beyond earnings. Freeze non-essential categories and check subscriptions and installments first — they're the quickest levers.`);
+  } else {
+    push(2, "No income recorded", "Add your salary in Settings (baseline income) or log paycheques as income so savings rate and the independence math can run.");
+  }
+  // overruns
+  d.overruns.slice(0, 2).forEach(({ c, over }) => push(1, `${c.label} is over budget by ${fmt(over)}`, `Either this month is an outlier (fine — note it and move on) or the budget doesn't reflect reality. A budget you breach every month isn't a plan, it's a source of guilt; adjust it and cut somewhere chosen deliberately.`));
+  // needs/wants
+  if (d.income > 0) {
+    if (d.needs / d.income > 0.55) push(2, `Essentials consume ${pctS(d.needs / d.income)} of income`, "The 50/30/20 guideline suggests ~50%. Structural costs — housing, transport, utilities — respond to bigger, rarer decisions (renegotiating, switching, moving) more than daily discipline.");
+    if (d.wants / d.income > 0.35) push(2, `Discretionary spending at ${pctS(d.wants / d.income)}`, "Against a ~30% guideline. A 24-hour pause on non-essential purchases over $50 filters impulse from intention remarkably well.");
+  }
+  // pace
+  if (d.monthFrac > 0.2 && d.totalBudget > 0 && d.spent / d.totalBudget > d.monthFrac * 1.25) {
+    push(1, "Spending is running ahead of the calendar", `${Math.round(d.monthFrac * 100)}% of the month has passed but ${pctS(d.spent / d.totalBudget)} of the total budget is used. Slowing discretionary categories now beats a shortfall in week four.`);
+  }
+  // goals ETA
+  const netSaved = d.saved;
+  state.goals.forEach((g) => {
+    if (g.saved < g.target && netSaved > 0 && d.monthFrac > 0.15) {
+      const pace = netSaved / d.monthFrac;
+      const months = Math.ceil((g.target - g.saved) / pace);
+      if (months <= 36) push(3, `"${g.name}" on track for ~${months} month${months === 1 ? "" : "s"}`, `At this month's saving pace (${fmt(pace)}/mo). Automating ${fmt((g.target - g.saved) / months)}/month makes the arrival date a schedule instead of a hope.`);
+    }
+  });
+  // commitments
+  if (cm && cm.active.length) {
+    cm.active.filter((c) => c.kind === "sub" && c.cadence === "annual").forEach((c) => {
+      const days = daysUntil(nextDue(c));
+      if (days <= 30) push(1, `"${c.name}" renews in ${days} day${days === 1 ? "" : "s"} (${fmt(c.amount)})`, "Annual renewals are where forgotten subscriptions cost the most. Decide now whether it earned its keep — cancelling before the charge is free; after, it rarely is.");
+    });
+    const subsBudget = state.budgets.subs || 0;
+    if (subsBudget > 0 && cm.subsMonthly > subsBudget) push(2, "Subscriptions exceed their budget by design", `Tracked subscriptions total ${fmt(cm.subsMonthly)}/month against a ${fmt(subsBudget)} budget. Either cancel one or raise the budget — a target set below known commitments fails automatically.`);
+    if (d.income > 0 && cm.subsMonthly / d.income > 0.06) push(2, `Subscriptions draw ${fmt(cm.subsMonthly)}/month (${fmt(cm.subsMonthly * 12)}/yr)`, "Above ~6% of income, an audit usually pays: anything unused in the last 30 days is a candidate. Re-subscribing later is always possible; most people don't.");
+    cm.active.filter((c) => c.kind === "inst" && c.totalPayments - (c.paidCount || 0) <= 2).forEach((c) => {
+      const left = c.totalPayments - (c.paidCount || 0);
+      push(3, `"${c.name}": ${left} payment${left === 1 ? "" : "s"} remaining`, `When it clears, ${fmt(c.amount)}/month frees up. Redirecting it straight into investing — before lifestyle absorbs it — is one of the highest-leverage moves available.`);
+    });
+  }
+  // investing / FIRE
+  if (f) {
+    if (f.portfolio === 0 && netSaved > 100) push(2, "Savings exist, investments don't", "Cash gradually loses purchasing power to inflation. Broad low-cost index funds have averaged roughly 7%/year after inflation over long horizons — $200/month at that rate compounds to about $240k in 30 years. Once the emergency fund is set, investing is where surplus belongs.");
+    if (f.portfolio > 0 && f.monthly === 0) push(2, "No recurring contribution configured", `Your ${fmt(f.portfolio)} portfolio has no monthly investment set (see Invest → assumptions). Automatic monthly buying — dollar-cost averaging — removes timing decisions and is the most reliable habit in long-term investing.`);
+    if (f.fireNumber > 0 && f.portfolio > 0 && f.progress < 1 && f.yearsToFI !== null && f.yearsToFI <= 50) {
+      const winL = f.yearsToFILate !== null ? f.age + f.yearsToFILate : null;
+      push(3, `Financial independence: ${pctS(f.progress)} funded`, `On current assumptions you reach your independence number around age ${f.age + f.yearsToFI}${winL ? ` — a window of roughly ${f.age + (f.yearsToFIEarly ?? f.yearsToFI)}–${winL} once slower or kinder markets (${f.retLo}–${f.retHi}%) are allowed for` : ""}. Raising the savings rate moves this window more reliably than chasing returns.`);
+    }
+    if (f.progress >= 1) push(3, "You've reached your independence number", `Portfolio ≥ ${fmt(f.fireNumber)}. By the 4% rule of thumb, work is optional; many planners suggest a 3–3.5% withdrawal rate before relying on it.`);
+    if (f.coastReached && f.progress < 1) push(3, "Coast FIRE reached", `Today's ${fmt(f.portfolio)} compounds to your independence number by age ${f.retireAge} with zero further contributions. Everything added now buys an earlier date, not just an eventual one.`);
+  }
+  if (out.length === 0) push(3, "Everything looks in order", "Keep logging — the most useful patterns emerge across three or more months of data.");
+  return out.sort((a, b) => a.p - b.p);
+}
+
+/* ================= tiny UI atoms ================= */
+const Card = ({ children, style }) => <section className="card fade-in" style={{ padding: 18, ...style }}>{children}</section>;
+const H = ({ children, sub }) => (
+  <div style={{ marginBottom: 12 }}>
+    <h3 style={{ fontSize: 15.5, fontWeight: 700 }}>{children}</h3>
+    {sub && <div style={{ fontSize: 13, color: "var(--soft)", marginTop: 2 }}>{sub}</div>}
+  </div>
+);
+const FieldL = ({ label, children, hint }) => (
+  <label style={{ display: "grid", gap: 5, fontSize: 12, fontWeight: 600, color: "var(--soft)" }}>
+    {label}{children}
+    {hint && <span style={{ fontWeight: 400, fontSize: 11.5, lineHeight: 1.45 }}>{hint}</span>}
+  </label>
+);
+const Bar = ({ frac, color, h = 8 }) => (
+  <div style={{ height: h, background: "var(--surface2)", border: "1px solid var(--border)", borderRadius: 999, overflow: "hidden" }}>
+    <div style={{ width: Math.min(100, frac * 100) + "%", height: "100%", background: color, transition: "width .4s ease" }} />
+  </div>
+);
+const PTag = ({ p }) => {
+  const m = { 1: ["Act now", "var(--bad)", "var(--bad-soft)"], 2: ["Worth doing", "var(--warn)", "var(--warn-soft)"], 3: ["On track", "var(--good)", "var(--good-soft)"] }[p];
+  return <span className="tag" style={{ color: m[1], background: m[2] }}>{m[0]}</span>;
+};
+
+/* ================= custom SVG projection chart (tooltips + entry animation) ================= */
+function Projection({ curve, fireNumber, retLo, retHi }) {
+  const W = 640, Hh = 250, padL = 48, padR = 14, padT = 14, padB = 26;
+  const [on, setOn] = useState(false);
+  const [hi, setHi] = useState(null);
+  const ref = useRef(null);
+  const cid = useRef("clip" + Math.random().toString(36).slice(2, 9)).current;
+  useEffect(() => { const t = requestAnimationFrame(() => setOn(true)); return () => cancelAnimationFrame(t); }, []);
+  if (!curve || curve.length < 2) return null;
+  const maxY = Math.max(fireNumber || 0, ...curve.map((p) => p.band[1])) * 1.06 || 1;
+  const x = (i) => padL + (i / (curve.length - 1)) * (W - padL - padR);
+  const y = (v) => padT + (1 - v / maxY) * (Hh - padT - padB);
+  const locate = (e) => {
+    const el = ref.current; if (!el) return;
+    const r = el.getBoundingClientRect();
+    const fx = ((e.clientX - r.left) / r.width) * W;
+    setHi(Math.max(0, Math.min(curve.length - 1, Math.round(((fx - padL) / (W - padL - padR)) * (curve.length - 1)))));
+  };
+  const line = curve.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
+  const band = curve.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.band[1]).toFixed(1)}`).join(" ")
+    + " " + [...curve].reverse().map((p, i) => `L${x(curve.length - 1 - i).toFixed(1)},${y(p.band[0]).toFixed(1)}`).join(" ") + " Z";
+  const yTicks = [0.25, 0.5, 0.75, 1].map((t) => t * maxY);
+  const xStep = Math.max(1, Math.ceil((curve.length - 1) / 6));
+  return (
+    <svg ref={ref} viewBox={`0 0 ${W} ${Hh}`} onPointerMove={locate} onPointerDown={locate} onPointerLeave={() => setHi(null)}
+      style={{ width: "100%", height: "auto", display: "block", touchAction: "pan-y" }} role="img" aria-label="Portfolio projection">
+      <defs><clipPath id={cid}><rect x="0" y="0" height={Hh} width={on ? W : 0} style={{ transition: "width 1.1s ease" }} /></clipPath></defs>
+      {yTicks.map((v, i) => (
+        <g key={i}>
+          <line x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} stroke="var(--border)" strokeDasharray="3 4" />
+          <text x={padL - 6} y={y(v) + 4} textAnchor="end" fontSize="10.5" fill="var(--faint)" className="num">{fmtK(v)}</text>
+        </g>
+      ))}
+      {curve.map((p, i) => (i % xStep === 0 || i === curve.length - 1) && (
+        <text key={i} x={x(i)} y={Hh - 8} textAnchor="middle" fontSize="10.5" fill="var(--faint)" className="num">{p.age}</text>
+      ))}
+      <g clipPath={`url(#${cid})`}>
+        <path d={band} fill="var(--accent)" opacity="0.13" />
+        <path d={line} fill="none" stroke="var(--accent)" strokeWidth="2.4" strokeLinejoin="round" />
+      </g>
+      {fireNumber > 0 && fireNumber < maxY && (
+        <g>
+          <line x1={padL} x2={W - padR} y1={y(fireNumber)} y2={y(fireNumber)} stroke="var(--bad)" strokeWidth="1.6" strokeDasharray="7 5" />
+          <text x={W - padR} y={y(fireNumber) - 6} textAnchor="end" fontSize="11" fontWeight="700" fill="var(--bad)">Independence {fmtK(fireNumber)}</text>
+        </g>
+      )}
+      <text x={padL} y={padT + 2} fontSize="10.5" fill="var(--faint)">band: {retLo}–{retHi}%/yr</text>
+      {hi != null && (() => {
+        const p = curve[hi]; const bw = 158, bh = 58;
+        let tx = x(hi) + 10; if (tx + bw > W - padR) tx = x(hi) - bw - 10;
+        const ty = Math.max(padT, Math.min(y(p.value) - bh / 2, Hh - padB - bh));
+        return (
+          <g style={{ pointerEvents: "none" }}>
+            <line x1={x(hi)} x2={x(hi)} y1={padT} y2={Hh - padB} stroke="var(--border)" />
+            <circle cx={x(hi)} cy={y(p.value)} r="4.5" fill="var(--accent)" />
+            <rect x={tx} y={ty} width={bw} height={bh} rx="9" fill="var(--surface)" stroke="var(--border)" />
+            <text x={tx + 10} y={ty + 17} fontSize="11" fontWeight="700" fill="var(--ink)">Age {p.age}</text>
+            <text x={tx + 10} y={ty + 33} fontSize="11" fill="var(--accent)" className="num">Expected {fmt(p.value)}</text>
+            <text x={tx + 10} y={ty + 49} fontSize="11" fill="var(--soft)" className="num">Range {fmtK(p.band[0])} – {fmtK(p.band[1])}</text>
+          </g>
+        );
+      })()}
+    </svg>
+  );
+}
+
+/* ================= main app ================= */
+function App() {
+  const [state, setState] = useState(null);
+  const [tab, setTab] = useState("dashboard");
+  const [toast, setToast] = useState(null);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [storageMode, setStorageMode] = useState("memory");
+
+  useEffect(() => {
+    (async () => {
+      let s = emptyState();
+      try {
+        const raw = await store.get(KEY);
+        if (raw) { const p = JSON.parse(raw); s = { ...emptyState(), ...p, invest: { ...DEFAULT_INVEST, ...(p.invest || {}) }, commitments: p.commitments || [] }; }
+      } catch (e) {}
+      setStorageMode(store.mode);
+      setState(s);
+    })();
+  }, []);
+
+  const ping = (m) => { setToast(m); setTimeout(() => setToast(null), 2300); };
+  const save = useCallback(async (next) => {
+    setState(next);
+    await store.set(KEY, JSON.stringify(next));
+    setStorageMode(store.mode);
+  }, []);
+
+  /* ---- derived ---- */
+  const d = useMemo(() => {
+    if (!state) return null;
+    const mk = monthKey(todayISO());
+    const now = new Date();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const monthFrac = now.getDate() / daysInMonth;
+    const monthTx = state.transactions.filter((t) => monthKey(t.date) === mk);
+    const spent = monthTx.filter((t) => t.type === "expense").reduce((a, t) => a + t.amount, 0);
+    const earned = monthTx.filter((t) => t.type === "income").reduce((a, t) => a + t.amount, 0);
+    const saved = monthTx.filter((t) => t.type === "saving").reduce((a, t) => a + t.amount, 0);
+    const income = Math.max(state.income, earned);
+    const byCat = {};
+    monthTx.filter((t) => t.type === "expense").forEach((t) => { byCat[t.category] = (byCat[t.category] || 0) + t.amount; });
+    const totalBudget = Object.values(state.budgets).reduce((a, b) => a + (Number(b) || 0), 0);
+    const savingsRate = income > 0 ? Math.max(-1, (income - spent)) / income : 0;
+    const overruns = CATS.map((c) => ({ c, over: (byCat[c.id] || 0) - (state.budgets[c.id] || 0) })).filter((x) => (state.budgets[x.c.id] || 0) > 0 && x.over > 0).sort((a, b) => b.over - a.over);
+    const needs = CATS.filter((c) => c.kind === "need").reduce((a, c) => a + (byCat[c.id] || 0), 0);
+    const wants = spent - needs;
+    const monthlyExpenses = spent > 0 && monthFrac > 0.12 ? spent / monthFrac : totalBudget || 1;
+    const emergency = state.goals.find((g) => g.isEmergency);
+    const emergencyMonths = emergency ? emergency.saved / monthlyExpenses : 0;
+
+    // health score
+    let health = 50;
+    if (income > 0) { const r = savingsRate; health += r >= 0.2 ? 22 : r >= 0.1 ? 13 : r >= 0 ? 4 : -18; }
+    const withB = CATS.filter((c) => (state.budgets[c.id] || 0) > 0);
+    if (withB.length) { const ok = withB.filter((c) => (byCat[c.id] || 0) <= state.budgets[c.id]).length; health += Math.round((ok / withB.length) * 14) - (withB.length - ok) * 2; }
+    if (state.goals.length) health += Math.round(state.goals.reduce((a, g) => a + Math.min(1, g.saved / (g.target || 1)), 0) / state.goals.length * 8);
+    if (emergencyMonths >= 3) health += 6;
+
+    // FIRE
+    const inv = state.invest || DEFAULT_INVEST;
+    const portfolio = (inv.holdings || []).reduce((a, h) => a + (Number(h.value) || 0), 0);
+    if (portfolio > 0) health += 4;
+    health = Math.max(0, Math.min(100, health));
+    const customSpend = Math.max(0, Number(inv.retireSpend) || 0);
+    const fiMonthlySpend = customSpend > 0 ? customSpend : monthlyExpenses;
+    const spendBasis = customSpend > 0 ? "custom" : "auto";
+    const annualExpenses = fiMonthlySpend * 12;
+    const wr = Math.min(10, Math.max(2, Number(inv.wr) || 4));
+    const fireNumber = annualExpenses > 0 ? annualExpenses * (100 / wr) : 0;
+    const ret = Math.min(15, Math.max(0, Number(inv.ret) || 0));
+    const contrib = Math.max(0, Number(inv.monthly) || 0);
+    const age = Math.min(100, Math.max(14, Number(inv.age) || 30));
+    const retireAge = Math.min(100, Math.max(age, Number(inv.retireAge) || 65));
+    const retLo = Math.max(0, ret - 2), retHi = Math.min(15, ret + 2);
+    const yearsFor = (ar) => {
+      if (fireNumber <= 0) return null;
+      const rr = ar / 100 / 12; let v = portfolio;
+      if (v >= fireNumber) return 0;
+      for (let m = 1; m <= 720; m++) { v = v * (1 + rr) + contrib; if (v >= fireNumber) return Math.ceil(m / 12); }
+      return null;
+    };
+    const yearsToFI = yearsFor(ret), yearsToFIEarly = yearsFor(retHi), yearsToFILate = yearsFor(retLo);
+    const hb = yearsToFILate !== null ? yearsToFILate : yearsToFI !== null ? yearsToFI : 36;
+    const horizon = Math.min(45, Math.max(hb + 4, 10));
+    const seriesFor = (ar) => { const rr = ar / 100 / 12; const o = [Math.round(portfolio)]; let v = portfolio; for (let yy = 1; yy <= horizon; yy++) { for (let m = 0; m < 12; m++) v = v * (1 + rr) + contrib; o.push(Math.round(v)); } return o; };
+    const b = seriesFor(ret), lo = seriesFor(retLo), hi = seriesFor(retHi);
+    const curve = b.map((v, i) => ({ age: age + i, value: v, band: [lo[i], hi[i]] }));
+    const yearsToRetire = retireAge - age;
+    const coastNumber = fireNumber > 0 ? fireNumber / Math.pow(1 + ret / 100, yearsToRetire) : 0;
+    const coastReached = fireNumber > 0 && portfolio * Math.pow(1 + ret / 100, yearsToRetire) >= fireNumber;
+    const fire = { portfolio, annualExpenses, fiMonthlySpend, spendBasis, fireNumber, yearsToFI, yearsToFIEarly, yearsToFILate, retLo, retHi, curve, coastNumber, coastReached, progress: fireNumber > 0 ? Math.min(1, portfolio / fireNumber) : 0, monthly: contrib, ret, age, retireAge, wr };
+
+    // commitments
+    const all = state.commitments || [];
+    const active = all.filter((c) => !ended(c));
+    const subsMonthly = active.filter((c) => c.kind === "sub").reduce((a, c) => a + (c.cadence === "annual" ? (Number(c.amount) || 0) / 12 : Number(c.amount) || 0), 0);
+    const instMonthly = active.filter((c) => c.kind === "inst").reduce((a, c) => a + (Number(c.amount) || 0), 0);
+    const dueSoon = active.map((c) => ({ c, due: nextDue(c), days: daysUntil(nextDue(c)) })).filter((x) => x.days <= 14).sort((a, b) => a.days - b.days);
+    const commit = { all, active, subsMonthly, instMonthly, dueSoon };
+
+    return { monthTx, spent, earned, saved, income, byCat, totalBudget, savingsRate, overruns, needs, wants, monthlyExpenses, emergency, emergencyMonths, health, monthFrac, fire, commit };
+  }, [state]);
+
+  const insights = useMemo(() => (state && d ? buildInsights(state, d) : []), [state, d]);
+
+  if (!state || !d) return <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", color: "var(--soft)" }}>Loading…</div>;
+
+  /* ---- actions ---- */
+  const addTx = (t) => { save({ ...state, transactions: [{ ...t, id: uid() }, ...state.transactions] }); ping("Logged."); };
+  const delTx = (id) => save({ ...state, transactions: state.transactions.filter((t) => t.id !== id) });
+  const setBudget = (cid, v) => save({ ...state, budgets: { ...state.budgets, [cid]: Math.max(0, Number(v) || 0) } });
+  const setIncome = (v) => save({ ...state, income: Math.max(0, Number(v) || 0) });
+  const addGoal = (g) => { save({ ...state, goals: [...state.goals, { ...g, id: uid() }] }); ping(`Goal "${g.name}" created.`); };
+  const fundGoal = (id, amt) => {
+    const g = state.goals.find((x) => x.id === id); if (!g || !(amt > 0)) return;
+    const tx = { id: uid(), type: "saving", amount: amt, category: "other", note: `→ Goal: ${g.name}`, date: todayISO() };
+    save({ ...state, goals: state.goals.map((x) => x.id === id ? { ...x, saved: x.saved + amt } : x), transactions: [tx, ...state.transactions] });
+    ping(`${fmt(amt)} added to "${g.name}".`);
+  };
+  const delGoal = (id) => save({ ...state, goals: state.goals.filter((g) => g.id !== id) });
+  const setInvest = (patch) => save({ ...state, invest: { ...(state.invest || DEFAULT_INVEST), ...patch } });
+  const addHolding = (h) => { setInvest({ holdings: [...(state.invest.holdings || []), { ...h, id: uid() }] }); ping(`"${h.name}" added.`); };
+  const updHolding = (id, v) => setInvest({ holdings: state.invest.holdings.map((h) => h.id === id ? { ...h, value: Math.max(0, Number(v) || 0) } : h) });
+  const delHolding = (id) => setInvest({ holdings: state.invest.holdings.filter((h) => h.id !== id) });
+  const investOnce = (id, amt) => {
+    const h = (state.invest.holdings || []).find((x) => x.id === id); if (!h || !(amt > 0)) return;
+    const tx = { id: uid(), type: "saving", amount: amt, category: "other", note: `→ Invested: ${h.name}`, date: todayISO() };
+    save({ ...state, invest: { ...state.invest, holdings: state.invest.holdings.map((x) => x.id === id ? { ...x, value: (Number(x.value) || 0) + amt } : x) }, transactions: [tx, ...state.transactions] });
+    ping(`${fmt(amt)} invested into "${h.name}".`);
+  };
+  const addCommit = (c) => { save({ ...state, commitments: [...(state.commitments || []), { ...c, id: uid() }] }); ping(`"${c.name}" tracked.`); };
+  const delCommit = (id) => save({ ...state, commitments: state.commitments.filter((c) => c.id !== id) });
+  const payCommit = (id) => {
+    const c = state.commitments.find((x) => x.id === id); if (!c) return;
+    const tx = { id: uid(), type: "expense", amount: Number(c.amount) || 0, category: c.category || "subs", note: `${c.kind === "inst" ? "Installment" : "Subscription"}: ${c.name}`, date: todayISO() };
+    save({ ...state, commitments: state.commitments.map((x) => x.id === id && x.kind === "inst" ? { ...x, paidCount: (x.paidCount || 0) + 1 } : x), transactions: [tx, ...state.transactions] });
+    ping(`${fmt(c.amount)} payment logged for "${c.name}".`);
+  };
+  const toggleTheme = () => save({ ...state, theme: state.theme === "dark" ? "light" : "dark" });
+
+  const TABS = [
+    { id: "dashboard", label: "Dashboard" }, { id: "activity", label: "Activity" },
+    { id: "budgets", label: "Budgets" }, { id: "goals", label: "Goals" },
+    { id: "invest", label: "Invest" }, { id: "recurring", label: "Recurring" },
+    { id: "insights", label: "Insights", badge: insights.filter((i) => i.p === 1).length },
+  ];
+  const healthColor = d.health >= 70 ? "var(--good)" : d.health >= 40 ? "var(--warn)" : "var(--bad)";
+
+  return (
+    <div data-theme={state.theme} style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--ink)", transition: "background .25s" }}>
+      <div style={{ maxWidth: 1020, margin: "0 auto", padding: "22px 18px 48px" }}>
+        {/* header */}
+        <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--accent)", color: "var(--accent-ink)", display: "grid", placeItems: "center", fontFamily: "'Sora',sans-serif", fontWeight: 800, fontSize: 17 }}>M</div>
+            <div>
+              <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.01em" }}>Meridian</h1>
+              <div style={{ fontSize: 12, color: "var(--soft)" }}>{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div className="card" style={{ padding: "7px 12px", display: "flex", alignItems: "center", gap: 8 }} title="Financial health: savings rate, budget adherence, goals, reserves">
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--soft)", letterSpacing: ".05em" }}>HEALTH</span>
+              <span className="num" style={{ fontWeight: 800, color: healthColor }}>{d.health}</span>
+              <div style={{ width: 54 }}><Bar frac={d.health / 100} color={healthColor} h={6} /></div>
+            </div>
+            <button className="btn ghost" onClick={toggleTheme} title="Toggle light / dark" aria-label="Toggle theme" style={{ height: 36, width: 40, padding: 0, fontSize: 15 }}>
+              {state.theme === "dark" ? "☀️" : "🌙"}
+            </button>
+          </div>
+        </header>
+
+        {/* tabs */}
+        <nav style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 16, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 4 }}>
+          {TABS.map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              style={{ flex: "1 1 auto", border: "none", borderRadius: 9, padding: "8px 12px", fontWeight: 600, fontSize: 13.5, background: tab === t.id ? "var(--accent-soft)" : "transparent", color: tab === t.id ? "var(--accent)" : "var(--soft)", position: "relative" }}>
+              {t.label}{t.badge > 0 && <span className="num" style={{ marginLeft: 6, fontSize: 11, fontWeight: 800, color: "var(--bad)" }}>{t.badge}</span>}
+            </button>
+          ))}
+        </nav>
+
+        {tab === "dashboard" && <Dashboard state={state} d={d} insights={insights} goTo={setTab} />}
+        {tab === "activity" && <Activity state={state} d={d} addTx={addTx} delTx={delTx} />}
+        {tab === "budgets" && <Budgets state={state} d={d} setBudget={setBudget} setIncome={setIncome} />}
+        {tab === "goals" && <Goals state={state} d={d} addGoal={addGoal} fundGoal={fundGoal} delGoal={delGoal} />}
+        {tab === "invest" && <Invest state={state} d={d} setInvest={setInvest} addHolding={addHolding} updHolding={updHolding} delHolding={delHolding} investOnce={investOnce} />}
+        {tab === "recurring" && <Recurring state={state} d={d} addCommit={addCommit} delCommit={delCommit} payCommit={payCommit} />}
+        {tab === "insights" && <Insights insights={insights} />}
+
+        {/* footer / settings */}
+        <footer style={{ marginTop: 26, paddingTop: 14, borderTop: "1px solid var(--border)", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", fontSize: 12.5, color: "var(--soft)" }}>
+          <span>
+            {storageMode === "cloud" ? "Saved automatically to app storage." : storageMode === "local" ? "Saved automatically in this browser." : "Storage unavailable here — data lasts for this session only."}
+            {" "}Guidance is general education, not personalised financial advice.
+          </span>
+          <span style={{ display: "flex", gap: 8 }}>
+            <button className="btn ghost tiny" onClick={() => { save({ ...sampleState(), theme: state.theme }); setConfirmReset(false); ping("Sample data loaded."); }}>Load sample data</button>
+            {confirmReset ? (
+              <button className="btn tiny" style={{ background: "var(--bad)", color: "#fff" }} onClick={() => { save({ ...emptyState(), theme: state.theme }); setConfirmReset(false); setTab("dashboard"); ping("All data erased."); }}>Really erase everything?</button>
+            ) : (
+              <button className="btn ghost tiny" onClick={() => { setConfirmReset(true); setTimeout(() => setConfirmReset(false), 4000); }}>Erase all data…</button>
+            )}
+          </span>
+        </footer>
+      </div>
+
+      {toast && (
+        <div className="card fade-in" style={{ position: "fixed", bottom: 18, left: "50%", transform: "translateX(-50%)", padding: "10px 16px", fontWeight: 600, fontSize: 13.5, zIndex: 40 }}>{toast}</div>
+      )}
+    </div>
+  );
+}
+
+/* ================= dashboard ================= */
+function Dashboard({ state, d, insights, goTo }) {
+  const kpis = [
+    { label: "Income (month)", v: d.income, color: "var(--ink)" },
+    { label: "Spent", v: d.spent, color: "var(--bad)" },
+    { label: "Saved / invested", v: d.saved, color: "var(--good)" },
+    { label: "Savings rate", v: d.income > 0 ? pctS(d.savingsRate) : "—", raw: true, color: d.savingsRate >= 0.2 ? "var(--good)" : d.savingsRate >= 0 ? "var(--warn)" : "var(--bad)" },
+  ];
+  const catRows = CATS.map((c) => ({ c, spent: d.byCat[c.id] || 0 })).filter((x) => x.spent > 0).sort((a, b) => b.spent - a.spent);
+  const maxCat = Math.max(1, ...catRows.map((x) => x.spent));
+  const top = insights[0];
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14 }}>
+        {kpis.map((k) => (
+          <Card key={k.label} style={{ padding: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--soft)" }}>{k.label}</div>
+            <div className="num" style={{ fontFamily: "'Sora',sans-serif", fontSize: 22, fontWeight: 800, color: k.color, marginTop: 2 }}>{k.raw ? k.v : fmt(k.v)}</div>
+          </Card>
+        ))}
+      </div>
+
+      {top && (
+        <Card style={{ borderLeft: `3px solid ${top.p === 1 ? "var(--bad)" : top.p === 2 ? "var(--warn)" : "var(--good)"}` }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 300px" }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}><PTag p={top.p} /><b style={{ fontSize: 14.5 }}>{top.title}</b></div>
+              <div style={{ fontSize: 13.5, color: "var(--soft)", lineHeight: 1.55 }}>{top.body}</div>
+            </div>
+            <button className="btn ghost tiny" onClick={() => goTo("insights")}>All insights ({insights.length}) →</button>
+          </div>
+        </Card>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))", gap: 14 }}>
+        <Card>
+          <H sub={`${Math.round(d.monthFrac * 100)}% of the month elapsed · budget used: ${d.totalBudget > 0 ? pctS(d.spent / d.totalBudget) : "—"}`}>Spending by category</H>
+          {catRows.length === 0 ? (
+            <div style={{ color: "var(--faint)", fontSize: 13.5, padding: "18px 0" }}>No spending logged this month.</div>
+          ) : (
+            <div style={{ display: "grid", gap: 9 }}>
+              {catRows.map(({ c, spent }) => (
+                <div key={c.id}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 3 }}>
+                    <span style={{ fontWeight: 600 }}>{c.label}</span>
+                    <span className="num" style={{ color: "var(--soft)" }}>{fmt(spent)}{(state.budgets[c.id] || 0) > 0 && <span style={{ color: spent > state.budgets[c.id] ? "var(--bad)" : "var(--faint)" }}> / {fmt(state.budgets[c.id])}</span>}</span>
+                  </div>
+                  <Bar frac={spent / maxCat} color={(state.budgets[c.id] || 0) > 0 && spent > state.budgets[c.id] ? "var(--bad)" : "var(--accent)"} />
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <H sub="Goals, reserves, and what's due soon">At a glance</H>
+          <div style={{ display: "grid", gap: 10 }}>
+            {state.goals.slice(0, 3).map((g) => (
+              <div key={g.id}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 3 }}>
+                  <span style={{ fontWeight: 600 }}>{g.name}{g.isEmergency ? " · emergency" : ""}</span>
+                  <span className="num" style={{ color: "var(--soft)" }}>{fmt(g.saved)} / {fmt(g.target)}</span>
+                </div>
+                <Bar frac={g.saved / (g.target || 1)} color={g.saved >= g.target ? "var(--good)" : "var(--accent)"} />
+              </div>
+            ))}
+            {state.goals.length === 0 && <div style={{ color: "var(--faint)", fontSize: 13.5 }}>No goals yet — start with an emergency fund.</div>}
+            {d.commit.dueSoon.length > 0 && (
+              <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {d.commit.dueSoon.slice(0, 4).map(({ c, due, days }) => (
+                  <span key={c.id} className="tag" style={{ textTransform: "none", letterSpacing: 0, fontSize: 12, fontWeight: 600, color: days <= 3 ? "var(--bad)" : "var(--soft)", background: days <= 3 ? "var(--bad-soft)" : "var(--surface2)", border: "1px solid var(--border)" }}>
+                    {c.name} · {fmt(c.amount)} {days === 0 ? "today" : `in ${days}d`}
+                  </span>
+                ))}
+              </div>
+            )}
+            {d.fire.fireNumber > 0 && (
+              <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10, fontSize: 13 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                  <span style={{ fontWeight: 600 }}>Financial independence</span>
+                  <span className="num" style={{ color: "var(--soft)" }}>{pctS(d.fire.progress)} of {fmtK(d.fire.fireNumber)}</span>
+                </div>
+                <Bar frac={d.fire.progress} color="var(--accent)" />
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+/* ================= activity ================= */
+function Activity({ state, d, addTx, delTx }) {
+  const [type, setType] = useState("expense");
+  const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState("groceries");
+  const [note, setNote] = useState("");
+  const [date, setDate] = useState(todayISO());
+  const ok = parseFloat(amount) > 0;
+  const submit = () => { if (!ok) return; addTx({ type, amount: parseFloat(amount), category: type === "expense" ? category : "other", note: note.trim(), date: date || todayISO() }); setAmount(""); setNote(""); };
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14 }}>
+      <Card>
+        <H sub="Record income, expenses, and transfers to savings">New entry</H>
+        <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+          {[["expense", "Expense"], ["income", "Income"], ["saving", "Saving"]].map(([id, l]) => (
+            <button key={id} onClick={() => setType(id)} className="btn tiny" style={{ flex: 1, background: type === id ? "var(--accent)" : "var(--surface2)", color: type === id ? "var(--accent-ink)" : "var(--soft)", border: "1px solid var(--border)" }}>{l}</button>
+          ))}
+        </div>
+        <div style={{ display: "grid", gap: 10 }}>
+          <FieldL label="Amount"><input className="num" type="number" min="0.01" step="0.01" placeholder="42.50" value={amount} onChange={(e) => setAmount(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} /></FieldL>
+          {type === "expense" && (
+            <FieldL label="Category">
+              <select value={category} onChange={(e) => setCategory(e.target.value)}>{CATS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}</select>
+            </FieldL>
+          )}
+          <FieldL label="Note (optional)"><input value={note} maxLength={60} placeholder="Weekly groceries" onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} /></FieldL>
+          <FieldL label="Date"><input type="date" value={date} max={todayISO()} onChange={(e) => setDate(e.target.value)} /></FieldL>
+          <button className="btn" disabled={!ok} onClick={submit}>Add entry</button>
+        </div>
+      </Card>
+      <Card>
+        <H sub={`This month: ${fmt(d.spent)} spent · ${fmt(d.earned)} earned · ${fmt(d.saved)} saved`}>Recent activity</H>
+        {state.transactions.length === 0 ? (
+          <div style={{ color: "var(--faint)", fontSize: 13.5, padding: "16px 0" }}>Nothing logged yet.</div>
+        ) : (
+          <div style={{ display: "grid", gap: 6, maxHeight: 440, overflowY: "auto" }}>
+            {state.transactions.slice(0, 80).map((t) => (
+              <div key={t.id} className="row" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 10, border: "1px solid var(--border)" }}>
+                <span className="tag" style={{ textTransform: "none", letterSpacing: 0, background: t.type === "income" ? "var(--good-soft)" : t.type === "saving" ? "var(--accent-soft)" : "var(--surface2)", color: t.type === "income" ? "var(--good)" : t.type === "saving" ? "var(--accent)" : "var(--soft)" }}>
+                  {t.type === "income" ? "In" : t.type === "saving" ? "Save" : catLabel(t.category)}
+                </span>
+                <div style={{ flex: "1 1 120px", minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.note || (t.type === "income" ? "Income" : t.type === "saving" ? "Saving" : catLabel(t.category))}</div>
+                  <div className="num" style={{ fontSize: 11.5, color: "var(--faint)" }}>{t.date}</div>
+                </div>
+                <span className="num" style={{ fontWeight: 700, color: t.type === "expense" ? "var(--ink)" : "var(--good)" }}>{t.type === "expense" ? "−" : "+"}{fmt(t.amount)}</span>
+                <button onClick={() => delTx(t.id)} aria-label="Delete entry" style={{ border: "none", background: "none", color: "var(--faint)", fontSize: 13 }}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/* ================= budgets ================= */
+function Budgets({ state, d, setBudget, setIncome }) {
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+          <H sub={`Total planned: ${fmt(d.totalBudget)} · spent so far: ${fmt(d.spent)}`}>Monthly budgets</H>
+          <div style={{ width: 190 }}>
+            <FieldL label="Baseline monthly income"><input className="num" type="number" min="0" value={state.income || ""} placeholder="4300" onChange={(e) => setIncome(e.target.value)} /></FieldL>
+          </div>
+        </div>
+        <div style={{ display: "grid", gap: 12 }}>
+          {CATS.map((c) => {
+            const spent = d.byCat[c.id] || 0;
+            const b = state.budgets[c.id] || 0;
+            const frac = b > 0 ? spent / b : 0;
+            const color = frac > 1 ? "var(--bad)" : frac > 0.8 ? "var(--warn)" : "var(--accent)";
+            return (
+              <div key={c.id}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600, fontSize: 13.5 }}>
+                    {c.label} <span className="tag" style={{ marginLeft: 4, color: c.kind === "need" ? "var(--accent)" : "var(--soft)", background: c.kind === "need" ? "var(--accent-soft)" : "var(--surface2)" }}>{c.kind}</span>
+                  </span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+                    <span className="num" style={{ color: frac > 1 ? "var(--bad)" : "var(--soft)" }}>{fmt(spent)} of</span>
+                    <input className="num" type="number" min="0" value={b || ""} placeholder="0" onChange={(e) => setBudget(c.id, e.target.value)} style={{ width: 88, height: 32, padding: "4px 8px" }} aria-label={`${c.label} budget`} />
+                  </span>
+                </div>
+                <Bar frac={Math.min(1, frac)} color={color} h={9} />
+                {frac > 1 && <div style={{ fontSize: 12, color: "var(--bad)", fontWeight: 600, marginTop: 3 }}>Over by {fmt(spent - b)}</div>}
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ================= goals ================= */
+function Goals({ state, d, addGoal, fundGoal, delGoal }) {
+  const [name, setName] = useState("");
+  const [target, setTarget] = useState("");
+  const [isEmergency, setIsEmergency] = useState(false);
+  const [amts, setAmts] = useState({});
+  const ok = name.trim() && parseFloat(target) > 0;
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <Card>
+        <H sub="Tip: mark one goal as your emergency fund — insights track it against 3–6 months of expenses">New goal</H>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
+          <div style={{ flex: "1 1 170px" }}><FieldL label="Name"><input value={name} maxLength={40} placeholder="Japan trip" onChange={(e) => setName(e.target.value)} /></FieldL></div>
+          <div style={{ flex: "0 1 130px" }}><FieldL label="Target"><input className="num" type="number" min="1" value={target} placeholder="2800" onChange={(e) => setTarget(e.target.value)} /></FieldL></div>
+          <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13, color: "var(--soft)", paddingBottom: 9, cursor: "pointer" }}>
+            <input type="checkbox" style={{ width: 16, height: 16 }} checked={isEmergency} onChange={(e) => setIsEmergency(e.target.checked)} /> Emergency fund
+          </label>
+          <button className="btn" disabled={!ok} onClick={() => { addGoal({ name: name.trim(), target: parseFloat(target), saved: 0, isEmergency }); setName(""); setTarget(""); setIsEmergency(false); }}>Create goal</button>
+        </div>
+      </Card>
+      {state.goals.length === 0 ? (
+        <Card><div style={{ color: "var(--faint)", fontSize: 13.5 }}>No goals yet. An emergency fund of 3–6 months of expenses ({fmt(d.monthlyExpenses * 3)}–{fmt(d.monthlyExpenses * 6)}) is the classic first one.</div></Card>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))", gap: 14 }}>
+          {state.goals.map((g) => {
+            const frac = g.saved / (g.target || 1);
+            const done = g.saved >= g.target;
+            return (
+              <Card key={g.id}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+                  <b style={{ fontSize: 14.5 }}>{g.name} {g.isEmergency && <span className="tag" style={{ marginLeft: 4, color: "var(--accent)", background: "var(--accent-soft)" }}>reserve</span>}</b>
+                  <button onClick={() => delGoal(g.id)} aria-label={`Delete ${g.name}`} style={{ border: "none", background: "none", color: "var(--faint)" }}>✕</button>
+                </div>
+                <div className="num" style={{ fontSize: 13, color: "var(--soft)", marginBottom: 6 }}>{fmt(g.saved)} / {fmt(g.target)} · {pctS(Math.min(1, frac))}{done ? " · complete" : ""}</div>
+                <Bar frac={frac} color={done ? "var(--good)" : "var(--accent)"} h={9} />
+                {!done && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <input className="num" type="number" min="1" placeholder="100" value={amts[g.id] || ""} onChange={(e) => setAmts({ ...amts, [g.id]: e.target.value })}
+                      onKeyDown={(e) => { if (e.key === "Enter") { fundGoal(g.id, parseFloat(amts[g.id])); setAmts({ ...amts, [g.id]: "" }); } }} style={{ width: 110, height: 34 }} aria-label={`Amount for ${g.name}`} />
+                    <button className="btn tiny" onClick={() => { fundGoal(g.id, parseFloat(amts[g.id])); setAmts({ ...amts, [g.id]: "" }); }} disabled={!(parseFloat(amts[g.id]) > 0)}>Add funds</button>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ================= invest ================= */
+function Invest({ state, d, setInvest, addHolding, updHolding, delHolding, investOnce }) {
+  const inv = state.invest, f = d.fire;
+  const [name, setName] = useState(""); const [value, setValue] = useState("");
+  const [onceAmt, setOnceAmt] = useState(""); const [onceTarget, setOnceTarget] = useState("");
+  const targetId = onceTarget || (inv.holdings[0] && inv.holdings[0].id) || "";
+  const earlyAge = f.yearsToFI !== null ? f.age + (f.yearsToFIEarly ?? f.yearsToFI) : null;
+  const lateAge = f.yearsToFILate !== null ? f.age + f.yearsToFILate : null;
+  const dial = (key, label, min, max, step, hint) => (
+    <FieldL key={key} label={label} hint={hint}>
+      <input className="num" type="number" min={min} max={max} step={step || 1} value={inv[key]} onChange={(e) => setInvest({ [key]: e.target.value === "" ? "" : Number(e.target.value) })} />
+    </FieldL>
+  );
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 300px" }}>
+            <H sub={f.fireNumber > 0 ? `${f.spendBasis === "custom" ? "Planned retirement spending" : "Current spending pace"} of ${fmt(f.fiMonthlySpend)}/mo × 12 × ${Math.round(100 / f.wr)} (${f.wr}% withdrawal rule)` : "Log expenses or set planned retirement spending to size this"}>Financial independence</H>
+            {f.fireNumber > 0 && (
+              <>
+                <div className="num" style={{ fontFamily: "'Sora',sans-serif", fontSize: 30, fontWeight: 800 }}>{fmt(f.fireNumber)}</div>
+                <div style={{ margin: "8px 0" }}><Bar frac={f.progress} color={f.progress >= 1 ? "var(--good)" : "var(--accent)"} h={9} /></div>
+                <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 13, color: "var(--soft)" }}>
+                  <span className="num"><b style={{ color: "var(--ink)" }}>{fmt(f.portfolio)}</b> invested · {pctS(f.progress)}</span>
+                  {f.yearsToFI !== null && <span>{f.yearsToFI === 0 ? "Reached" : <>≈ age <b style={{ color: "var(--ink)" }} className="num">{f.age + f.yearsToFI}</b>{earlyAge !== null && <> · window <b className="num" style={{ color: "var(--ink)" }}>{earlyAge}–{lateAge !== null ? lateAge : earlyAge + "+"}</b></>}</>}</span>}
+                  <span>{f.coastReached ? "Coast FIRE reached ✓" : f.coastNumber > 0 ? <>Coast FIRE needs <b className="num" style={{ color: "var(--ink)" }}>{fmt(f.coastNumber)}</b> today</> : null}</span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <H sub={`Compounding at ${f.ret}%/yr with ${fmt(f.monthly)}/mo contributions (dollar-cost averaging). Band shows ${f.retLo}–${f.retHi}%; values in today's dollars.`}>Projection</H>
+        <Projection curve={f.curve} fireNumber={f.fireNumber} retLo={f.retLo} retHi={f.retHi} />
+      </Card>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14 }}>
+        <Card>
+          <H>Assumptions</H>
+          <div style={{ display: "grid", gap: 10 }}>
+            {dial("age", "Current age", 14, 100)}
+            {dial("retireAge", "Traditional retirement age (anchors Coast FIRE)", 40, 100)}
+            {dial("monthly", "Monthly investing", 0, 100000, 10)}
+            {dial("retireSpend", "Planned retirement spending / month (0 = use current pace)", 0, 100000, 50, "Use today's dollars — inflation is already handled if the return below is a real (after-inflation) figure.")}
+            {dial("ret", "Expected annual return % (7% ≈ long-run stock average after inflation)", 0, 15, 0.5)}
+            {dial("wr", "Withdrawal rate % (4% classic; 3–3.5% more cautious)", 2, 10, 0.5)}
+          </div>
+        </Card>
+        <Card>
+          <H sub={<span className="num">Total: {fmt(f.portfolio)}</span>}>Holdings</H>
+          <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
+            {inv.holdings.length === 0 && <div style={{ color: "var(--faint)", fontSize: 13.5 }}>Nothing yet — anything that compounds counts: index funds, retirement accounts, high-yield savings.</div>}
+            {inv.holdings.map((h) => (
+              <div key={h.id} className="row" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 10, border: "1px solid var(--border)" }}>
+                <span style={{ flex: "1 1 120px", fontWeight: 600, fontSize: 13.5, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.name}</span>
+                <input className="num" type="number" min="0" value={h.value} onChange={(e) => updHolding(h.id, e.target.value)} style={{ flex: "0 1 110px", width: 110, minWidth: 84, height: 32, padding: "4px 8px" }} aria-label={`Value of ${h.name}`} />
+                <button onClick={() => delHolding(h.id)} aria-label={`Remove ${h.name}`} style={{ border: "none", background: "none", color: "var(--faint)" }}>✕</button>
+              </div>
+            ))}
+          </div>
+          {inv.holdings.length > 0 && (
+            <div style={{ borderTop: "1px dashed var(--border)", paddingTop: 10, marginBottom: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--soft)", marginBottom: 6 }}>ONE-OFF CONTRIBUTION · bonus or windfall</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                <select value={targetId} onChange={(e) => setOnceTarget(e.target.value)} style={{ flex: "1 1 140px", width: "auto" }} aria-label="Holding">
+                  {inv.holdings.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+                </select>
+                <input className="num" type="number" min="1" placeholder="500" value={onceAmt} onChange={(e) => setOnceAmt(e.target.value)} style={{ flex: "0 1 100px", width: 100, minWidth: 84 }} aria-label="Amount" />
+                <button className="btn tiny" style={{ padding: "9px 14px" }} disabled={!(parseFloat(onceAmt) > 0)} onClick={() => { investOnce(targetId, parseFloat(onceAmt)); setOnceAmt(""); }}>Invest</button>
+              </div>
+              <div style={{ fontSize: 11.5, color: "var(--faint)", marginTop: 5 }}>Logged as a saving in Activity; recurring DCA lives under Assumptions.</div>
+            </div>
+          )}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
+            <div style={{ flex: "1 1 140px" }}><FieldL label="New holding"><input value={name} maxLength={40} placeholder="Index fund" onChange={(e) => setName(e.target.value)} /></FieldL></div>
+            <div style={{ flex: "0 1 110px" }}><FieldL label="Value"><input className="num" type="number" min="1" placeholder="5000" value={value} onChange={(e) => setValue(e.target.value)} /></FieldL></div>
+            <button className="btn" disabled={!(name.trim() && parseFloat(value) > 0)} onClick={() => { addHolding({ name: name.trim(), value: parseFloat(value) }); setName(""); setValue(""); }}>Add</button>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+/* ================= recurring ================= */
+function Recurring({ state, d, addCommit, delCommit, payCommit }) {
+  const cm = d.commit;
+  const [kind, setKind] = useState("sub");
+  const [name, setName] = useState(""); const [amount, setAmount] = useState("");
+  const [cadence, setCadence] = useState("monthly"); const [day, setDay] = useState(1);
+  const [month, setMonth] = useState(1); const [end, setEnd] = useState("");
+  const [total, setTotal] = useState(""); const [paid, setPaid] = useState("");
+  const [category, setCategory] = useState("subs");
+  const ok = name.trim() && parseFloat(amount) > 0 && (kind === "sub" || parseInt(total) > 0);
+  const submit = () => {
+    if (!ok) return;
+    addCommit({ kind, name: name.trim(), amount: parseFloat(amount), cadence: kind === "inst" ? "monthly" : cadence, payDay: Math.min(31, Math.max(1, parseInt(day) || 1)), payMonth: Math.min(12, Math.max(1, parseInt(month) || 1)), endDate: kind === "sub" ? end : "", totalPayments: kind === "inst" ? Math.max(1, parseInt(total) || 1) : undefined, paidCount: kind === "inst" ? Math.max(0, parseInt(paid) || 0) : undefined, category });
+    setName(""); setAmount(""); setEnd(""); setTotal(""); setPaid("");
+  };
+  const Row = ({ c }) => {
+    const isEnded = ended(c), due = nextDue(c), days = daysUntil(due);
+    return (
+      <div className="row" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 10, border: "1px solid var(--border)", opacity: isEnded ? 0.55 : 1 }}>
+        <span className="tag" style={{ textTransform: "none", letterSpacing: 0, background: "var(--surface2)", color: "var(--soft)" }}>{c.kind === "inst" ? "Installment" : c.cadence === "annual" ? "Yearly" : "Monthly"}</span>
+        <div style={{ flex: "1 1 150px", minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 13.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
+          <div style={{ fontSize: 12, color: "var(--faint)" }}>
+            {c.kind === "inst" ? (isEnded ? "All payments made" : `${c.paidCount || 0} of ${c.totalPayments} paid · ${fmt((c.totalPayments - (c.paidCount || 0)) * c.amount)} remaining`) : (catLabel(c.category) + (c.endDate ? ` · ends ${c.endDate}` : ""))}
+            {!isEnded && <> · next {shortDate(due)}{days <= 7 ? ` (in ${days}d)` : ""}</>}
+          </div>
+          {c.kind === "inst" && !isEnded && <div style={{ marginTop: 4, maxWidth: 220 }}><Bar frac={(c.paidCount || 0) / c.totalPayments} color="var(--accent)" h={6} /></div>}
+        </div>
+        <span className="num" style={{ fontWeight: 700 }}>{fmt(c.amount)}<span style={{ fontWeight: 500, fontSize: 12, color: "var(--faint)" }}>{c.kind === "inst" ? "/pmt" : c.cadence === "annual" ? "/yr" : "/mo"}</span></span>
+        {!isEnded && <button className="btn ghost tiny" onClick={() => payCommit(c.id)}>Log payment</button>}
+        <button onClick={() => delCommit(c.id)} aria-label={`Remove ${c.name}`} style={{ border: "none", background: "none", color: "var(--faint)" }}>✕</button>
+      </div>
+    );
+  };
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <Card>
+        <H sub={`Subscriptions: ${fmt(cm.subsMonthly)}/mo (≈ ${fmt(cm.subsMonthly * 12)}/yr) · installments: ${fmt(cm.instMonthly)}/mo. "Log payment" records the expense in Activity.`}>Recurring commitments</H>
+        {cm.dueSoon.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+            {cm.dueSoon.map(({ c, due, days }) => (
+              <span key={c.id} className="tag" style={{ textTransform: "none", letterSpacing: 0, fontSize: 12, fontWeight: 600, border: "1px solid var(--border)", color: days <= 3 ? "var(--bad)" : "var(--soft)", background: days <= 3 ? "var(--bad-soft)" : "var(--surface2)" }}>
+                {c.name} · {fmt(c.amount)} {days === 0 ? "today" : `in ${days}d`} ({shortDate(due)})
+              </span>
+            ))}
+          </div>
+        )}
+        <div style={{ display: "grid", gap: 6 }}>
+          {cm.all.length === 0 && <div style={{ color: "var(--faint)", fontSize: 13.5 }}>Nothing tracked yet — add a subscription or installment plan below.</div>}
+          {cm.all.filter((c) => c.kind === "sub").map((c) => <Row key={c.id} c={c} />)}
+          {cm.all.filter((c) => c.kind === "inst").map((c) => <Row key={c.id} c={c} />)}
+        </div>
+        <div style={{ borderTop: "1px dashed var(--border)", paddingTop: 12, marginTop: 12 }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+            {[["sub", "Subscription"], ["inst", "Installment"]].map(([id, l]) => (
+              <button key={id} className="btn tiny" onClick={() => setKind(id)} style={{ background: kind === id ? "var(--accent)" : "var(--surface2)", color: kind === id ? "var(--accent-ink)" : "var(--soft)", border: "1px solid var(--border)" }}>{l}</button>
+            ))}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
+            <div style={{ flex: "1 1 140px" }}><FieldL label="Name"><input value={name} maxLength={40} placeholder={kind === "inst" ? "Tax bill" : "Streaming"} onChange={(e) => setName(e.target.value)} /></FieldL></div>
+            <div style={{ flex: "0 1 100px" }}><FieldL label={kind === "inst" ? "Per payment" : "Amount"}><input className="num" type="number" min="0.01" step="0.01" placeholder="15.99" value={amount} onChange={(e) => setAmount(e.target.value)} /></FieldL></div>
+            {kind === "sub" && <div style={{ flex: "0 1 105px" }}><FieldL label="Cadence"><select value={cadence} onChange={(e) => setCadence(e.target.value)}><option value="monthly">Monthly</option><option value="annual">Yearly</option></select></FieldL></div>}
+            {kind === "sub" && cadence === "annual" && <div style={{ flex: "0 1 95px" }}><FieldL label="Month"><select value={month} onChange={(e) => setMonth(e.target.value)}>{MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}</select></FieldL></div>}
+            <div style={{ flex: "0 1 78px" }}><FieldL label="Day"><input className="num" type="number" min="1" max="31" value={day} onChange={(e) => setDay(e.target.value)} /></FieldL></div>
+            {kind === "inst" ? (
+              <React.Fragment>
+                <div style={{ flex: "0 1 95px" }}><FieldL label="# payments"><input className="num" type="number" min="1" placeholder="6" value={total} onChange={(e) => setTotal(e.target.value)} /></FieldL></div>
+                <div style={{ flex: "0 1 95px" }}><FieldL label="Already paid"><input className="num" type="number" min="0" placeholder="0" value={paid} onChange={(e) => setPaid(e.target.value)} /></FieldL></div>
+              </React.Fragment>
+            ) : (
+              <div style={{ flex: "0 1 150px" }}><FieldL label="End date (optional)"><input type="date" value={end} min={todayISO()} onChange={(e) => setEnd(e.target.value)} /></FieldL></div>
+            )}
+            <div style={{ flex: "0 1 135px" }}><FieldL label="Category"><select value={category} onChange={(e) => setCategory(e.target.value)}>{CATS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}</select></FieldL></div>
+            <button className="btn" disabled={!ok} onClick={submit}>Track it</button>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ================= insights ================= */
+function Insights({ insights }) {
+  return (
+    <div style={{ display: "grid", gap: 10 }}>
+      <Card style={{ padding: 16 }}>
+        <H sub="Generated from your actual numbers — classic rules of thumb (emergency fund, 20% savings, 50/30/20, the 4% rule) applied to this month and the long term. General education, not personalised financial advice.">Insights</H>
+        <div style={{ display: "grid", gap: 8 }}>
+          {insights.map((i, idx) => (
+            <div key={idx} className="fade-in" style={{ border: "1px solid var(--border)", borderLeft: `3px solid ${i.p === 1 ? "var(--bad)" : i.p === 2 ? "var(--warn)" : "var(--good)"}`, borderRadius: 10, padding: "12px 14px", background: "var(--surface)" }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4, flexWrap: "wrap" }}><PTag p={i.p} /><b style={{ fontSize: 14 }}>{i.title}</b></div>
+              <div style={{ fontSize: 13.5, color: "var(--soft)", lineHeight: 1.55 }}>{i.body}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
