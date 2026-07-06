@@ -41,6 +41,12 @@ export interface Transaction {
   note: string;
   /** ISO date, YYYY-MM-DD. */
   date: string;
+  /**
+   * Set on goal-watering entries (since v0.5.0) so edits/deletes can adjust
+   * the goal's balance. Absent on older entries and non-goal transactions —
+   * those are never retro-linked by note text.
+   */
+  goalId?: string;
 }
 
 export interface Goal {
