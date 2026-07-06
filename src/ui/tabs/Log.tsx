@@ -2,7 +2,7 @@
  * LOG — the daily driver: add expenses/income, browse and delete this
  * month's ledger.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { State, Transaction } from "../../engine/types";
 import { CATEGORIES } from "../../engine/types";
 import type { Derived, MonthView } from "../../engine/stats";
@@ -33,7 +33,18 @@ export function Log({ d, view, addTransaction, deleteTransaction, updateTransact
   const [eNote, setENote] = useState("");
   const [eDate, setEDate] = useState("");
 
+  // Two-step delete, same idiom as the footer's reset: first tap arms the
+  // row ("Delete?"), auto-reverting after 4s; second tap deletes.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const armDelete = (id: string) => {
+    setConfirmDeleteId(id);
+    clearTimeout(confirmTimer.current);
+    confirmTimer.current = setTimeout(() => setConfirmDeleteId(null), 4000);
+  };
+
   const openEdit = (t: Transaction) => {
+    setConfirmDeleteId(null);
     setEditingId(t.id);
     setEType(t.type === "income" ? "income" : "expense");
     setEAmount(String(t.amount));
@@ -175,8 +186,16 @@ export function Log({ d, view, addTransaction, deleteTransaction, updateTransact
                   <b className="mg-num" style={{ color, fontSize: 15 }}>{sign}{fmt(t.amount)}</b>
                   <button className="mg-btn" onClick={() => openEdit(t)} title="Edit entry" aria-label="Edit entry"
                     style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 14, padding: 4 }}>✏️</button>
-                  <button className="mg-btn" onClick={() => deleteTransaction(t.id)} title="Delete entry" aria-label="Delete entry"
-                    style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 15, padding: 4 }}>✕</button>
+                  {confirmDeleteId === t.id ? (
+                    <button className="mg-btn" onClick={() => { deleteTransaction(t.id); setConfirmDeleteId(null); }}
+                      title="Really delete this entry" aria-label="Really delete this entry"
+                      style={{ background: C.tomato, border: "none", borderRadius: 999, padding: "4px 10px", fontWeight: 700, fontSize: 12, color: "#fff", cursor: "pointer", whiteSpace: "nowrap" }}>
+                      Delete?
+                    </button>
+                  ) : (
+                    <button className="mg-btn" onClick={() => armDelete(t.id)} title="Delete entry" aria-label="Delete entry"
+                      style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 15, padding: 4 }}>✕</button>
+                  )}
                 </li>
               );
             })}
