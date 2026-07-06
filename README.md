@@ -31,7 +31,7 @@ First visit looks bare? Tap **Plant sample data** to explore with realistic numb
 
 ---
 
-## A tour of the garden — the six tabs
+## A tour of the garden — the seven tabs
 
 ### 🌤️ Overview
 The month at a glance: a big friendly **"left to spend"** number (with a per-day pace through month-end), earned / spent / sent-to-goals, and your savings rate. A **spending-pace chart** plots your cumulative spend against an even-pace line so you can see mid-month whether you're running hot, and a **category donut** shows where the money actually went. Your goals sprout along the horizon.
@@ -52,6 +52,9 @@ Savings goals as plants — sunflower, tulip, bluebell, poppy, or lavender — g
 
 ### 🌳 Orchard
 The long game. Track investment holdings, set your growing conditions (age, retirement age, monthly investing, expected return, withdrawal rate, planned retirement spending), and watch the **freedom tree** grow toward your **FIRE number** — fruiting 🍒 at Coast FIRE and turning gold 🍎 when work becomes optional. The projection chart compounds month by month with a **±2% market band**, so your freedom date reads as an honest *window*, not a promise. Supports recurring monthly investing *and* one-off watering for bonuses and windfalls — both logged to your journal.
+
+### 🍂 Seasons
+The almanac. Arrow through past months right from the header (‹ June 2026 ›) — Overview, Log, and the budget plots all follow — and see up to twelve months of history at a glance: **the harvest ledger** (earned vs spent, with what you sent to goals traced over the top), your **savings rate** against the 20% benchmark, and the **needs & wants** shape over time. Tap any month in the ledger to wander through it; the current month is sketched lightly, since it's still growing.
 
 ### 🪴 Advice
 A rules-based gardener's notebook, generating prioritized notes from your actual numbers — **Do first / Worth doing / Going well** — covering emergency-fund coverage, savings rate vs. the 20% benchmark, 50/30/20 needs-vs-wants shape, budget overruns, spending pace, subscription audits (and annual-renewal ambushes), installment payoffs, idle-cash nudges, Coast FIRE, and your financial-independence countdown. Grounded in standard rules of thumb, hedged like an honest gardener. **General education, not personalized financial advice.**
@@ -86,7 +89,7 @@ Your data is written to your device's storage under the key `money-garden:state-
 
 ## Roadmap 🗺️
 
-~~Export/backup & import (JSON)~~ ✓ → month history & trend charts → inline transaction editing → dark mode (*night garden* 🌙) → debt tracking (*weeds* 🌿✂️) → monthly harvest reports → bank CSV import → net worth over time → native mobile apps with home-screen widgets.
+~~Export/backup & import (JSON)~~ ✓ → ~~month history & trend charts~~ ✓ → inline transaction editing → dark mode (*night garden* 🌙) → debt tracking (*weeds* 🌿✂️) → monthly harvest reports → bank CSV import → net worth over time → native mobile apps with home-screen widgets.
 
 ---
 
