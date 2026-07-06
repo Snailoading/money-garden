@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { State, Transaction } from "./types";
 import { CATEGORIES, DEFAULT_INVEST } from "./types";
-import { bumpStreak, deserialize, emptyState, migrate, sampleState, serialize } from "./state";
+import { bumpStreak, deserialize, emptyState, migrate, removeTransaction, sampleState, serialize, updateTransaction } from "./state";
 import { todayISO } from "./format";
 
 describe("emptyState", () => {
@@ -61,6 +62,63 @@ describe("serialize / deserialize", () => {
 
   it("throws on invalid JSON so callers can fall back to a fresh state", () => {
     expect(() => deserialize("not json")).toThrow();
+  });
+});
+
+describe("updateTransaction / removeTransaction", () => {
+  const goal = { id: "g1", name: "Japan trip", plant: "tulip", target: 1000, saved: 400, isEmergency: false };
+  const linked: Transaction = { id: "t1", type: "saving", amount: 400, category: "other", note: "→ Japan trip", date: "2026-07-01", goalId: "g1" };
+  const plain: Transaction = { id: "t2", type: "expense", amount: 50, category: "dining", note: "Lunch", date: "2026-07-02" };
+  const base = (): State => ({ ...emptyState(), goals: [{ ...goal }], transactions: [{ ...linked }, { ...plain }], streak: { count: 3, lastDate: "2026-07-01" } });
+
+  it("merges a patch into the matching entry, keeping the id and others untouched", () => {
+    const s = updateTransaction(base(), "t2", { amount: 65, note: "Team lunch", category: "fun" });
+    const t = s.transactions.find((x) => x.id === "t2")!;
+    expect(t).toMatchObject({ id: "t2", amount: 65, note: "Team lunch", category: "fun", type: "expense" });
+    expect(s.transactions.find((x) => x.id === "t1")).toEqual(linked);
+  });
+
+  it("is a no-op for an unknown id and never touches the streak", () => {
+    const before = base();
+    expect(updateTransaction(before, "nope", { amount: 1 })).toBe(before);
+    expect(updateTransaction(before, "t2", { amount: 60 }).streak).toEqual(before.streak);
+    expect(removeTransaction(before, "nope")).toBe(before);
+  });
+
+  it("waters the linked goal when a linked amount is edited up", () => {
+    const s = updateTransaction(base(), "t1", { amount: 500 });
+    expect(s.goals[0].saved).toBe(500); // 400 + (500 − 400)
+  });
+
+  it("drains the linked goal when edited down, clamped at 0", () => {
+    expect(updateTransaction(base(), "t1", { amount: 300 }).goals[0].saved).toBe(300);
+    expect(updateTransaction(base(), "t1", { amount: 0 }).goals[0].saved).toBe(0);
+    const overdrain = updateTransaction({ ...base(), goals: [{ ...goal, saved: 100 }] }, "t1", { amount: 0 });
+    expect(overdrain.goals[0].saved).toBe(0); // 100 − 400 floors at 0
+  });
+
+  it("caps a linked edit at the goal's target, like watering does", () => {
+    const s = updateTransaction(base(), "t1", { amount: 2000 });
+    expect(s.goals[0].saved).toBe(1000); // 400 + 1600 capped at target
+  });
+
+  it("removing a linked entry drains the goal by its amount", () => {
+    const s = removeTransaction(base(), "t1");
+    expect(s.transactions.map((t) => t.id)).toEqual(["t2"]);
+    expect(s.goals[0].saved).toBe(0); // 400 − 400
+  });
+
+  it("non-amount edits on a linked entry never touch the goal", () => {
+    const s = updateTransaction(base(), "t1", { note: "→ Japan!", date: "2026-06-15" });
+    expect(s.goals[0].saved).toBe(400);
+  });
+
+  it("legacy entries (no goalId) and dangling goalIds are goal no-ops", () => {
+    const legacy = updateTransaction(base(), "t2", { amount: 999 });
+    expect(legacy.goals[0].saved).toBe(400);
+    const dangling: State = { ...base(), goals: [] };
+    expect(updateTransaction(dangling, "t1", { amount: 500 }).goals).toEqual([]);
+    expect(removeTransaction(dangling, "t1").goals).toEqual([]);
   });
 });
 

@@ -106,6 +106,50 @@ export function deserialize(raw: string): State {
   return migrate(JSON.parse(raw));
 }
 
+/** Move a linked goal's balance by delta, clamped like watering: [0, target]. */
+function adjustLinkedGoal(state: State, goalId: string | undefined, delta: number): State["goals"] {
+  if (!goalId || delta === 0) return state.goals;
+  return state.goals.map((g) =>
+    g.id === goalId ? { ...g, saved: Math.min(g.target, Math.max(0, g.saved + delta)) } : g,
+  );
+}
+
+/**
+ * Edit a logged entry in place. Editing is correction, not logging — the
+ * streak is never touched. When the entry carries a goalId and the amount
+ * changes, the linked goal is watered/drained by the difference (dangling
+ * ids — goal since deleted — are silent no-ops).
+ */
+export function updateTransaction(
+  state: State,
+  id: string,
+  patch: Partial<Omit<Transaction, "id">>,
+): State {
+  const existing = state.transactions.find((t) => t.id === id);
+  if (!existing) return state;
+  const next = { ...existing, ...patch, id };
+  const delta = patch.amount !== undefined ? next.amount - existing.amount : 0;
+  return {
+    ...state,
+    transactions: state.transactions.map((t) => (t.id === id ? next : t)),
+    goals: adjustLinkedGoal(state, existing.goalId, delta),
+  };
+}
+
+/**
+ * Delete a logged entry — the symmetric counterpart to updateTransaction:
+ * a linked entry drains its goal by the deleted amount (floor 0).
+ */
+export function removeTransaction(state: State, id: string): State {
+  const existing = state.transactions.find((t) => t.id === id);
+  if (!existing) return state;
+  return {
+    ...state,
+    transactions: state.transactions.filter((t) => t.id !== id),
+    goals: adjustLinkedGoal(state, existing.goalId, -existing.amount),
+  };
+}
+
 /**
  * Advance the logging streak for an action performed "today": consecutive-day
  * actions increment, a gap resets to 1, repeat actions on the same day are
