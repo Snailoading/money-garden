@@ -110,7 +110,13 @@ export function MoneyGarden() {
 
   // removeTransaction/updateTransaction also water/drain a linked goal when
   // the entry carries a goalId (see engine/state.ts).
-  const deleteTransaction = (id: string) => setStateSafe(removeTransaction(state, id));
+  const deleteTransaction = (id: string) => {
+    const existing = state.transactions.find((t) => t.id === id);
+    if (!existing) return;
+    const drainedGoal = existing.goalId ? state.goals.find((g) => g.id === existing.goalId) : undefined;
+    setStateSafe(removeTransaction(state, id));
+    showToast(drainedGoal ? `🍂 Entry deleted — "${drainedGoal.name}" adjusted too` : "🍂 Entry deleted");
+  };
 
   const editTransaction = (id: string, patch: Partial<Omit<Transaction, "id">>) => {
     const existing = state.transactions.find((t) => t.id === id);
