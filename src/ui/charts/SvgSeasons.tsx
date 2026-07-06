@@ -12,7 +12,7 @@ import type { PointerEvent } from "react";
 import type { TrendPoint } from "../../engine/trends";
 import { fmt, fmtK } from "../../engine/format";
 import { C } from "../theme";
-import { useReveal } from "../hooks";
+import { svgX, useReveal } from "../hooks";
 
 const W = 640, H = 220, pl = 50, pr = 14, pt = 14, pb = 24;
 
@@ -22,8 +22,7 @@ function useBandHover(n: number) {
   const locate = (e: PointerEvent<SVGSVGElement>) => {
     const el = ref.current;
     if (!el || n === 0) return;
-    const r = el.getBoundingClientRect();
-    const fx = ((e.clientX - r.left) / r.width) * W;
+    const fx = svgX(el, e, W);
     const band = (W - pl - pr) / n;
     setHi(Math.max(0, Math.min(n - 1, Math.floor((fx - pl) / band))));
   };
