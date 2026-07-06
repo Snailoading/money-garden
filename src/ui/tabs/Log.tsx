@@ -10,19 +10,49 @@ import { fmt, monthLabel, todayISO } from "../../engine/format";
 import { C, inputStyle } from "../theme";
 import { CardTitle, Empty, Field } from "../bits";
 
-export function Log({ d, view, addTransaction, deleteTransaction }: {
+export function Log({ d, view, addTransaction, deleteTransaction, updateTransaction }: {
   state: State;
   d: Derived;
   /** A browsed past month; null/undefined = today. */
   view?: MonthView | null;
   addTransaction: (tx: Omit<Transaction, "id">) => void;
   deleteTransaction: (id: string) => void;
+  updateTransaction: (id: string, patch: Partial<Omit<Transaction, "id">>) => void;
 }) {
   const [type, setType] = useState<"expense" | "income">("expense");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("groceries");
   const [note, setNote] = useState("");
   const [date, setDate] = useState(todayISO());
+
+  // Inline editing — one row at a time; opening another pencil swaps rows.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [eType, setEType] = useState<"expense" | "income">("expense");
+  const [eAmount, setEAmount] = useState("");
+  const [eCategory, setECategory] = useState("groceries");
+  const [eNote, setENote] = useState("");
+  const [eDate, setEDate] = useState("");
+
+  const openEdit = (t: Transaction) => {
+    setEditingId(t.id);
+    setEType(t.type === "income" ? "income" : "expense");
+    setEAmount(String(t.amount));
+    setECategory(t.category);
+    setENote(t.note);
+    setEDate(t.date);
+  };
+  const canSaveEdit = parseFloat(eAmount) > 0;
+  const saveEdit = (t: Transaction) => {
+    if (!canSaveEdit) return;
+    const patch: Partial<Omit<Transaction, "id">> = { amount: parseFloat(eAmount), note: eNote.trim(), date: eDate };
+    // Saving entries keep their type — they belong to the watering flows.
+    if (t.type !== "saving") {
+      patch.type = eType;
+      patch.category = eType === "income" ? "other" : eCategory;
+    }
+    updateTransaction(t.id, patch);
+    setEditingId(null);
+  };
 
   const submit = () => {
     const a = parseFloat(amount);
@@ -81,6 +111,55 @@ export function Log({ d, view, addTransaction, deleteTransaction }: {
               const cat = CATEGORIES.find((c) => c.id === t.category);
               const sign = t.type === "income" ? "+" : t.type === "saving" ? "→" : "−";
               const color = t.type === "income" ? C.leafDark : t.type === "saving" ? C.marigold : C.ink;
+              if (t.id === editingId) {
+                return (
+                  <li key={t.id} style={{ margin: "4px 0", padding: "12px 10px", borderRadius: 12, background: C.mist, border: `1.5px solid ${C.border}`, display: "grid", gap: 10 }}
+                    onKeyDown={(e) => { if (e.key === "Enter") saveEdit(t); if (e.key === "Escape") setEditingId(null); }}>
+                    {t.type !== "saving" && (
+                      <div style={{ display: "flex", gap: 8 }}>
+                        {([["expense", "🧾 Expense"], ["income", "💵 Income"]] as const).map(([v, l]) => (
+                          <button key={v} className="mg-btn" onClick={() => setEType(v)}
+                            style={{ padding: "5px 12px", borderRadius: 999, cursor: "pointer", fontWeight: 700, fontSize: 12, border: `1.5px solid ${eType === v ? C.ink : C.border}`, background: eType === v ? C.ink : "#fff", color: eType === v ? "#fff" : C.ink }}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8 }}>
+                      <Field label="Amount">
+                        <input className="mg-num" type="number" min="0" step="0.01" value={eAmount} autoFocus
+                          onChange={(e) => setEAmount(e.target.value)} style={inputStyle} />
+                      </Field>
+                      {t.type !== "saving" && eType === "expense" && (
+                        <Field label="Category">
+                          <select value={eCategory} onChange={(e) => setECategory(e.target.value)} style={inputStyle}>
+                            {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>)}
+                          </select>
+                        </Field>
+                      )}
+                      <Field label="Note">
+                        <input value={eNote} maxLength={60} onChange={(e) => setENote(e.target.value)} style={inputStyle} />
+                      </Field>
+                      <Field label="Date">
+                        <input type="date" value={eDate} max={todayISO()} onChange={(e) => setEDate(e.target.value)} style={inputStyle} />
+                      </Field>
+                    </div>
+                    {t.goalId && (
+                      <div style={{ fontSize: 12, color: C.inkSoft }}>💧 Linked to a goal — changing the amount waters or drains it.</div>
+                    )}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button className="mg-btn" onClick={() => saveEdit(t)} disabled={!canSaveEdit}
+                        style={{ background: canSaveEdit ? C.leaf : C.border, color: "#fff", border: "none", borderRadius: 10, padding: "8px 18px", fontWeight: 700, fontSize: 13, cursor: canSaveEdit ? "pointer" : "not-allowed" }}>
+                        Save
+                      </button>
+                      <button className="mg-btn" onClick={() => setEditingId(null)}
+                        style={{ background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 14px", fontWeight: 600, fontSize: 13, color: C.inkSoft, cursor: "pointer" }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </li>
+                );
+              }
               return (
                 <li key={t.id} className="mg-row" style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 8px", borderRadius: 10 }}>
                   <span style={{ fontSize: 20 }}>{t.type === "income" ? "💵" : t.type === "saving" ? "🪴" : cat?.emoji || "🌀"}</span>
@@ -94,6 +173,8 @@ export function Log({ d, view, addTransaction, deleteTransaction }: {
                     </div>
                   </span>
                   <b className="mg-num" style={{ color, fontSize: 15 }}>{sign}{fmt(t.amount)}</b>
+                  <button className="mg-btn" onClick={() => openEdit(t)} title="Edit entry" aria-label="Edit entry"
+                    style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 14, padding: 4 }}>✏️</button>
                   <button className="mg-btn" onClick={() => deleteTransaction(t.id)} title="Delete entry" aria-label="Delete entry"
                     style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 15, padding: 4 }}>✕</button>
                 </li>

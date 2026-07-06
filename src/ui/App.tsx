@@ -9,7 +9,7 @@ import { DEFAULT_INVEST, STORAGE_KEY } from "../engine/types";
 import { fmt, monthKey, monthLabel, uid, todayISO } from "../engine/format";
 import { derive, deriveMonthView, weatherFor } from "../engine/stats";
 import { monthRange } from "../engine/trends";
-import { bumpStreak, deserialize, emptyState, sampleState, serialize } from "../engine/state";
+import { bumpStreak, deserialize, emptyState, removeTransaction, sampleState, serialize, updateTransaction } from "../engine/state";
 import { buildBackup, parseBackup, type ImportPreview } from "../engine/backup";
 import { createStore } from "../engine/storage";
 import { C } from "./theme";
@@ -108,8 +108,20 @@ export function MoneyGarden() {
     setStateSafe(next);
   };
 
-  const deleteTransaction = (id: string) =>
-    setStateSafe({ ...state, transactions: state.transactions.filter((t) => t.id !== id) });
+  // removeTransaction/updateTransaction also water/drain a linked goal when
+  // the entry carries a goalId (see engine/state.ts).
+  const deleteTransaction = (id: string) => setStateSafe(removeTransaction(state, id));
+
+  const editTransaction = (id: string, patch: Partial<Omit<Transaction, "id">>) => {
+    const existing = state.transactions.find((t) => t.id === id);
+    if (!existing) return;
+    const adjustedGoal =
+      existing.goalId && patch.amount !== undefined && patch.amount !== existing.amount
+        ? state.goals.find((g) => g.id === existing.goalId)
+        : undefined;
+    setStateSafe(updateTransaction(state, id, patch));
+    showToast(adjustedGoal ? `✏️ Entry updated — "${adjustedGoal.name}" adjusted too` : "✏️ Entry updated");
+  };
 
   const addGoal = (g: Omit<Goal, "id">) => setStateSafe({ ...state, goals: [...state.goals, { ...g, id: uid() }] });
 
@@ -120,7 +132,8 @@ export function MoneyGarden() {
       if (saved >= g.target && g.saved < g.target) showToast(`🌸 "${g.name}" is in full bloom — goal reached!`);
       return { ...g, saved };
     });
-    const tx: Transaction = { id: uid(), type: "saving", amount, category: "other", note: `→ ${state.goals.find((g) => g.id === id)?.name}`, date: todayISO() };
+    // goalId links the entry so later edits/deletes can adjust the goal too.
+    const tx: Transaction = { id: uid(), type: "saving", amount, category: "other", note: `→ ${state.goals.find((g) => g.id === id)?.name}`, date: todayISO(), goalId: id };
     setStateSafe({ ...state, goals, transactions: [tx, ...state.transactions], streak: bumpStreak(state.streak) });
   };
 
@@ -281,7 +294,7 @@ export function MoneyGarden() {
         )}
 
         {tab === "overview" && <Overview state={state} d={derived} view={monthView} setIncome={setIncome} goTo={(t) => setTab(t as TabId)} />}
-        {tab === "log" && <Log state={state} d={derived} view={monthView} addTransaction={addTransaction} deleteTransaction={deleteTransaction} />}
+        {tab === "log" && <Log state={state} d={derived} view={monthView} addTransaction={addTransaction} deleteTransaction={deleteTransaction} updateTransaction={editTransaction} />}
         {tab === "budgets" && <Budgets state={state} d={derived} view={monthView} setBudget={setBudget} addCommitment={addCommitment} deleteCommitment={deleteCommitment} logCommitmentPayment={logCommitmentPayment} />}
         {tab === "garden" && <Garden state={state} addGoal={addGoal} waterGoal={waterGoal} deleteGoal={deleteGoal} />}
         {tab === "orchard" && <Orchard state={state} d={derived} setInvest={setInvest} addHolding={addHolding} updateHolding={updateHolding} deleteHolding={deleteHolding} waterOrchard={waterOrchard} />}
@@ -314,7 +327,7 @@ export function MoneyGarden() {
         {/* ===== the shed — housekeeping ===== */}
         <footer style={{ marginTop: 28, paddingTop: 16, borderTop: `1.5px dashed ${C.border}`, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 12.5, color: C.inkSoft }}>
-            🧰 The shed · your data saves automatically to this app's storage. Edit anything in place; delete a logged entry with its ✕.
+            🧰 The shed · your data saves automatically to this app's storage. Edit a logged entry with its ✏️, delete with its ✕.
           </span>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button className="mg-btn" onClick={saveBackup}
