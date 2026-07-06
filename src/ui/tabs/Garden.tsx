@@ -46,7 +46,14 @@ export function Garden({ state, addGoal, waterGoal, deleteGoal }: {
           </Field>
         </div>
         <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, fontSize: 13.5, color: C.inkSoft, cursor: "pointer" }}>
-          <input type="checkbox" checked={isEmergency} onChange={(e) => setIsEmergency(e.target.checked)} />
+          <input type="checkbox" checked={isEmergency} onChange={(e) => {
+            const checked = e.target.checked;
+            setIsEmergency(checked);
+            // Prefill the name for an empty form; undo only our own prefill on
+            // uncheck so a user-typed name is never touched.
+            if (checked && !name.trim()) setName("Emergency fund");
+            else if (!checked && name === "Emergency fund") setName("");
+          }} />
           This is my emergency fund (the advisor tracks it against 3–6 months of expenses)
         </label>
         <button className="mg-btn" onClick={submit} disabled={!name.trim() || !target}
