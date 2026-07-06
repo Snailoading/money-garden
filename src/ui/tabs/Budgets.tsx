@@ -5,15 +5,17 @@
 import { useState } from "react";
 import type { Commitment, State } from "../../engine/types";
 import { CATEGORIES } from "../../engine/types";
-import type { Derived } from "../../engine/stats";
-import { fmt, MONTH_NAMES, shortDate, todayISO } from "../../engine/format";
+import type { Derived, MonthView } from "../../engine/stats";
+import { fmt, MONTH_NAMES, monthLabel, shortDate, todayISO } from "../../engine/format";
 import { commitmentEnded, daysUntil, nextDueDate } from "../../engine/commitments";
 import { C, inputStyle } from "../theme";
 import { CardTitle, Field } from "../bits";
 
-export function Budgets({ state, d, setBudget, addCommitment, deleteCommitment, logCommitmentPayment }: {
+export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommitment, logCommitmentPayment }: {
   state: State;
   d: Derived;
+  /** A browsed past month; null/undefined = today. Affects the plots only. */
+  view?: MonthView | null;
   setBudget: (catId: string, v: string) => void;
   addCommitment: (c: Omit<Commitment, "id">) => void;
   deleteCommitment: (id: string) => void;
@@ -98,10 +100,11 @@ export function Budgets({ state, d, setBudget, addCommitment, deleteCommitment, 
         <CardTitle>Monthly plots</CardTitle>
         <p style={{ margin: "0 0 14px", fontSize: 13.5, color: C.inkSoft }}>
           Each category is a plot of soil with a budget. Green means room to grow, amber means nearly full, red means it's overgrown. Total planned: <b className="mg-num">{fmt(d.totalBudget)}</b>.
+          {view && <> <b style={{ color: "#9A7418" }}>Viewing {monthLabel(view.ym)}'s spending against your current plot sizes</b> — budgets aren't stored per month.</>}
         </p>
         <div style={{ display: "grid", gap: 12 }}>
           {CATEGORIES.map((c) => {
-            const spent = d.byCat[c.id] || 0;
+            const spent = (view ?? d).byCat[c.id] || 0;
             const budget = state.budgets[c.id] || 0;
             const pct = budget > 0 ? spent / budget : 0;
             const barColor = pct > 1 ? C.tomato : pct > 0.8 ? C.marigold : C.leaf;

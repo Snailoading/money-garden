@@ -17,6 +17,7 @@ New garden looking empty? Tap **🌼 Plant sample data** to wander around with r
 - **✏️ Log** — the daily habit. Jot down expenses, income, and savings in seconds. Logging on consecutive days grows a 🔥 streak.
 - **🧺 Budgets** — give each spending category a plot with a limit. Green = room to grow, amber = nearly full, red = overgrown. Below that, track your subscriptions (🌿 vines) and installment plans (🪜 the trellis) — the app warns you a couple of weeks before anything bills, and **💸 Log payment** records it in one tap.
 - **🌷 Garden** — plant a savings goal, pick its flower, and 💧 water it whenever you put money aside. It grows from seed to full bloom as you go. Tick one goal as your **emergency fund** 🛟 — the app tracks it against the "3–6 months of expenses" safety net.
+- **🍂 Seasons** — your almanac: up to a year of months side by side — what came in, what went out, what you kept. Tap any month to step into it, or use the little ‹ › arrows by the date up top to wander through your history (the **↩ today** button brings you home).
 - **🌳 Orchard** — the long game. Add your investments, set a monthly amount, and watch your freedom tree grow toward the point where your savings could support you. The chart shows a *range* of futures, because markets wobble — honest windows, not promises.
 - **🪴 Advice** — friendly, plain-spoken notes based on your real numbers, sorted into **Do first / Worth doing / Going well**. Classic money wisdom, no jargon, no judgement.
 

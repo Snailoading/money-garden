@@ -2,6 +2,35 @@
 
 All notable changes to Money Garden. Dates are release dates.
 
+## 0.4.0 — 2026-07-06 · *The turning of the seasons* 🍂
+
+Your garden finally remembers. Past months were always stored — now you
+can visit them.
+
+### Added
+
+- **Month navigation:** little ‹ › arrows beside the date in the header walk
+  you through every month since your first entry. Overview, Log, and the
+  budget plots follow along (Garden, Orchard, and Advice always reflect
+  today); a **↩ today** button brings you home, and browsing is clearly
+  marked so you never mistake June for now. Past months read as closed books:
+  "Left over in June", the full month's pace curve, that month's donut.
+- **🍂 Seasons tab** — the almanac, up to the latest 12 months side by side:
+  - **The harvest ledger:** earned vs spent bars with your goal contributions
+    traced over the top. Tap a month to step into it.
+  - **Savings rate** against the dashed 20% benchmark.
+  - **Needs & wants** stacked month by month — the 50/30/20 shape over time.
+  The still-unfolding current month is sketched lightly ("so far"); months
+  with nothing logged stay in the row at zero, honest as bare soil.
+
+### Notes
+
+- Budgets aren't stored per month, so past spending is shown against your
+  current plot sizes (the app says so when you're browsing).
+- The 12-month window is a chart-legibility cap, not a data limit — month
+  navigation reaches all the way back, and the engine takes a `maxMonths`
+  parameter for wider views later.
+
 ## 0.3.0 — 2026-07-06 · *The seed vault* 🏦
 
 Your garden, backed up. The safety feature the roadmap wanted before
