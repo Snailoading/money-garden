@@ -74,7 +74,7 @@ export function Orchard({ state, d, setInvest, addHolding, updateHolding, delete
                   {fmt(f.fireNumber)}
                 </div>
                 <p style={{ margin: "4px 0 10px", fontSize: 13.5, color: C.inkSoft, lineHeight: 1.55 }}>
-                  Your financial-independence number: {f.spendBasis === "custom" ? "your planned retirement spending" : "your current spending pace"} of about <b className="mg-num" style={{ color: C.ink }}>{fmt(f.fiMonthlySpend)}</b>/month, annualized and multiplied by {Math.round(100 / f.wr)} (the {f.wr}% withdrawal rule of thumb). A portfolio this size could sustain that lifestyle indefinitely.
+                  Your financial-independence number: {f.spendBasis === "custom" ? "your planned retirement spending" : "your typical monthly spending"} of about <b className="mg-num" style={{ color: C.ink }}>{fmt(f.fiMonthlySpend)}</b>/month, annualized and multiplied by {Math.round(100 / f.wr)} (the {f.wr}% withdrawal rule of thumb). A portfolio this size could sustain that lifestyle indefinitely.
                   {f.spendBasis === "auto" && <> Retirement spending often differs from today's — you can set your own figure under Growing conditions.</>}
                 </p>
                 <div style={{ width: "100%", height: 10, background: C.mist, border: `1.5px solid ${C.border}`, borderRadius: 999, overflow: "hidden", marginBottom: 8 }}>

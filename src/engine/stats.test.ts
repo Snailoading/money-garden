@@ -110,10 +110,45 @@ describe("pace and month fraction", () => {
     expect(d.daily[0].pace).toBe(10);
   });
 
-  it("projects monthlyExpenses from the elapsed fraction (blows up early-month — reference behavior, flagged)", () => {
+  it("estimates monthlyExpenses from the trailing average of completed months", () => {
+    const s = state({
+      budgets: {},
+      transactions: [
+        { id: "a1", type: "expense", amount: 2900, category: "housing", note: "", date: "2026-04-10" },
+        { id: "a2", type: "expense", amount: 100, category: "fun", note: "", date: "2026-04-20" },
+        { id: "m1", type: "expense", amount: 3100, category: "housing", note: "", date: "2026-05-10" },
+        tx("expense", 50, "fun"), // current month — must NOT affect the average
+      ],
+    });
+    // (3000 + 3100) / 2; March has nothing logged so it doesn't drag the mean.
+    expect(derive(s, now).monthlyExpenses).toBe(3050);
+  });
+
+  it("ignores history older than 3 completed months", () => {
+    const s = state({
+      budgets: {},
+      transactions: [
+        { id: "old", type: "expense", amount: 9000, category: "housing", note: "", date: "2026-01-10" },
+        { id: "m1", type: "expense", amount: 3000, category: "housing", note: "", date: "2026-05-10" },
+      ],
+    });
+    expect(derive(s, now).monthlyExpenses).toBe(3000); // January (4 months back) excluded
+  });
+
+  it("blends actuals with the remaining budget when there is no history", () => {
+    const s = state({
+      budgets: { groceries: 3020 },
+      transactions: [tx("expense", 1400, "groceries")],
+    });
+    // 1400 + (1 − 0.5) × 3020 — anchored to plan early, converging to actuals.
+    expect(derive(s, now).monthlyExpenses).toBeCloseTo(2910);
+  });
+
+  it("falls back to a floored projection, then the budget, then 1", () => {
+    // Spend but no budget → projection with the 0.05 monthFrac floor.
     const d = derive(state({ budgets: {}, transactions: [tx("expense", 600, "groceries")] }), now);
     expect(d.monthlyExpenses).toBe(1200); // 600 ÷ 0.5
-    // No spend → falls back to totalBudget; no budget either → 1.
+    // No spend → the budget; no budget either → 1.
     expect(derive(state({ budgets: { groceries: 900 } }), now).monthlyExpenses).toBe(900);
     expect(derive(state({ budgets: {} }), now).monthlyExpenses).toBe(1);
   });
@@ -159,7 +194,24 @@ describe("health score (adherence 55 + savings 30 + streak 15)", () => {
     expect(derive(s, now).health).toBe(85);
   });
 
-  it("grants full adherence when no budgets are set (reference behavior, flagged)", () => {
+  it("softens the adherence penalty early in the month (confidence ramp)", () => {
+    // Rent on the 1st: paceRatio ≈ 13.9 → raw adherence 0, but only 1/30 of
+    // the month has passed, so the penalty is weighted by 0.0667 → 0.933.
+    const earlyJune = new Date(2026, 5, 1, 12);
+    const s = state({
+      budgets: { housing: 3020 },
+      transactions: [{ id: "r", type: "expense", amount: 1400, category: "housing", note: "", date: "2026-06-01" }],
+    });
+    expect(derive(s, earlyJune).health).toBe(51); // round(0.933 × 55)
+    // Same overspend at mid-month carries full weight → adherence 0.
+    const midJune = state({
+      budgets: { housing: 1000 },
+      transactions: [tx("expense", 1500, "housing")],
+    });
+    expect(derive(midJune, now).health).toBe(0); // paceRatio 3 → raw 0, weight 1
+  });
+
+  it("grants full adherence when no budgets are set (deliberate design choice)", () => {
     const s = state({ budgets: {}, transactions: [tx("expense", 99999, "fun")] });
     // totalBudget 0 pins paceRatio to 1 → adherence 1 → 55 points despite the spend.
     expect(derive(s, now).health).toBe(55);

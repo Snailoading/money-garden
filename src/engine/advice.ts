@@ -34,20 +34,15 @@ export function buildAdvice(state: State, d: Derived, now: Date = new Date()): T
   const push = (priority: Priority, icon: string, title: string, body: string) =>
     out.push({ priority, icon, title, body });
 
-  // 1. Emergency fund
-  // Both branches size "a month of expenses" the same way (this fixes two
-  // reference bugs): this month's spend projected to a full month, with a
-  // 0.05 monthFrac floor so day-1 numbers can't inflate ~30×, falling back
-  // to the total budget before anything is logged. The reference's
-  // "away from the 3-month mark" amount had no budget fallback, so with no
-  // spend logged it read $0.00 regardless of the goal's balance.
-  const monthlyExpEstimate = d.spent > 0 ? d.spent / Math.max(d.monthFrac, 0.05) : d.totalBudget;
+  // 1. Emergency fund — sized from d.monthlyExpenses (trailing-average based,
+  // see stats.ts), the same estimate behind the coverage figure in the title,
+  // so the months shown and the dollar amounts always agree.
   if (!d.emergency) {
     push(1, "🛟", "Plant an emergency fund first",
-      `Before anything else, most advisors suggest building a cushion of 3–6 months of essential expenses. Based on your pace, that's roughly ${fmt(monthlyExpEstimate * 3)}–${fmt(monthlyExpEstimate * 6)}. Plant a goal in the Garden tab and tick the emergency-fund box.`);
+      `Before anything else, most advisors suggest building a cushion of 3–6 months of essential expenses. Based on your pace, that's roughly ${fmt(d.monthlyExpenses * 3)}–${fmt(d.monthlyExpenses * 6)}. Plant a goal in the Garden tab and tick the emergency-fund box.`);
   } else if (d.emergencyMonths < 3) {
     push(1, "🛟", `Emergency fund covers about ${d.emergencyMonths.toFixed(1)} months`,
-      `The common target is 3–6 months of expenses. You're ${fmt(Math.max(0, monthlyExpEstimate * 3 - d.emergency.saved))} away from the 3-month mark — even ${fmt(50)} a paycheck steadily waters it.`);
+      `The common target is 3–6 months of expenses. You're ${fmt(Math.max(0, d.monthlyExpenses * 3 - d.emergency.saved))} away from the 3-month mark — even ${fmt(50)} a paycheck steadily waters it.`);
   } else {
     push(3, "🛟", "Your emergency fund is healthy",
       `It covers roughly ${d.emergencyMonths.toFixed(1)} months of expenses — inside the 3–6 month range many planners recommend. Extra cash beyond 6 months could work harder toward other goals.`);
