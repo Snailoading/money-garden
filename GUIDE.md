@@ -1,0 +1,33 @@
+# Welcome to Money Garden 🌻
+
+**A money tracker disguised as a garden.** Your budgets are plots of soil, your savings goals are flowers that grow as you fund them, your subscriptions are vines, and your investments are a freedom tree growing toward the day it can feed you.
+
+No account. No sign-up. Nothing to install. **Your numbers stay on your own device** — they are never sent anywhere, and nobody but you can see them. Not even the person who gave you this.
+
+## Opening it
+
+- **Got a link?** Open it in any browser. On a phone, choose **Add to Home Screen** (Share menu on iPhone, browser menu on Android) — you'll get an app icon, full-screen mode, and it keeps working even offline.
+- **Got the file (`money-garden.html`)?** Just double-click it. Everything's inside.
+
+New garden looking empty? Tap **🌼 Plant sample data** to wander around with realistic example numbers first. When you're ready for real life, scroll to the footer and choose **Start fresh…** (it asks twice — no accidental scorched earth).
+
+## Finding your way around
+
+- **🌤️ Overview** — your month at a glance: what's left to spend, what came in, what went out, and two little charts showing your pace and where the money went. The weather card up top is your garden's health — sunny skies mean your money is thriving.
+- **✏️ Log** — the daily habit. Jot down expenses, income, and savings in seconds. Logging on consecutive days grows a 🔥 streak.
+- **🧺 Budgets** — give each spending category a plot with a limit. Green = room to grow, amber = nearly full, red = overgrown. Below that, track your subscriptions (🌿 vines) and installment plans (🪜 the trellis) — the app warns you a couple of weeks before anything bills, and **💸 Log payment** records it in one tap.
+- **🌷 Garden** — plant a savings goal, pick its flower, and 💧 water it whenever you put money aside. It grows from seed to full bloom as you go. Tick one goal as your **emergency fund** 🛟 — the app tracks it against the "3–6 months of expenses" safety net.
+- **🌳 Orchard** — the long game. Add your investments, set a monthly amount, and watch your freedom tree grow toward the point where your savings could support you. The chart shows a *range* of futures, because markets wobble — honest windows, not promises.
+- **🪴 Advice** — friendly, plain-spoken notes based on your real numbers, sorted into **Do first / Worth doing / Going well**. Classic money wisdom, no jargon, no judgement.
+
+## Three small habits that make it sing
+
+1. **Log little and often** — the streak is there to help the habit stick.
+2. **Water your goals on payday** — watching the flower grow is the whole point.
+3. **Peek at the Advice tab once a week** — it quietly reprioritizes as your month unfolds.
+
+## The fine print (kept short)
+
+Your data saves automatically; the footer always tells you where. If you clear your browser's site data, your garden goes with it — so don't do that casually. And everything here is general education based on well-known rules of thumb, **not personalized financial advice** — for the big decisions, talk to a professional.
+
+*Plant coins. Pull weeds. Grow free.* 🌱
