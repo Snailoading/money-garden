@@ -4,7 +4,7 @@
  * 264 (load-time normalization) and 294–300 (streak).
  */
 
-import type { Commitment, Invest, State, Streak } from "./types";
+import type { Commitment, Invest, State, Streak, Transaction } from "./types";
 import { CATEGORIES, DEFAULT_INVEST } from "./types";
 import { toLocalISO, todayISO, uid } from "./format";
 
@@ -27,6 +27,25 @@ export function sampleState(now: Date = new Date()): State {
   // Sample dates are clamped to today so everything lands in the current
   // month so far (local calendar).
   const d = (day: number) => toLocalISO(new Date(y, m, Math.min(day, now.getDate())));
+  // Day `day` of the month `k` months ago, clamped into that month — the two
+  // completed months of history light up Seasons, month navigation, and the
+  // trailing-average spending estimate.
+  const dp = (k: number, day: number) => {
+    const dim = new Date(y, m - k + 1, 0).getDate();
+    return toLocalISO(new Date(y, m - k, Math.min(day, dim)));
+  };
+  const priorMonth = (k: number, tweaks: { groceriesA: number; groceriesB: number; utilities: number; dining: number; transport: number; extraCat: string; extraNote: string; extra: number; savingNote: string; saving: number }): Transaction[] => [
+    { id: uid(), type: "income",  amount: 4200, category: "other", note: "Paycheck", date: dp(k, 1) },
+    { id: uid(), type: "expense", amount: 1400, category: "housing", note: "Rent", date: dp(k, 1) },
+    { id: uid(), type: "expense", amount: tweaks.groceriesA, category: "groceries", note: "Weekly shop", date: dp(k, 6) },
+    { id: uid(), type: "expense", amount: tweaks.groceriesB, category: "groceries", note: "Weekly shop", date: dp(k, 19) },
+    { id: uid(), type: "expense", amount: tweaks.utilities, category: "utilities", note: "Electric bill", date: dp(k, 6) },
+    { id: uid(), type: "expense", amount: 15.99, category: "subs", note: "Streaming", date: dp(k, 12) },
+    { id: uid(), type: "expense", amount: tweaks.dining, category: "dining", note: "Eating out", date: dp(k, 13) },
+    { id: uid(), type: "expense", amount: tweaks.transport, category: "transport", note: "Transit pass", date: dp(k, 9) },
+    { id: uid(), type: "expense", amount: tweaks.extra, category: tweaks.extraCat, note: tweaks.extraNote, date: dp(k, 21) },
+    { id: uid(), type: "saving", amount: tweaks.saving, category: "other", note: tweaks.savingNote, date: dp(k, 26) },
+  ];
   return {
     income: 4200,
     budgets: Object.fromEntries(CATEGORIES.map((c) => [c.id, c.budget])),
@@ -41,6 +60,8 @@ export function sampleState(now: Date = new Date()): State {
       { id: uid(), type: "expense", amount: 34.5,  category: "fun",       note: "Climbing gym",   date: d(12) },
       { id: uid(), type: "expense", amount: 67.8,  category: "shopping",  note: "Running shoes",  date: d(14) },
       { id: uid(), type: "expense", amount: 28.0,  category: "transport", note: "Transit pass",   date: d(15) },
+      ...priorMonth(1, { groceriesA: 196.4, groceriesB: 188.25, utilities: 61.2, dining: 118, transport: 44, extraCat: "fun", extraNote: "Climbing gym", extra: 38, savingNote: "→ Japan trip", saving: 400 }),
+      ...priorMonth(2, { groceriesA: 205.1, groceriesB: 179.6, utilities: 58.7, dining: 84.5, transport: 52, extraCat: "shopping", extraNote: "Winter boots", extra: 45, savingNote: "→ Emergency fund", saving: 500 }),
     ],
     goals: [
       { id: uid(), name: "Emergency fund", plant: "sunflower", target: 6000, saved: 2150, isEmergency: true },

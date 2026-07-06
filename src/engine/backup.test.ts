@@ -30,7 +30,8 @@ describe("parseBackup — round trip", () => {
     if (!result.ok) return;
     expect(result.preview.state).toEqual(s);
     expect(result.preview.exportedAt).toBe("2026-06-15");
-    expect(result.preview.counts).toEqual({ transactions: 10, goals: 3, commitments: 4, holdings: 2 });
+    // 10 current-month + 2×10 prior-month sample transactions.
+    expect(result.preview.counts).toEqual({ transactions: 30, goals: 3, commitments: 4, holdings: 2 });
   });
 
   it("accepts a bare state dump (hand-copied localStorage value)", () => {

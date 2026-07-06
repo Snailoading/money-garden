@@ -23,13 +23,21 @@ can visit them.
   The still-unfolding current month is sketched lightly ("so far"); months
   with nothing logged stay in the row at zero, honest as bare soil.
 
+  Once your history outgrows twelve months, an **‹ older · newer ›** pager
+  appears above the charts to slide the window back a year at a time.
+- **Richer sample data:** "Plant sample data" now seeds two completed months
+  of history alongside the current one, so Seasons, month navigation, and
+  the trailing-average spending estimate all have something to show.
+- Chart tooltips now track the pointer exactly on wide screens (the old
+  pointer math ignored SVG letterboxing — an inherited quirk).
+
 ### Notes
 
 - Budgets aren't stored per month, so past spending is shown against your
   current plot sizes (the app says so when you're browsing).
 - The 12-month window is a chart-legibility cap, not a data limit — month
-  navigation reaches all the way back, and the engine takes a `maxMonths`
-  parameter for wider views later.
+  navigation reaches all the way back, and the whole history is one small
+  JSON blob (a full sample garden is ~5 kB).
 
 ## 0.3.0 — 2026-07-06 · *The seed vault* 🏦
 
