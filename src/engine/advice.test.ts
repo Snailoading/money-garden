@@ -37,6 +37,30 @@ describe("rule 1 — emergency fund", () => {
     expect(tip!.priority).toBe(1);
   });
 
+  it("falls back to the budget for the away-amount when nothing is spent yet (bug fix)", () => {
+    // Reference bug: with no expenses logged this month the "away" figure was
+    // built only from spend, so it always read $0.00 whatever the balance.
+    const s = state({
+      goals: [{ id: "g", name: "Rain barrel", plant: "sunflower", target: 6000, saved: 1000, isEmergency: true }],
+    });
+    const tip = find(tipsFor(s), "Emergency fund covers about 0.3 months");
+    expect(tip).toBeDefined();
+    // Default budgets total 3020 → 3 months = 9060, minus 1000 saved = 8060.
+    expect(tip!.body).toContain("You're $8,060 away from the 3-month mark");
+  });
+
+  it("floors the month fraction in the plant-first range (bug fix)", () => {
+    // June 1: monthFrac = 1/30, floored to 0.05 → $100 spent projects to
+    // $2,000/month, so the 3–6 month range is $6,000–$12,000 (the reference's
+    // unfloored formula would have said $9,000–$18,000).
+    const earlyJune = new Date(2026, 5, 1, 12);
+    const s = state({ budgets: {}, transactions: [tx("expense", 100, "groceries")] });
+    const tips = buildAdvice(s, derive(s, earlyJune), earlyJune);
+    const tip = find(tips, "Plant an emergency fund first");
+    expect(tip).toBeDefined();
+    expect(tip!.body).toContain("roughly $6,000–$12,000");
+  });
+
   it("celebrates a healthy fund at priority 3", () => {
     // No spend → monthlyExpenses falls back to the default budgets (3020);
     // 10000 saved ≈ 3.3 months ≥ 3.

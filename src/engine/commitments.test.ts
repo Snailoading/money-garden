@@ -134,13 +134,14 @@ describe("deriveCommitments", () => {
     expect(d.subsMonthly).toBeCloseTo(20); // 10 + 120/12
   });
 
-  it("sums installments at face value regardless of cadence (reference behavior, flagged)", () => {
+  it("normalizes annual installments to a monthly drain, like subscriptions", () => {
+    // The UI only creates monthly installments; this guards hand-edited or
+    // imported data (the reference counted annual ones at full face value).
     const d = deriveCommitments(
       [inst({ id: "m", amount: 240 }), inst({ id: "a", amount: 1200, cadence: "annual", payMonth: 11 })],
       june15,
     );
-    // An annual installment counts at full amount as if monthly — ported as-is.
-    expect(d.instMonthly).toBe(1440);
+    expect(d.instMonthly).toBe(340); // 240 + 1200/12
   });
 
   it("lists dueSoon (≤14 days) sorted soonest first", () => {

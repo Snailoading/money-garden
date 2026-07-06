@@ -43,6 +43,18 @@ export interface FireDerived {
   wr: number;
 }
 
+/* ---- global rate assumptions — adjust here, nowhere else ----
+ * (Input defaults like ret 7% / wr 4% live in DEFAULT_INVEST in types.ts.) */
+
+/** Expected-return input clamp, %/yr. */
+const RET_CLAMP = { min: 0, max: 15 };
+/** Withdrawal-rate input clamp, %/yr. */
+const WR_CLAMP = { min: 2, max: 10 };
+/** Half-width of the slower/kinder market band, in percentage points (±2%). */
+const BAND_SPREAD = 2;
+/** Annual % rate → monthly growth rate. Every compounding step goes through this. */
+const monthlyRate = (annualPct: number): number => annualPct / 100 / 12;
+
 /**
  * Derive all FIRE numbers from the invest settings.
  * `monthlyExpenses` is the spending-pace fallback computed in stats.ts —
@@ -55,22 +67,22 @@ export function deriveFire(invest: Invest | undefined, monthlyExpenses: number):
   const fiMonthlySpend = customSpend > 0 ? customSpend : monthlyExpenses;
   const spendBasis: "custom" | "auto" = customSpend > 0 ? "custom" : "auto";
   const annualExpenses = fiMonthlySpend * 12;
-  const wr = Math.min(10, Math.max(2, Number(inv.wr) || 4));
+  const wr = Math.min(WR_CLAMP.max, Math.max(WR_CLAMP.min, Number(inv.wr) || 4));
   // annualExpenses × (100 / wr): at the default 4% withdrawal rate this is ×25.
   const fireNumber = annualExpenses > 0 ? annualExpenses * (100 / wr) : 0;
-  const ret = Math.min(15, Math.max(0, Number(inv.ret) || 0));
+  const ret = Math.min(RET_CLAMP.max, Math.max(RET_CLAMP.min, Number(inv.ret) || 0));
   const contrib = Math.max(0, Number(inv.monthly) || 0);
   const age = Math.min(100, Math.max(14, Number(inv.age) || 30));
   const retireAge = Math.min(100, Math.max(age, Number(inv.retireAge) || 65));
-  const retLo = Math.max(0, ret - 2);
-  const retHi = Math.min(15, ret + 2);
+  const retLo = Math.max(RET_CLAMP.min, ret - BAND_SPREAD);
+  const retHi = Math.min(RET_CLAMP.max, ret + BAND_SPREAD);
 
   // Month-by-month simulation: grow at the monthly rate, THEN add the
   // contribution (end-of-month timing — reference behavior). Capped at
   // 720 months = 60 years; beyond that FI is reported as null.
   const yearsFor = (annualRet: number): number | null => {
     if (fireNumber <= 0) return null;
-    const rr = annualRet / 100 / 12;
+    const rr = monthlyRate(annualRet);
     let v = portfolio;
     if (v >= fireNumber) return 0;
     for (let mm = 1; mm <= 720; mm++) {
@@ -87,7 +99,7 @@ export function deriveFire(invest: Invest | undefined, monthlyExpenses: number):
   const horizonBasis = yearsToFILate !== null ? yearsToFILate : yearsToFI !== null ? yearsToFI : 36;
   const horizon = Math.min(45, Math.max(horizonBasis + 4, 10));
   const seriesFor = (annualRet: number): number[] => {
-    const rr = annualRet / 100 / 12;
+    const rr = monthlyRate(annualRet);
     const out = [Math.round(portfolio)];
     let v = portfolio;
     for (let yy = 1; yy <= horizon; yy++) {
@@ -106,12 +118,13 @@ export function deriveFire(invest: Invest | undefined, monthlyExpenses: number):
   }));
 
   // Coast FIRE: today's portfolio compounding alone to the FIRE number by
-  // retireAge. NOTE: this uses ANNUAL compounding while yearsFor/seriesFor
-  // compound monthly — the two models disagree slightly at boundaries.
-  // Reference behavior (lines 395–396), preserved and flagged.
+  // retireAge. Monthly compounding, the same model as yearsFor/seriesFor, so
+  // the coast badge and the projection chart agree at the boundary (the
+  // reference compounded this one annually).
   const yearsToRetire = retireAge - age;
-  const coastNumber = fireNumber > 0 ? fireNumber / Math.pow(1 + ret / 100, yearsToRetire) : 0;
-  const coastReached = fireNumber > 0 && portfolio * Math.pow(1 + ret / 100, yearsToRetire) >= fireNumber;
+  const coastGrowth = Math.pow(1 + monthlyRate(ret), 12 * yearsToRetire);
+  const coastNumber = fireNumber > 0 ? fireNumber / coastGrowth : 0;
+  const coastReached = fireNumber > 0 && portfolio * coastGrowth >= fireNumber;
 
   return {
     portfolio, annualExpenses, fiMonthlySpend, spendBasis, fireNumber,

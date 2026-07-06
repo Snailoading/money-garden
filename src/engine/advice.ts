@@ -34,15 +34,15 @@ export function buildAdvice(state: State, d: Derived, now: Date = new Date()): T
   const push = (priority: Priority, icon: string, title: string, body: string) =>
     out.push({ priority, icon, title, body });
 
-  // 1. Emergency fund
+  // 1. Emergency fund — sized from d.monthlyExpenses (trailing-average based,
+  // see stats.ts), the same estimate behind the coverage figure in the title,
+  // so the months shown and the dollar amounts always agree.
   if (!d.emergency) {
-    // NOTE: this range divides by raw monthFrac (no 0.05 floor), unlike the
-    // under-3-months branch below — reference inconsistency, preserved.
     push(1, "🛟", "Plant an emergency fund first",
-      `Before anything else, most advisors suggest building a cushion of 3–6 months of essential expenses. Based on your pace, that's roughly ${fmt(d.spent > 0 ? (d.spent / d.monthFrac) * 3 : d.totalBudget * 3)}–${fmt(d.spent > 0 ? (d.spent / d.monthFrac) * 6 : d.totalBudget * 6)}. Plant a goal in the Garden tab and tick the emergency-fund box.`);
+      `Before anything else, most advisors suggest building a cushion of 3–6 months of essential expenses. Based on your pace, that's roughly ${fmt(d.monthlyExpenses * 3)}–${fmt(d.monthlyExpenses * 6)}. Plant a goal in the Garden tab and tick the emergency-fund box.`);
   } else if (d.emergencyMonths < 3) {
     push(1, "🛟", `Emergency fund covers about ${d.emergencyMonths.toFixed(1)} months`,
-      `The common target is 3–6 months of expenses. You're ${fmt(Math.max(0, (d.spent / Math.max(d.monthFrac, 0.05)) * 3 - d.emergency.saved))} away from the 3-month mark — even ${fmt(50)} a paycheck steadily waters it.`);
+      `The common target is 3–6 months of expenses. You're ${fmt(Math.max(0, d.monthlyExpenses * 3 - d.emergency.saved))} away from the 3-month mark — even ${fmt(50)} a paycheck steadily waters it.`);
   } else {
     push(3, "🛟", "Your emergency fund is healthy",
       `It covers roughly ${d.emergencyMonths.toFixed(1)} months of expenses — inside the 3–6 month range many planners recommend. Extra cash beyond 6 months could work harder toward other goals.`);

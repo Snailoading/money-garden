@@ -4,9 +4,8 @@
  * Pure — no React, no DOM. All "today"-dependent functions accept an injected
  * `now` (defaulting to the real clock) so tests can pin the calendar.
  *
- * These functions work in **local** calendar time (new Date(y, m, d)), while
- * the month filter in stats.ts uses UTC ISO strings — a reference quirk we
- * preserve rather than fix.
+ * These functions work in local calendar time (new Date(y, m, d)) — since
+ * the timezone fix, so does every date in the engine.
  */
 
 import type { Commitment } from "./types";
@@ -70,11 +69,7 @@ export interface CommitmentsDerived {
   active: Commitment[];
   /** Active subscriptions normalized to per-month (annual ÷ 12). */
   subsMonthly: number;
-  /**
-   * Active installments summed at face value. NOTE: unlike subsMonthly this
-   * ignores cadence — an annual installment counts at full amount as if
-   * monthly. Reference behavior (line 408), preserved and flagged.
-   */
+  /** Active installments normalized to per-month (annual ÷ 12), like subsMonthly. */
   instMonthly: number;
   /** Anything billing within 14 days, soonest first. */
   dueSoon: DueSoonEntry[];
@@ -88,9 +83,11 @@ export function deriveCommitments(
   const subsMonthly = active
     .filter((c) => c.kind === "sub")
     .reduce((a, c) => a + (c.cadence === "annual" ? (Number(c.amount) || 0) / 12 : Number(c.amount) || 0), 0);
+  // The commitment form only creates monthly installments, so the annual
+  // branch is defensive — it matters for hand-edited or imported data.
   const instMonthly = active
     .filter((c) => c.kind === "inst")
-    .reduce((a, c) => a + (Number(c.amount) || 0), 0);
+    .reduce((a, c) => a + (c.cadence === "annual" ? (Number(c.amount) || 0) / 12 : Number(c.amount) || 0), 0);
   const dueSoon = active
     .map((c) => ({ c, due: nextDueDate(c, now), days: daysUntil(nextDueDate(c, now), now) }))
     .filter((x) => x.days <= 14)

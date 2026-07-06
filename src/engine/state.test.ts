@@ -19,7 +19,7 @@ describe("sampleState", () => {
   it("clamps sample transaction dates to today within the current month", () => {
     const now = new Date(2026, 5, 4, 12); // June 4 — most sample days are later
     const s = sampleState(now);
-    const maxDate = new Date(2026, 5, 4).toISOString().slice(0, 10);
+    const maxDate = "2026-06-04"; // local calendar
     for (const t of s.transactions) {
       expect(t.date <= maxDate).toBe(true); // ISO strings compare chronologically
     }
@@ -66,8 +66,8 @@ describe("serialize / deserialize", () => {
 
 describe("bumpStreak", () => {
   const now = new Date(2026, 5, 15, 12);
-  const today = todayISO(now);
-  const yesterday = new Date(now.getTime() - 86400000).toISOString().slice(0, 10);
+  const today = todayISO(now); // "2026-06-15", local calendar
+  const yesterday = "2026-06-14";
 
   it("is a no-op when already logged today", () => {
     const streak = { count: 4, lastDate: today };
