@@ -87,7 +87,10 @@ export function Orchard({ state, d, setInvest, addHolding, updateHolding, delete
                       {f.yearsToFI === 0 ? "Ripe now" : (
                         <>Harvest ≈ age <b style={{ color: C.ink }}>{f.age + f.yearsToFI}</b>
                         {earlyAge !== null && (
-                          <> · window <b style={{ color: C.ink }}>{earlyAge}–{lateAge !== null ? lateAge : `${earlyAge}+`}</b> in {f.retLo}–{f.retHi}% markets</>
+                          // When slow markets never reach the number within the
+                          // 60-year simulation, the window's upper end is open:
+                          // "68+" — not the reference's nonsensical "68–68+".
+                          <> · window <b style={{ color: C.ink }}>{lateAge !== null ? `${earlyAge}–${lateAge}` : `${earlyAge}+`}</b> in {f.retLo}–{f.retHi}% markets</>
                         )}</>
                       )}
                     </span>

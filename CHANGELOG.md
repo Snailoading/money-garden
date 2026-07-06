@@ -30,6 +30,10 @@ can visit them.
   the trailing-average spending estimate all have something to show.
 - Chart tooltips now track the pointer exactly on wide screens (the old
   pointer math ignored SVG letterboxing — an inherited quirk).
+- The freedom tree's harvest window now reads "71+" when slower markets
+  wouldn't reach your number within the 60-year simulation — the reference
+  rendered a nonsensical "71–71+" in that case. (The math was always right:
+  the upper end of the window is genuinely open, not equal to the lower.)
 
 ### Notes
 
