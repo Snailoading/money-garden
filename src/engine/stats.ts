@@ -6,7 +6,7 @@
 
 import type { State, Transaction } from "./types";
 import { CATEGORIES } from "./types";
-import { monthKey } from "./format";
+import { monthKey, toLocalISO } from "./format";
 import { deriveFire, type FireDerived } from "./fire";
 import { deriveCommitments, type CommitmentsDerived } from "./commitments";
 
@@ -61,8 +61,8 @@ export function weatherFor(score: number): Weather {
  */
 export function derive(state: State, now: Date = new Date()): Derived {
   const mk = monthKey(now);
-  // Month filter is a string-prefix match on the ISO date (UTC month), while
-  // the daily loop below builds dates in local time — reference quirk, kept.
+  // Month filter is a string-prefix match on the stored YYYY-MM-DD date,
+  // local calendar throughout (the reference mixed UTC and local here).
   const monthTx = state.transactions.filter((t) => t.date.startsWith(mk));
   const spent = monthTx.filter((t) => t.type === "expense").reduce((a, t) => a + t.amount, 0);
   const earned = monthTx.filter((t) => t.type === "income").reduce((a, t) => a + t.amount, 0);
@@ -100,7 +100,7 @@ export function derive(state: State, now: Date = new Date()): Derived {
   const daily: DailyPoint[] = [];
   let run = 0;
   for (let day = 1; day <= now.getDate(); day++) {
-    const dstr = new Date(now.getFullYear(), now.getMonth(), day).toISOString().slice(0, 10);
+    const dstr = toLocalISO(new Date(now.getFullYear(), now.getMonth(), day));
     run += monthTx.filter((t) => t.type === "expense" && t.date === dstr).reduce((a, t) => a + t.amount, 0);
     daily.push({ day, spent: Math.round(run), pace: Math.round((totalBudget / daysInMonth) * day) });
   }

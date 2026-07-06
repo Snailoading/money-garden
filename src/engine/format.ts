@@ -28,20 +28,27 @@ export const fmt = (n: number, opts: Intl.NumberFormatOptions = {}): string =>
 export const uid = (): string =>
   Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
 
-/**
- * Today as YYYY-MM-DD. NOTE: uses toISOString(), i.e. the **UTC** date —
- * near midnight in non-UTC timezones this can differ from the local date.
- * Reference behavior, preserved deliberately (see CLAUDE.md: port, don't fix).
- */
-export const todayISO = (now: Date = new Date()): string =>
-  now.toISOString().slice(0, 10);
+const pad2 = (n: number) => String(n).padStart(2, "0");
 
-/** Current month as YYYY-MM (UTC, same caveat as todayISO). */
+/**
+ * Format a Date as YYYY-MM-DD on the LOCAL calendar — "the date is whatever
+ * your device's calendar said when you logged it". The reference used
+ * toISOString() (UTC), which for a UTC+8 user stamped anything logged before
+ * ~8am with yesterday's date. Dates already stored under the old convention
+ * are plain strings and load unchanged.
+ */
+export const toLocalISO = (d: Date): string =>
+  `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+/** Today as YYYY-MM-DD, local calendar. */
+export const todayISO = (now: Date = new Date()): string => toLocalISO(now);
+
+/** Current month as YYYY-MM, local calendar. */
 export const monthKey = (d: Date = new Date()): string =>
-  d.toISOString().slice(0, 7);
+  toLocalISO(d).slice(0, 7);
 
 export const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-/** "Sep 15" — local calendar, unlike todayISO/monthKey (reference quirk, preserved). */
+/** "Sep 15" — local calendar, consistent with todayISO/monthKey. */
 export const shortDate = (dt: Date): string =>
   `${MONTH_NAMES[dt.getMonth()]} ${dt.getDate()}`;

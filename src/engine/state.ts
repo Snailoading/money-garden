@@ -6,7 +6,7 @@
 
 import type { Commitment, Invest, State, Streak } from "./types";
 import { CATEGORIES, DEFAULT_INVEST } from "./types";
-import { todayISO, uid } from "./format";
+import { toLocalISO, todayISO, uid } from "./format";
 
 export function emptyState(): State {
   return {
@@ -24,9 +24,9 @@ export function emptyState(): State {
 /** Realistic example numbers for first-time visitors ("Plant sample data"). */
 export function sampleState(now: Date = new Date()): State {
   const y = now.getFullYear(), m = now.getMonth();
-  // Sample dates are clamped to today so everything lands in the current month
-  // so far. (Local date → UTC ISO string: same quirk as the reference.)
-  const d = (day: number) => new Date(y, m, Math.min(day, now.getDate())).toISOString().slice(0, 10);
+  // Sample dates are clamped to today so everything lands in the current
+  // month so far (local calendar).
+  const d = (day: number) => toLocalISO(new Date(y, m, Math.min(day, now.getDate())));
   return {
     income: 4200,
     budgets: Object.fromEntries(CATEGORIES.map((c) => [c.id, c.budget])),
@@ -88,12 +88,14 @@ export function deserialize(raw: string): State {
 /**
  * Advance the logging streak for an action performed "today": consecutive-day
  * actions increment, a gap resets to 1, repeat actions on the same day are
- * no-ops. Compares UTC ISO dates (todayISO quirk).
+ * no-ops. Local calendar dates throughout.
  */
 export function bumpStreak(streak: Streak, now: Date = new Date()): Streak {
   const t = todayISO(now);
   if (streak.lastDate === t) return streak;
-  const yesterday = new Date(now.getTime() - 86400000).toISOString().slice(0, 10);
+  // Calendar-day arithmetic (day − 1 rolls months/years over), not
+  // now − 24h, which misbehaves across DST changes.
+  const yesterday = toLocalISO(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
   const count = streak.lastDate === yesterday ? streak.count + 1 : 1;
   return { count, lastDate: t };
 }

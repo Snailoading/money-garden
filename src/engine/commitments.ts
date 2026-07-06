@@ -4,9 +4,8 @@
  * Pure — no React, no DOM. All "today"-dependent functions accept an injected
  * `now` (defaulting to the real clock) so tests can pin the calendar.
  *
- * These functions work in **local** calendar time (new Date(y, m, d)), while
- * the month filter in stats.ts uses UTC ISO strings — a reference quirk we
- * preserve rather than fix.
+ * These functions work in local calendar time (new Date(y, m, d)) — since
+ * the timezone fix, so does every date in the engine.
  */
 
 import type { Commitment } from "./types";
