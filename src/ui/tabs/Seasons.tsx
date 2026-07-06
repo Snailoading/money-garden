@@ -1,12 +1,20 @@
 /*
- * SEASONS — the garden's almanac: month-over-month history, up to the
- * latest 12 months. Tapping a month in the harvest ledger walks into it
- * (month navigation via goToMonth).
+ * SEASONS — the garden's almanac: month-over-month history in a 12-month
+ * window, pageable a year at a time once there's more history than fits.
+ * Tapping a month in the harvest ledger walks into it (goToMonth).
  */
-import type { TrendPoint } from "../../engine/trends";
+import { useMemo, useState } from "react";
+import type { State } from "../../engine/types";
+import { monthRange, monthlyTrends } from "../../engine/trends";
+import { MONTH_NAMES } from "../../engine/format";
 import { C } from "../theme";
 import { CardTitle } from "../bits";
 import { SeasonsBars, SeasonsRate, SeasonsSplit } from "../charts/SvgSeasons";
+
+const WINDOW = 12;
+
+/** "Aug ’25" for a YYYY-MM key. */
+const shortYm = (ym: string) => `${MONTH_NAMES[Number(ym.slice(5, 7)) - 1]} ’${ym.slice(2, 4)}`;
 
 function Legend({ items }: { items: [string, string][] }) {
   return (
@@ -20,12 +28,38 @@ function Legend({ items }: { items: [string, string][] }) {
   );
 }
 
-export function Seasons({ trends, goToMonth }: {
-  trends: TrendPoint[];
+export function Seasons({ state, goToMonth }: {
+  state: State;
   goToMonth: (ym: string) => void;
 }) {
+  const [offset, setOffset] = useState(0);
+  const rangeLen = useMemo(() => monthRange(state).length, [state]);
+  const trends = useMemo(() => monthlyTrends(state, new Date(), WINDOW, offset), [state, offset]);
+  const canOlder = offset < rangeLen - WINDOW;
+  const canNewer = offset > 0;
+  const pagerBtn = (enabled: boolean) => ({
+    background: "transparent", border: `1.5px solid ${enabled ? C.border : "transparent"}`,
+    borderRadius: 999, padding: "4px 12px", fontWeight: 700, fontSize: 12,
+    color: C.inkSoft, cursor: enabled ? "pointer" : "default", opacity: enabled ? 1 : 0.35,
+  } as const);
+
   return (
     <div style={{ display: "grid", gap: 16 }}>
+      {rangeLen > WINDOW && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+          <button className="mg-btn" style={pagerBtn(canOlder)} disabled={!canOlder}
+            onClick={() => canOlder && setOffset(Math.min(offset + WINDOW, rangeLen - WINDOW))}>
+            ‹ older
+          </button>
+          <span className="mg-num" style={{ fontSize: 13, fontWeight: 700, color: C.inkSoft }}>
+            {shortYm(trends[0].ym)} – {shortYm(trends[trends.length - 1].ym)}
+          </span>
+          <button className="mg-btn" style={pagerBtn(canNewer)} disabled={!canNewer}
+            onClick={() => canNewer && setOffset(Math.max(0, offset - WINDOW))}>
+            newer ›
+          </button>
+        </div>
+      )}
       {trends.length < 2 && (
         <section className="mg-card" style={{ padding: 20 }}>
           <CardTitle>The almanac is young 🌱</CardTitle>

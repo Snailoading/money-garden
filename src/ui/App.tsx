@@ -8,7 +8,7 @@ import type { Commitment, Goal, Invest, State, Transaction } from "../engine/typ
 import { DEFAULT_INVEST, STORAGE_KEY } from "../engine/types";
 import { fmt, monthKey, monthLabel, uid, todayISO } from "../engine/format";
 import { derive, deriveMonthView, weatherFor } from "../engine/stats";
-import { monthRange, monthlyTrends } from "../engine/trends";
+import { monthRange } from "../engine/trends";
 import { bumpStreak, deserialize, emptyState, sampleState, serialize } from "../engine/state";
 import { buildBackup, parseBackup, type ImportPreview } from "../engine/backup";
 import { createStore } from "../engine/storage";
@@ -86,7 +86,6 @@ export function MoneyGarden() {
   const derived = useMemo(() => (state ? derive(state) : null), [state]);
   const monthView = useMemo(() => (state && viewYm ? deriveMonthView(state, viewYm) : null), [state, viewYm]);
   const months = useMemo(() => (state ? monthRange(state) : []), [state]);
-  const trends = useMemo(() => (state ? monthlyTrends(state) : []), [state]);
 
   if (!state || !derived) {
     return (
@@ -286,7 +285,7 @@ export function MoneyGarden() {
         {tab === "budgets" && <Budgets state={state} d={derived} view={monthView} setBudget={setBudget} addCommitment={addCommitment} deleteCommitment={deleteCommitment} logCommitmentPayment={logCommitmentPayment} />}
         {tab === "garden" && <Garden state={state} addGoal={addGoal} waterGoal={waterGoal} deleteGoal={deleteGoal} />}
         {tab === "orchard" && <Orchard state={state} d={derived} setInvest={setInvest} addHolding={addHolding} updateHolding={updateHolding} deleteHolding={deleteHolding} waterOrchard={waterOrchard} />}
-        {tab === "seasons" && <Seasons trends={trends} goToMonth={(ym) => { goToMonth(ym); setTab("overview"); }} />}
+        {tab === "seasons" && <Seasons state={state} goToMonth={(ym) => { goToMonth(ym); setTab("overview"); }} />}
         {tab === "advice" && <Advice state={state} d={derived} />}
 
         {/* ===== import confirm card ===== */}

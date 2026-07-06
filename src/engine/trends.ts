@@ -45,13 +45,17 @@ export function monthRange(state: State, now: Date = new Date()): string[] {
 }
 
 /**
- * The trend series: the latest `maxMonths` of the range, oldest → newest.
- * The cap is purely for chart legibility (12 grouped bars fit a phone);
- * widen it here when a longer view grows a home.
+ * The trend series: a `maxMonths`-wide window of the range, oldest → newest.
+ * `offset` shifts the window back in time by that many months (clamped to
+ * the start of history) — the Seasons pager pages in steps of 12.
+ * The cap is purely for chart legibility (12 grouped bars fit a phone),
+ * never a data limit: the whole history is always available.
  */
-export function monthlyTrends(state: State, now: Date = new Date(), maxMonths = 12): TrendPoint[] {
+export function monthlyTrends(state: State, now: Date = new Date(), maxMonths = 12, offset = 0): TrendPoint[] {
   const current = monthKey(now);
-  const window = monthRange(state, now).slice(-maxMonths);
+  const range = monthRange(state, now);
+  const end = Math.max(maxMonths, range.length - Math.max(0, offset));
+  const window = range.slice(Math.max(0, end - maxMonths), end);
   return window.map((ym, i) => {
     const { spent, earned, savedThisMonth, needs, wants } = monthAggregates(state, ym);
     const income = earned || state.income || 0;

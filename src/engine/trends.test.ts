@@ -57,6 +57,19 @@ describe("monthlyTrends", () => {
     expect(monthlyTrends(s, now, 6)).toHaveLength(6); // widening/narrowing is a parameter
   });
 
+  it("pages the window back with offset, clamped to the start of history", () => {
+    const s = state([tx("2025-01", "expense", 10)]); // 18-month range
+    const back = monthlyTrends(s, now, 12, 12);
+    expect(back[0].ym).toBe("2025-01"); // clamped: only 6 older months exist
+    expect(back[back.length - 1].ym).toBe("2025-12");
+    expect(back).toHaveLength(12);
+    expect(back.every((p) => !p.partial)).toBe(true); // current month not in window
+    expect(back[0].label).toBe("Jan ’25"); // window's first point carries the year
+    // Absurd offsets clamp to the earliest window; short histories don't page.
+    expect(monthlyTrends(s, now, 12, 999)[0].ym).toBe("2025-01");
+    expect(monthlyTrends(state([tx("2026-04", "expense", 10)]), now, 12, 12)).toHaveLength(3);
+  });
+
   it("labels the first point and each January with the year", () => {
     const points = monthlyTrends(state([tx("2025-11", "expense", 10)]), now);
     expect(points.map((p) => p.label)).toEqual(["Nov ’25", "Dec", "Jan ’26", "Feb", "Mar", "Apr", "May", "Jun"]);
