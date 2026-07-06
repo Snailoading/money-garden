@@ -1,0 +1,29 @@
+{
+  "name": "Money Garden",
+  "short_name": "Money Garden",
+  "description": "A personal finance tracker and long-term planner disguised as a garden. Local-first — your data never leaves your device.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#EEF4E9",
+  "theme_color": "#5A7D5A",
+  "icons": [
+    {
+      "src": "icons/money-garden-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/money-garden-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/money-garden-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
