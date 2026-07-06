@@ -2,6 +2,30 @@
 
 All notable changes to Money Garden. Dates are release dates.
 
+## 0.5.0 — 2026-07-07 · *Tending notes* ✏️
+
+Typos happen. Now they're a tap to fix, not a delete-and-retype.
+
+### Added
+
+- **Edit entries in place:** every ledger row has a ✏️ beside its ✕. The row
+  unfolds into a small form — amount, category, note, date, and (for
+  expenses/income) the type — with Enter to save and Escape to cancel.
+  Editing a date across a month boundary simply re-files the entry.
+- **Goal linkage:** new goal-watering entries remember which flower they
+  watered. Edit the amount and the goal's balance moves by the difference;
+  delete the entry and the goal drains — both clamped to the goal's range,
+  and the toast tells you when a goal was adjusted. This also makes deletion
+  honest for new waterings (it never used to un-water the goal).
+
+### Notes
+
+- Entries logged before v0.5.0 aren't linked to goals (they carry no goal
+  reference, and guessing from note text would be worse than not guessing);
+  editing them changes only the journal.
+- Editing never counts toward your logging streak — corrections aren't
+  logging.
+
 ## 0.4.0 — 2026-07-06 · *The turning of the seasons* 🍂
 
 Your garden finally remembers. Past months were always stored — now you

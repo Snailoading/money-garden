@@ -37,7 +37,7 @@ First visit looks bare? Tap **Plant sample data** to explore with realistic numb
 The month at a glance: a big friendly **"left to spend"** number (with a per-day pace through month-end), earned / spent / sent-to-goals, and your savings rate. A **spending-pace chart** plots your cumulative spend against an even-pace line so you can see mid-month whether you're running hot, and a **category donut** shows where the money actually went. Your goals sprout along the horizon.
 
 ### ✏️ Log
-The daily driver. Record expenses (10 categories, each tagged *need* or *want*), income, and transfers to savings — with notes and dates, Enter-to-submit, and one-tap delete. Every number in the app recalculates instantly. A **logging streak** 🔥 rewards the habit; awareness is half the battle.
+The daily driver. Record expenses (10 categories, each tagged *need* or *want*), income, and transfers to savings — with notes and dates, Enter-to-submit, and one-tap delete. Typo? Every entry **edits in place** (✏️): amount, category, note, date — and fixing a goal-watering entry adjusts the goal's balance too. Every number in the app recalculates instantly. A **logging streak** 🔥 rewards the habit; awareness is half the battle.
 
 ### 🧺 Budgets
 Set monthly limits per category with color-coded progress bars: green means room to grow, amber means nearly full, red means **overgrown** (with the exact overage, so you know what to prune). Below the plots, **Vines & Trellis** tracks recurring commitments:
@@ -89,7 +89,7 @@ Your data is written to your device's storage under the key `money-garden:state-
 
 ## Roadmap 🗺️
 
-~~Export/backup & import (JSON)~~ ✓ → ~~month history & trend charts~~ ✓ → inline transaction editing → dark mode (*night garden* 🌙) → debt tracking (*weeds* 🌿✂️) → monthly harvest reports → bank CSV import → net worth over time → native mobile apps with home-screen widgets.
+~~Export/backup & import (JSON)~~ ✓ → ~~month history & trend charts~~ ✓ → ~~inline transaction editing~~ ✓ → dark mode (*night garden* 🌙) → debt tracking (*weeds* 🌿✂️) → monthly harvest reports → bank CSV import → net worth over time → native mobile apps with home-screen widgets.
 
 ---
 
