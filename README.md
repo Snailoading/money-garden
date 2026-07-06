@@ -63,6 +63,7 @@ A rules-based gardener's notebook, generating prioritized notes from your actual
 - **Hand-rolled SVG charts** — no chart library, just paths and math — with touch-friendly tooltips and entry animations (which politely stand still if you prefer reduced motion).
 - **A garden health score** (0–100) shown as weather — ☀️ Sunny, 🌤️ Fair, ☁️ Overcast, 🌧️ Stormy — blending budget adherence (55), savings behaviour (30), and your logging streak (15). Rent on the 1st won't storm your skies: early-month pace wobbles are weighted down until the month has shown its shape.
 - **Automatic saving** through a three-tier storage adapter: platform storage → browser localStorage → session memory. The footer (**🧰 the shed**) always discloses where your data lives, and warns you if saving isn't available.
+- **Backup & restore** 🏦 — one click downloads your whole garden as a readable, versioned JSON file; importing shows you what's inside (and what it would replace) before asking for an explicit confirm. Old backups and even raw data dumps import cleanly.
 - **A two-step "erase everything"** — no single click can salt your fields.
 - **Fraunces & DM Sans**, self-hosted; the exact garden palette; tabular numerals so your figures line up like fence posts.
 
@@ -85,7 +86,7 @@ Your data is written to your device's storage under the key `money-garden:state-
 
 ## Roadmap 🗺️
 
-Export/backup & import (JSON) → month history & trend charts → inline transaction editing → dark mode (*night garden* 🌙) → debt tracking (*weeds* 🌿✂️) → monthly harvest reports → bank CSV import → net worth over time → native mobile apps with home-screen widgets.
+~~Export/backup & import (JSON)~~ ✓ → month history & trend charts → inline transaction editing → dark mode (*night garden* 🌙) → debt tracking (*weeds* 🌿✂️) → monthly harvest reports → bank CSV import → net worth over time → native mobile apps with home-screen widgets.
 
 ---
 

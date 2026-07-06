@@ -2,6 +2,26 @@
 
 All notable changes to Money Garden. Dates are release dates.
 
+## 0.3.0 — 2026-07-06 · *The seed vault* 🏦
+
+Your garden, backed up. The safety feature the roadmap wanted before
+anything else touches the data.
+
+### Added
+
+- **⬇️ Save backup** (in the footer shed): downloads your entire garden as
+  one human-readable JSON file — `money-garden-backup-YYYY-MM-DD.json` — in
+  a versioned envelope so future versions can always read old backups.
+- **⬆️ Import backup:** pick a backup file and Money Garden shows you what's
+  inside ("10 transactions · 3 goals · 4 commitments · exported …") and
+  exactly what it would replace, then asks for an explicit confirm. Cancel
+  any time; a damaged or foreign file is refused with a plain-words message
+  and your current data is never touched.
+- Imports are forgiving by design: backups from older versions are migrated
+  on the way in, unknown fields from newer versions survive the round trip,
+  and even a bare data dump (a hand-copied localStorage value) imports fine.
+- GUIDE: a "Backing up your garden" section.
+
 ## 0.2.0 — 2026-07-06 · *The weeding* 🌿✂️
 
 The first pass after the port: every known bug in the inherited math, fixed

@@ -26,8 +26,12 @@ New garden looking empty? Tap **🌼 Plant sample data** to wander around with r
 2. **Water your goals on payday** — watching the flower grow is the whole point.
 3. **Peek at the Advice tab once a week** — it quietly reprioritizes as your month unfolds.
 
+## Backing up your garden 🏦
+
+In the footer, **⬇️ Save backup** downloads your whole garden as a single file — tuck it somewhere safe (cloud drive, email it to yourself) every so often. If you ever switch browsers or devices, or something happens to this one, **⬆️ Import backup** plants it right back. Restoring replaces what's currently in the app (it shows you exactly what's in the file, and asks first).
+
 ## The fine print (kept short)
 
-Your data saves automatically; the footer always tells you where. If you clear your browser's site data, your garden goes with it — so don't do that casually. And everything here is general education based on well-known rules of thumb, **not personalized financial advice** — for the big decisions, talk to a professional.
+Your data saves automatically; the footer always tells you where. If you clear your browser's site data, your garden goes with it — so keep a backup file around. And everything here is general education based on well-known rules of thumb, **not personalized financial advice** — for the big decisions, talk to a professional.
 
 *Plant coins. Pull weeds. Grow free.* 🌱
