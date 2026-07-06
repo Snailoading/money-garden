@@ -132,15 +132,17 @@ describe("projection curve", () => {
   });
 });
 
-describe("Coast FIRE (annual compounding — reference behavior, flagged)", () => {
-  it("discounts the FIRE number back to today at the annual rate", () => {
+describe("Coast FIRE (monthly compounding, same model as the projections)", () => {
+  it("discounts the FIRE number back to today at the monthly rate", () => {
+    // Was annual (1.07^35) in the reference; monthly compounding keeps the
+    // coast badge consistent with the projection chart at the boundary.
     const f = deriveFire(invest({ retireSpend: 1000, ret: 7, age: 30, retireAge: 65 }), 0);
-    expect(f.coastNumber).toBeCloseTo(300000 / Math.pow(1.07, 35), 6);
+    expect(f.coastNumber).toBeCloseTo(300000 / Math.pow(1 + 0.07 / 12, 420), 6);
   });
 
   it("flags coastReached when today's portfolio compounds past the target by retireAge", () => {
     const base = { retireSpend: 1000, ret: 7, age: 30, retireAge: 65 };
-    // 30000 × 1.07^35 ≈ 320k ≥ 300k; 20000 × 1.07^35 ≈ 213k < 300k.
+    // Monthly growth over 35y ≈ ×11.5: 30000 → ≈345k ≥ 300k; 20000 → ≈230k < 300k.
     expect(deriveFire(invest({ ...base, holdings: holdings(30000) }), 0).coastReached).toBe(true);
     expect(deriveFire(invest({ ...base, holdings: holdings(20000) }), 0).coastReached).toBe(false);
   });
