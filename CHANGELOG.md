@@ -12,6 +12,10 @@ Typos happen. Now they're a tap to fix, not a delete-and-retype.
   unfolds into a small form — amount, category, note, date, and (for
   expenses/income) the type — with Enter to save and Escape to cancel.
   Editing a date across a month boundary simply re-files the entry.
+- **Two-step delete:** the row's ✕ now asks — first tap arms it ("Delete?",
+  reverting on its own after a few seconds), second tap deletes. Brings the
+  ledger in line with the app's never-destroy-in-one-tap rule, which matters
+  more now that deleting can drain a linked goal.
 - **Goal linkage:** new goal-watering entries remember which flower they
   watered. Edit the amount and the goal's balance moves by the difference;
   delete the entry and the goal drains — both clamped to the goal's range,
