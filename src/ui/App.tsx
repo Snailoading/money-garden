@@ -9,6 +9,7 @@ import { DEFAULT_INVEST, STORAGE_KEY } from "../engine/types";
 import { fmt, uid, todayISO } from "../engine/format";
 import { derive, weatherFor } from "../engine/stats";
 import { bumpStreak, deserialize, emptyState, sampleState, serialize } from "../engine/state";
+import { buildBackup, parseBackup, type ImportPreview } from "../engine/backup";
 import { createStore } from "../engine/storage";
 import { C } from "./theme";
 import { Overview } from "./tabs/Overview";
@@ -35,8 +36,10 @@ export function MoneyGarden() {
   const [tab, setTab] = useState<TabId>("overview");
   const [toast, setToast] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [pendingImport, setPendingImport] = useState<ImportPreview | null>(null);
   const memoryFallback = useRef(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const importInput = useRef<HTMLInputElement>(null);
 
   /* ---------- load & persist ---------- */
   useEffect(() => {
@@ -153,6 +156,37 @@ export function MoneyGarden() {
     showToast(`💸 ${fmt(c.amount)} logged for "${c.name}"`);
   };
 
+  /* ---------- backup: export & import ---------- */
+  const saveBackup = () => {
+    const { filename, json } = buildBackup(state);
+    const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("🌾 Backup saved — keep it somewhere safe.");
+  };
+
+  const onImportFile = async (file: File | undefined) => {
+    if (!file) return;
+    const result = parseBackup(await file.text());
+    if (!result.ok) {
+      showToast(result.error);
+      return;
+    }
+    setPendingImport(result.preview);
+  };
+
+  const confirmImport = () => {
+    if (!pendingImport) return;
+    const { counts } = pendingImport;
+    setStateSafe(pendingImport.state);
+    setPendingImport(null);
+    setTab("overview");
+    showToast(`🌱 Garden restored — ${counts.transactions} transactions, ${counts.goals} goals.`);
+  };
+
   const isEmpty = state.transactions.length === 0 && state.goals.length === 0;
   const weather = weatherFor(derived.health);
 
@@ -220,12 +254,48 @@ export function MoneyGarden() {
         {tab === "orchard" && <Orchard state={state} d={derived} setInvest={setInvest} addHolding={addHolding} updateHolding={updateHolding} deleteHolding={deleteHolding} waterOrchard={waterOrchard} />}
         {tab === "advice" && <Advice state={state} d={derived} />}
 
+        {/* ===== import confirm card ===== */}
+        {pendingImport && (
+          <section className="mg-card" style={{ marginTop: 24, padding: 20, border: `1.5px solid ${C.marigold}` }}>
+            <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 18, marginBottom: 6 }}>Restore from backup? 🏦</div>
+            <p style={{ margin: "0 0 6px", fontSize: 13.5, color: C.inkSoft }}>
+              This backup contains <b className="mg-num" style={{ color: C.ink }}>{pendingImport.counts.transactions}</b> transactions · <b className="mg-num" style={{ color: C.ink }}>{pendingImport.counts.goals}</b> goals · <b className="mg-num" style={{ color: C.ink }}>{pendingImport.counts.commitments}</b> commitments · <b className="mg-num" style={{ color: C.ink }}>{pendingImport.counts.holdings}</b> holdings{pendingImport.exportedAt ? <> · exported {pendingImport.exportedAt}</> : null}.
+            </p>
+            <p style={{ margin: "0 0 12px", fontSize: 13.5, color: C.tomato, fontWeight: 600 }}>
+              ⚠ Importing replaces your current garden ({state.transactions.length} transactions, {state.goals.length} goals).
+            </p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="mg-btn" onClick={confirmImport}
+                style={{ background: C.tomato, border: `1.5px solid ${C.tomato}`, borderRadius: 10, padding: "8px 16px", fontWeight: 700, fontSize: 13, color: "#fff", cursor: "pointer" }}>
+                Replace my garden
+              </button>
+              <button className="mg-btn" onClick={() => setPendingImport(null)}
+                style={{ background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 16px", fontWeight: 600, fontSize: 13, color: C.inkSoft, cursor: "pointer" }}>
+                Cancel
+              </button>
+            </div>
+          </section>
+        )}
+
         {/* ===== the shed — housekeeping ===== */}
         <footer style={{ marginTop: 28, paddingTop: 16, borderTop: `1.5px dashed ${C.border}`, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 12.5, color: C.inkSoft }}>
             🧰 The shed · your data saves automatically to this app's storage. Edit anything in place; delete a logged entry with its ✕.
           </span>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className="mg-btn" onClick={saveBackup}
+              style={{ background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "7px 14px", fontWeight: 600, fontSize: 13, color: C.inkSoft, cursor: "pointer" }}>
+              ⬇️ Save backup
+            </button>
+            <button className="mg-btn" onClick={() => importInput.current?.click()}
+              style={{ background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "7px 14px", fontWeight: 600, fontSize: 13, color: C.inkSoft, cursor: "pointer" }}>
+              ⬆️ Import backup
+            </button>
+            <input ref={importInput} type="file" accept=".json,application/json" style={{ display: "none" }}
+              onChange={(e) => {
+                void onImportFile(e.target.files?.[0]);
+                e.target.value = ""; // allow re-picking the same file
+              }} />
             {!isEmpty && (
               <button className="mg-btn" onClick={() => { setStateSafe(sampleState()); setConfirmReset(false); showToast("🌼 Sample garden replanted"); }}
                 style={{ background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "7px 14px", fontWeight: 600, fontSize: 13, color: C.inkSoft, cursor: "pointer" }}>
