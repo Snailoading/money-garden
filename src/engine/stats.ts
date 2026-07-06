@@ -6,7 +6,7 @@
 
 import type { State, Transaction } from "./types";
 import { CATEGORIES } from "./types";
-import { monthKey, toLocalISO } from "./format";
+import { monthKey } from "./format";
 import { deriveFire, type FireDerived } from "./fire";
 import { deriveCommitments, type CommitmentsDerived } from "./commitments";
 
@@ -56,34 +56,60 @@ export function weatherFor(score: number): Weather {
 }
 
 /**
- * Everything the UI derives from state, in one pass — the exact shape the
- * reference computed in its `derived` useMemo.
+ * The month-scoped aggregation shared by derive() (current month),
+ * deriveMonthView() (any month), and trends.ts. `ym` is a YYYY-MM key;
+ * the filter is a string-prefix match on the stored local-calendar date.
  */
-export function derive(state: State, now: Date = new Date()): Derived {
-  const mk = monthKey(now);
-  // Month filter is a string-prefix match on the stored YYYY-MM-DD date,
-  // local calendar throughout (the reference mixed UTC and local here).
-  const monthTx = state.transactions.filter((t) => t.date.startsWith(mk));
+export function monthAggregates(state: State, ym: string) {
+  const monthTx = state.transactions.filter((t) => t.date.startsWith(ym));
   const spent = monthTx.filter((t) => t.type === "expense").reduce((a, t) => a + t.amount, 0);
   const earned = monthTx.filter((t) => t.type === "income").reduce((a, t) => a + t.amount, 0);
-  // Any logged income this month REPLACES the stated income entirely (it does
-  // not top it up) — reference behavior (line 309), preserved and flagged.
-  const income = earned || state.income || 0;
   const savedThisMonth = monthTx.filter((t) => t.type === "saving").reduce((a, t) => a + t.amount, 0);
-  const left = income - spent - savedThisMonth;
-  const savingsRate = income > 0 ? savedThisMonth / income : 0;
 
   const byCat: Record<string, number> = {};
   for (const c of CATEGORIES) byCat[c.id] = 0;
   for (const t of monthTx) if (t.type === "expense") byCat[t.category] = (byCat[t.category] || 0) + t.amount;
 
+  const needs = CATEGORIES.filter((c) => c.kind === "need").reduce((a, c) => a + byCat[c.id], 0);
+  const wants = CATEGORIES.filter((c) => c.kind === "want").reduce((a, c) => a + byCat[c.id], 0);
+
+  return { monthTx, spent, earned, savedThisMonth, byCat, needs, wants };
+}
+
+/** Budget-dependent pieces shared by derive() and deriveMonthView(). */
+function budgetStats(state: State, byCat: Record<string, number>) {
   const totalBudget = Object.values(state.budgets).reduce((a, b) => a + (Number(b) || 0), 0);
   const overruns = CATEGORIES.filter(
     (c) => byCat[c.id] > (state.budgets[c.id] || 0) && (state.budgets[c.id] || 0) > 0,
   );
+  return { totalBudget, overruns };
+}
 
-  const needs = CATEGORIES.filter((c) => c.kind === "need").reduce((a, c) => a + byCat[c.id], 0);
-  const wants = CATEGORIES.filter((c) => c.kind === "want").reduce((a, c) => a + byCat[c.id], 0);
+/** Cumulative daily spend vs the even-pace line, for days 1..lastDay of ym. */
+function dailySeries(monthTx: Transaction[], ym: string, lastDay: number, daysInMonth: number, totalBudget: number): DailyPoint[] {
+  const daily: DailyPoint[] = [];
+  let run = 0;
+  for (let day = 1; day <= lastDay; day++) {
+    const dstr = `${ym}-${String(day).padStart(2, "0")}`;
+    run += monthTx.filter((t) => t.type === "expense" && t.date === dstr).reduce((a, t) => a + t.amount, 0);
+    daily.push({ day, spent: Math.round(run), pace: Math.round((totalBudget / daysInMonth) * day) });
+  }
+  return daily;
+}
+
+/**
+ * Everything the UI derives from state, in one pass — the exact shape the
+ * reference computed in its `derived` useMemo.
+ */
+export function derive(state: State, now: Date = new Date()): Derived {
+  const mk = monthKey(now);
+  const { monthTx, spent, earned, savedThisMonth, byCat, needs, wants } = monthAggregates(state, mk);
+  // Any logged income this month REPLACES the stated income entirely (it does
+  // not top it up) — reference behavior (line 309), preserved and flagged.
+  const income = earned || state.income || 0;
+  const left = income - spent - savedThisMonth;
+  const savingsRate = income > 0 ? savedThisMonth / income : 0;
+  const { totalBudget, overruns } = budgetStats(state, byCat);
 
   // Health score: budget adherence (55) + savings behaviour (30) + streak (15).
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -100,14 +126,8 @@ export function derive(state: State, now: Date = new Date()): Derived {
   const streakScore = Math.min(1, state.streak.count / 7);
   const health = Math.round(adherence * 55 + saveScore * 30 + streakScore * 15);
 
-  // Daily cumulative spend for the pace chart.
-  const daily: DailyPoint[] = [];
-  let run = 0;
-  for (let day = 1; day <= now.getDate(); day++) {
-    const dstr = toLocalISO(new Date(now.getFullYear(), now.getMonth(), day));
-    run += monthTx.filter((t) => t.type === "expense" && t.date === dstr).reduce((a, t) => a + t.amount, 0);
-    daily.push({ day, spent: Math.round(run), pace: Math.round((totalBudget / daysInMonth) * day) });
-  }
+  // Daily cumulative spend for the pace chart — up to today only.
+  const daily = dailySeries(monthTx, mk, now.getDate(), daysInMonth, totalBudget);
 
   const emergency = state.goals.find((g) => g.isEmergency);
   // Typical monthly spending (feeds emergency coverage and FIRE sizing when
@@ -142,5 +162,48 @@ export function derive(state: State, now: Date = new Date()): Derived {
     monthTx, spent, earned, income, savedThisMonth, left, savingsRate, byCat,
     totalBudget, overruns, needs, wants, health, daily, daysInMonth, monthFrac,
     emergency, emergencyMonths, monthlyExpenses, fire, commit,
+  };
+}
+
+/**
+ * A single month viewed in full — the shape Overview/Log/Budgets need when
+ * browsing history. Field names deliberately match Derived so the UI can
+ * read from `view ?? derived`. No health/monthFrac/fire here: those are
+ * "now" concepts, not properties of a past month.
+ */
+export interface MonthView {
+  ym: string;
+  monthTx: Transaction[];
+  spent: number;
+  earned: number;
+  income: number;
+  savedThisMonth: number;
+  left: number;
+  savingsRate: number;
+  byCat: Record<string, number>;
+  totalBudget: number;
+  overruns: typeof CATEGORIES;
+  needs: number;
+  wants: number;
+  daily: DailyPoint[];
+  daysInMonth: number;
+}
+
+export function deriveMonthView(state: State, ym: string): MonthView {
+  const { monthTx, spent, earned, savedThisMonth, byCat, needs, wants } = monthAggregates(state, ym);
+  // Same earned-replaces-stated-income convention as derive(): the stated
+  // income is a monthly recurring figure, so it stands in for months where
+  // no paycheck was logged.
+  const income = earned || state.income || 0;
+  const left = income - spent - savedThisMonth;
+  const savingsRate = income > 0 ? savedThisMonth / income : 0;
+  const { totalBudget, overruns } = budgetStats(state, byCat);
+  const [y, m] = ym.split("-").map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate(); // m is 1-based → day 0 of next month
+  // A browsed month renders complete: the daily series runs to its last day.
+  const daily = dailySeries(monthTx, ym, daysInMonth, daysInMonth, totalBudget);
+  return {
+    ym, monthTx, spent, earned, income, savedThisMonth, left, savingsRate,
+    byCat, totalBudget, overruns, needs, wants, daily, daysInMonth,
   };
 }

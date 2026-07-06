@@ -49,6 +49,12 @@ export const monthKey = (d: Date = new Date()): string =>
 
 export const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
+/** "June" (or "June 2026") for a YYYY-MM key — display only. */
+export const monthLabel = (ym: string, withYear = false): string => {
+  const [y, m] = ym.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("en-US", withYear ? { month: "long", year: "numeric" } : { month: "long" });
+};
+
 /** "Sep 15" — local calendar, consistent with todayISO/monthKey. */
 export const shortDate = (dt: Date): string =>
   `${MONTH_NAMES[dt.getMonth()]} ${dt.getDate()}`;

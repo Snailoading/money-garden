@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { State, Transaction } from "./types";
 import { emptyState } from "./state";
 import { monthKey } from "./format";
-import { derive, weatherFor } from "./stats";
+import { derive, deriveMonthView, weatherFor } from "./stats";
 
 // June 15, 2026 at local noon: monthFrac = 15/30 = 0.5 exactly, and the
 // UTC-based monthKey stays in June for every real-world timezone offset.
@@ -227,6 +227,50 @@ describe("weather thresholds", () => {
     expect(weatherFor(40).word).toBe("Overcast");
     expect(weatherFor(39).word).toBe("Stormy");
     expect(weatherFor(0).word).toBe("Stormy");
+  });
+});
+
+describe("deriveMonthView", () => {
+  it("renders a past month complete: full daily series and final totals", () => {
+    const s = state({
+      budgets: { groceries: 300 },
+      transactions: [
+        { id: "a", type: "income", amount: 2000, category: "other", note: "", date: "2026-04-01" },
+        { id: "b", type: "expense", amount: 350, category: "groceries", note: "", date: "2026-04-10" },
+        { id: "c", type: "saving", amount: 200, category: "other", note: "", date: "2026-04-20" },
+      ],
+    });
+    const v = deriveMonthView(s, "2026-04");
+    expect(v.daysInMonth).toBe(30);
+    expect(v.daily).toHaveLength(30); // complete month, not clipped to "today"
+    expect(v.daily[29].spent).toBe(350);
+    expect(v.spent).toBe(350);
+    expect(v.left).toBe(1450); // 2000 − 350 − 200
+    expect(v.savingsRate).toBeCloseTo(0.1);
+    expect(v.overruns.map((c) => c.id)).toEqual(["groceries"]); // 350 > 300
+  });
+
+  it("uses the stated income as fallback for months without a logged paycheck", () => {
+    const s = state({ income: 1500, transactions: [{ id: "a", type: "expense", amount: 100, category: "fun", note: "", date: "2026-03-10" }] });
+    const v = deriveMonthView(s, "2026-03");
+    expect(v.income).toBe(1500);
+    expect(v.left).toBe(1400);
+  });
+
+  it("matches derive()'s numbers for the current month", () => {
+    const s = state({
+      budgets: { groceries: 1000 },
+      transactions: [tx("income", 2000), tx("expense", 600, "groceries"), tx("saving", 300)],
+    });
+    const d = derive(s, now);
+    const v = deriveMonthView(s, mk);
+    expect([v.spent, v.earned, v.income, v.savedThisMonth, v.left, v.savingsRate, v.needs, v.wants, v.totalBudget])
+      .toEqual([d.spent, d.earned, d.income, d.savedThisMonth, d.left, d.savingsRate, d.needs, d.wants, d.totalBudget]);
+    expect(v.byCat).toEqual(d.byCat);
+    // Only difference by design: the view's daily series covers the full month.
+    expect(v.daily).toHaveLength(v.daysInMonth);
+    expect(d.daily).toHaveLength(15);
+    expect(v.daily.slice(0, 15)).toEqual(d.daily);
   });
 });
 
