@@ -5,14 +5,16 @@
 import { useState } from "react";
 import type { State, Transaction } from "../../engine/types";
 import { CATEGORIES } from "../../engine/types";
-import type { Derived } from "../../engine/stats";
-import { fmt, todayISO } from "../../engine/format";
+import type { Derived, MonthView } from "../../engine/stats";
+import { fmt, monthLabel, todayISO } from "../../engine/format";
 import { C, inputStyle } from "../theme";
 import { CardTitle, Empty, Field } from "../bits";
 
-export function Log({ d, addTransaction, deleteTransaction }: {
+export function Log({ d, view, addTransaction, deleteTransaction }: {
   state: State;
   d: Derived;
+  /** A browsed past month; null/undefined = today. */
+  view?: MonthView | null;
   addTransaction: (tx: Omit<Transaction, "id">) => void;
   deleteTransaction: (id: string) => void;
 }) {
@@ -70,12 +72,12 @@ export function Log({ d, addTransaction, deleteTransaction }: {
       </section>
 
       <section className="mg-card" style={{ padding: 20 }}>
-        <CardTitle>This month's ledger</CardTitle>
-        {d.monthTx.length === 0 ? (
-          <Empty text="Nothing logged yet this month." />
+        <CardTitle>{view ? `${monthLabel(view.ym)}'s ledger` : "This month's ledger"}</CardTitle>
+        {(view ?? d).monthTx.length === 0 ? (
+          <Empty text={view ? "Nothing was logged that month." : "Nothing logged yet this month."} />
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {d.monthTx.slice(0, 40).map((t) => {
+            {(view ?? d).monthTx.slice(0, 40).map((t) => {
               const cat = CATEGORIES.find((c) => c.id === t.category);
               const sign = t.type === "income" ? "+" : t.type === "saving" ? "→" : "−";
               const color = t.type === "income" ? C.leafDark : t.type === "saving" ? C.marigold : C.ink;

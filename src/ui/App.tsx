@@ -6,8 +6,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Commitment, Goal, Invest, State, Transaction } from "../engine/types";
 import { DEFAULT_INVEST, STORAGE_KEY } from "../engine/types";
-import { fmt, uid, todayISO } from "../engine/format";
-import { derive, weatherFor } from "../engine/stats";
+import { fmt, monthKey, monthLabel, uid, todayISO } from "../engine/format";
+import { derive, deriveMonthView, weatherFor } from "../engine/stats";
+import { monthRange, monthlyTrends } from "../engine/trends";
 import { bumpStreak, deserialize, emptyState, sampleState, serialize } from "../engine/state";
 import { buildBackup, parseBackup, type ImportPreview } from "../engine/backup";
 import { createStore } from "../engine/storage";
@@ -17,6 +18,7 @@ import { Log } from "./tabs/Log";
 import { Budgets } from "./tabs/Budgets";
 import { Garden } from "./tabs/Garden";
 import { Orchard } from "./tabs/Orchard";
+import { Seasons } from "./tabs/Seasons";
 import { Advice } from "./tabs/Advice";
 
 const store = createStore();
@@ -27,6 +29,7 @@ const TABS = [
   { id: "budgets",  label: "Budgets",  icon: "🧺" },
   { id: "garden",   label: "Garden",   icon: "🌷" },
   { id: "orchard",  label: "Orchard",  icon: "🌳" },
+  { id: "seasons",  label: "Seasons",  icon: "🍂" },
   { id: "advice",   label: "Advice",   icon: "🪴" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
@@ -37,6 +40,8 @@ export function MoneyGarden() {
   const [toast, setToast] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [pendingImport, setPendingImport] = useState<ImportPreview | null>(null);
+  /** YYYY-MM being browsed; null = today. Affects Overview, Log, Budget plots. */
+  const [viewYm, setViewYm] = useState<string | null>(null);
   const memoryFallback = useRef(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const importInput = useRef<HTMLInputElement>(null);
@@ -79,6 +84,9 @@ export function MoneyGarden() {
 
   /* ---------- derived numbers (engine) ---------- */
   const derived = useMemo(() => (state ? derive(state) : null), [state]);
+  const monthView = useMemo(() => (state && viewYm ? deriveMonthView(state, viewYm) : null), [state, viewYm]);
+  const months = useMemo(() => (state ? monthRange(state) : []), [state]);
+  const trends = useMemo(() => (state ? monthlyTrends(state) : []), [state]);
 
   if (!state || !derived) {
     return (
@@ -183,12 +191,26 @@ export function MoneyGarden() {
     const { counts } = pendingImport;
     setStateSafe(pendingImport.state);
     setPendingImport(null);
+    setViewYm(null);
     setTab("overview");
     showToast(`🌱 Garden restored — ${counts.transactions} transactions, ${counts.goals} goals.`);
   };
 
+  /* ---------- month navigation ---------- */
+  const currentYm = monthKey();
+  const shownYm = viewYm ?? currentYm;
+  const shownIdx = months.indexOf(shownYm);
+  const canPrev = shownIdx > 0;
+  const canNext = viewYm !== null;
+  const goToMonth = (ym: string) => setViewYm(ym === currentYm ? null : ym);
+
   const isEmpty = state.transactions.length === 0 && state.goals.length === 0;
   const weather = weatherFor(derived.health);
+  const navBtnStyle = (enabled: boolean) => ({
+    border: "none", background: "transparent", cursor: enabled ? "pointer" : "default",
+    color: C.inkSoft, fontWeight: 700, fontSize: 18, lineHeight: 1, padding: "0 6px",
+    opacity: enabled ? 1 : 0.25,
+  } as const);
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.ink, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
@@ -196,8 +218,20 @@ export function MoneyGarden() {
       <header style={{ maxWidth: 980, margin: "0 auto", padding: "26px 20px 8px" }}>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <div>
-            <div style={{ fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: C.inkSoft, fontWeight: 700 }}>
-              {new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+            <div style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: -6 }}>
+              <button className="mg-btn" onClick={() => canPrev && goToMonth(months[shownIdx - 1])} disabled={!canPrev}
+                aria-label="Previous month" style={navBtnStyle(canPrev)}>‹</button>
+              <div style={{ fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: viewYm ? "#9A7418" : C.inkSoft, fontWeight: 700 }}>
+                {monthLabel(shownYm, true)}
+              </div>
+              <button className="mg-btn" onClick={() => canNext && goToMonth(months[shownIdx + 1] ?? currentYm)} disabled={!canNext}
+                aria-label="Next month" style={navBtnStyle(canNext)}>›</button>
+              {viewYm && (
+                <button className="mg-btn" onClick={() => setViewYm(null)}
+                  style={{ marginLeft: 4, border: `1.5px solid #9A7418`, background: "#FBF3DC", color: "#9A7418", borderRadius: 999, padding: "2px 10px", fontWeight: 700, fontSize: 11, cursor: "pointer" }}>
+                  ↩ today
+                </button>
+              )}
             </div>
             <h1 style={{ fontFamily: "'Fraunces', serif", fontWeight: 900, fontSize: "clamp(30px, 5vw, 44px)", margin: "2px 0 0", lineHeight: 1.05 }}>
               Money Garden
@@ -240,18 +274,19 @@ export function MoneyGarden() {
               <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 20 }}>Fresh soil 🌱</div>
               <div style={{ color: C.inkSoft, fontSize: 14 }}>Log your first expense or plant a goal — or explore with sample data first.</div>
             </div>
-            <button className="mg-btn" onClick={() => setStateSafe(sampleState())}
+            <button className="mg-btn" onClick={() => { setStateSafe(sampleState()); setViewYm(null); }}
               style={{ background: C.leaf, color: "#fff", border: "none", borderRadius: 12, padding: "10px 18px", fontWeight: 700, cursor: "pointer" }}>
               Plant sample data
             </button>
           </div>
         )}
 
-        {tab === "overview" && <Overview state={state} d={derived} setIncome={setIncome} goTo={(t) => setTab(t as TabId)} />}
-        {tab === "log" && <Log state={state} d={derived} addTransaction={addTransaction} deleteTransaction={deleteTransaction} />}
-        {tab === "budgets" && <Budgets state={state} d={derived} setBudget={setBudget} addCommitment={addCommitment} deleteCommitment={deleteCommitment} logCommitmentPayment={logCommitmentPayment} />}
+        {tab === "overview" && <Overview state={state} d={derived} view={monthView} setIncome={setIncome} goTo={(t) => setTab(t as TabId)} />}
+        {tab === "log" && <Log state={state} d={derived} view={monthView} addTransaction={addTransaction} deleteTransaction={deleteTransaction} />}
+        {tab === "budgets" && <Budgets state={state} d={derived} view={monthView} setBudget={setBudget} addCommitment={addCommitment} deleteCommitment={deleteCommitment} logCommitmentPayment={logCommitmentPayment} />}
         {tab === "garden" && <Garden state={state} addGoal={addGoal} waterGoal={waterGoal} deleteGoal={deleteGoal} />}
         {tab === "orchard" && <Orchard state={state} d={derived} setInvest={setInvest} addHolding={addHolding} updateHolding={updateHolding} deleteHolding={deleteHolding} waterOrchard={waterOrchard} />}
+        {tab === "seasons" && <Seasons trends={trends} goToMonth={(ym) => { goToMonth(ym); setTab("overview"); }} />}
         {tab === "advice" && <Advice state={state} d={derived} />}
 
         {/* ===== import confirm card ===== */}
@@ -297,13 +332,13 @@ export function MoneyGarden() {
                 e.target.value = ""; // allow re-picking the same file
               }} />
             {!isEmpty && (
-              <button className="mg-btn" onClick={() => { setStateSafe(sampleState()); setConfirmReset(false); showToast("🌼 Sample garden replanted"); }}
+              <button className="mg-btn" onClick={() => { setStateSafe(sampleState()); setConfirmReset(false); setViewYm(null); showToast("🌼 Sample garden replanted"); }}
                 style={{ background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "7px 14px", fontWeight: 600, fontSize: 13, color: C.inkSoft, cursor: "pointer" }}>
                 Replant sample data
               </button>
             )}
             {confirmReset ? (
-              <button className="mg-btn" onClick={() => { setStateSafe(emptyState()); setConfirmReset(false); setTab("overview"); showToast("🍂 Fresh soil — everything cleared"); }}
+              <button className="mg-btn" onClick={() => { setStateSafe(emptyState()); setConfirmReset(false); setViewYm(null); setTab("overview"); showToast("🍂 Fresh soil — everything cleared"); }}
                 style={{ background: C.tomato, border: `1.5px solid ${C.tomato}`, borderRadius: 10, padding: "7px 14px", fontWeight: 700, fontSize: 13, color: "#fff", cursor: "pointer" }}>
                 Really erase everything?
               </button>
