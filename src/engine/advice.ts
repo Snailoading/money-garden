@@ -12,7 +12,7 @@
 import type { State } from "./types";
 import type { Derived } from "./stats";
 import { fmt, shortDate } from "./format";
-import { daysUntil, nextDueDate } from "./commitments";
+import { daysUntil, nextDueWithPayments } from "./commitments";
 
 export type Priority = 1 | 2 | 3;
 
@@ -164,10 +164,12 @@ export function buildAdvice(state: State, d: Derived, now: Date = new Date()): T
   const cm = d.commit;
   if (cm && cm.active.length > 0) {
     cm.active.filter((c) => c.kind === "sub" && c.cadence === "annual").forEach((c) => {
-      const days = daysUntil(nextDueDate(c, now), now);
+      // Payments-aware: once the renewal is logged as paid, stop warning.
+      const due = nextDueWithPayments(c, state.transactions, now);
+      const days = daysUntil(due, now);
       if (days <= 30) {
         push(1, "🌿", `"${c.name}" renews in ${days} day${days === 1 ? "" : "s"}`,
-          `An annual charge of ${fmt(c.amount)} lands around ${shortDate(nextDueDate(c, now))}. Annual renewals are where forgotten subscriptions bite hardest — decide now whether it earned its keep, while cancelling is still free.`);
+          `An annual charge of ${fmt(c.amount)} lands around ${shortDate(due)}. Annual renewals are where forgotten subscriptions bite hardest — decide now whether it earned its keep, while cancelling is still free.`);
       }
     });
     const subsBudget = state.budgets.subs || 0;

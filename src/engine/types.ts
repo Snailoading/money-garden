@@ -47,6 +47,12 @@ export interface Transaction {
    * those are never retro-linked by note text.
    */
   goalId?: string;
+  /**
+   * Set on commitment-payment entries (since v0.7.0): the next-due date is
+   * derived from these (so deleting the payment reverts it), and deleting an
+   * installment payment decrements its paidCount. Absent on older entries.
+   */
+  commitmentId?: string;
 }
 
 export interface Goal {

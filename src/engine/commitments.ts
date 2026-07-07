@@ -8,7 +8,8 @@
  * the timezone fix, so does every date in the engine.
  */
 
-import type { Commitment } from "./types";
+import type { Commitment, Transaction } from "./types";
+import { toLocalISO } from "./format";
 
 /** Start of today, local time. */
 const midnight = (now: Date): Date => {
@@ -46,12 +47,40 @@ export function nextDueDate(c: Commitment, nowInput: Date = new Date()): Date {
   return dt;
 }
 
+/**
+ * The next due date, accounting for logged payments: a linked payment
+ * (tx.commitmentId) dated within the cycle window before the due date —
+ * 15 days for monthly, 31 for annual, matching how far ahead the due-soon
+ * strip invites "Log payment" — marks that cycle paid and advances the due
+ * date one cycle. Fully derived, so deleting the payment reverts the date.
+ */
+export function nextDueWithPayments(
+  c: Commitment,
+  transactions: Transaction[],
+  nowInput: Date = new Date(),
+): Date {
+  const due = nextDueDate(c, nowInput);
+  const windowDays = c.cadence === "annual" ? 31 : 15;
+  const windowStart = toLocalISO(new Date(due.getFullYear(), due.getMonth(), due.getDate() - windowDays));
+  const dueISO = toLocalISO(due);
+  const paid = transactions.some(
+    (t) => t.commitmentId === c.id && t.date > windowStart && t.date <= dueISO,
+  );
+  if (!paid) return due;
+  if (c.cadence === "annual") {
+    const m = (Number(c.payMonth) || 1) - 1;
+    return new Date(due.getFullYear() + 1, m, clampDay(due.getFullYear() + 1, m, c.payDay));
+  }
+  const y = due.getFullYear(), mIdx = due.getMonth() + 1;
+  return new Date(y, mIdx, clampDay(y, mIdx, c.payDay));
+}
+
 /** Installments end when all payments are made; subs when the next due date passes endDate. */
-export function commitmentEnded(c: Commitment, now: Date = new Date()): boolean {
+export function commitmentEnded(c: Commitment, now: Date = new Date(), transactions: Transaction[] = []): boolean {
   if (c.kind === "inst") return (c.paidCount || 0) >= (c.totalPayments || 1);
   if (!c.endDate) return false;
   // endDate parses as *local* end-of-day so the final billing day still counts.
-  return nextDueDate(c, now) > new Date(c.endDate + "T23:59:59");
+  return nextDueWithPayments(c, transactions, now) > new Date(c.endDate + "T23:59:59");
 }
 
 /** Whole days from today (local midnight) to dt; 0 = due today. */
@@ -78,8 +107,9 @@ export interface CommitmentsDerived {
 export function deriveCommitments(
   allCommitments: Commitment[],
   now: Date = new Date(),
+  transactions: Transaction[] = [],
 ): CommitmentsDerived {
-  const active = allCommitments.filter((c) => !commitmentEnded(c, now));
+  const active = allCommitments.filter((c) => !commitmentEnded(c, now, transactions));
   const subsMonthly = active
     .filter((c) => c.kind === "sub")
     .reduce((a, c) => a + (c.cadence === "annual" ? (Number(c.amount) || 0) / 12 : Number(c.amount) || 0), 0);
@@ -89,7 +119,10 @@ export function deriveCommitments(
     .filter((c) => c.kind === "inst")
     .reduce((a, c) => a + (c.cadence === "annual" ? (Number(c.amount) || 0) / 12 : Number(c.amount) || 0), 0);
   const dueSoon = active
-    .map((c) => ({ c, due: nextDueDate(c, now), days: daysUntil(nextDueDate(c, now), now) }))
+    .map((c) => {
+      const due = nextDueWithPayments(c, transactions, now);
+      return { c, due, days: daysUntil(due, now) };
+    })
     .filter((x) => x.days <= 14)
     .sort((a, b) => a.days - b.days);
   return { all: allCommitments, active, subsMonthly, instMonthly, dueSoon };
