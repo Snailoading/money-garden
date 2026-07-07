@@ -2,6 +2,16 @@
 
 All notable changes to Money Garden. Dates are release dates.
 
+## 0.8.1 — 2026-07-08 · *Rain barrel, read clearly* 🪣
+
+- The emergency-fund card now shows its **coverage in months** — "≈ 1.0
+  months of expenses · aim for 3–6" — tinted by zone (red under 3 months,
+  green within 3–6), so the standard the 🛟 fund is measured against is
+  visible right where you tend it, not only in the Advice tab.
+- Editing an old entry whose goal was since deleted now says so plainly
+  ("🥀 The goal this fed has been deleted — editing changes only the
+  journal") instead of promising to water a goal that's gone.
+
 ## 0.8.0 — 2026-07-08 · *The rain barrel* 🪣
 
 The emergency fund finally works like one — and goals grew the same care

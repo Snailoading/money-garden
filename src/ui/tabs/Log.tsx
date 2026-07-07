@@ -182,12 +182,15 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
                         <input type="date" value={eDate} max={todayISO()} onChange={(e) => setEDate(e.target.value)} style={inputStyle} />
                       </Field>
                     </div>
-                    {t.goalId && t.type === "saving" && (
+                    {t.goalId && !state.goals.some((g) => g.id === t.goalId) && (
+                      <div style={{ fontSize: 12, color: C.inkSoft }}>🥀 The goal this fed has been deleted — editing changes only the journal.</div>
+                    )}
+                    {t.goalId && t.type === "saving" && state.goals.some((g) => g.id === t.goalId) && (
                       <div style={{ fontSize: 12, color: C.inkSoft }}>💧 Linked to a goal — changing the amount waters or drains it.</div>
                     )}
-                    {t.goalId && t.type === "expense" && (
-                      <div style={{ fontSize: 12, color: parseFloat(eAmount) > (maxDrawFor(t) ?? Infinity) ? C.tomato : C.inkSoft }}>
-                        🪣 Drawn from a goal — changing the amount adjusts it{maxDrawFor(t) !== null ? ` (up to ${fmt(maxDrawFor(t)!)})` : ""}.
+                    {t.goalId && t.type === "expense" && maxDrawFor(t) !== null && (
+                      <div style={{ fontSize: 12, color: parseFloat(eAmount) > maxDrawFor(t)! ? C.tomato : C.inkSoft }}>
+                        🪣 Drawn from a goal — changing the amount adjusts it (up to {fmt(maxDrawFor(t)!)}).
                       </div>
                     )}
                     {t.commitmentId && (
