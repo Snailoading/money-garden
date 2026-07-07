@@ -100,6 +100,18 @@ to assemble `Derived`.
   CTM for tooltips, and a global `prefers-reduced-motion` rule stops all
   motion.
 
+## Theming (since v0.6.0)
+
+The palette is CSS variables in `global.css` (`:root` = day,
+`[data-theme="night"]` = night); the typed `C` object in `theme.ts` serves
+them to components as `var(--x)` strings, so a theme switch is one attribute
+flip on `<html>`. A boot script in `index.html` stamps the theme *before
+first paint* (direct localStorage read — the documented exception to the
+adapter rule); `App.tsx` owns the ☀️/🌙/🌗 mode (persisted under
+`money-garden:theme` via the adapter) and re-resolves auto mode (clock-based,
+day 7am–7pm) on a timer. SVG colors go through `style=`, never presentation
+attributes, because the latter don't resolve `var()`.
+
 ## Build targets (both from the same source)
 
 | Target | Command | Output |

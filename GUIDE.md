@@ -9,6 +9,8 @@ No account. No sign-up. Nothing to install. **Your numbers stay on your own devi
 - **Got a link?** Open it in any browser. On a phone, choose **Add to Home Screen** (Share menu on iPhone, browser menu on Android) — you'll get an app icon, full-screen mode, and it keeps working even offline.
 - **Got the file (`money-garden.html`)?** Just double-click it. Everything's inside.
 
+The little ☀️/🌙/🌗 button up top picks the garden's sky: day, night, or auto — auto follows the clock, giving you the day garden from 7am to 7pm and the night garden after dark.
+
 New garden looking empty? Tap **🌼 Plant sample data** to wander around with realistic example numbers first. When you're ready for real life, scroll to the footer and choose **Start fresh…** (it asks twice — no accidental scorched earth).
 
 ## Finding your way around

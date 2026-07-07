@@ -2,6 +2,32 @@
 
 All notable changes to Money Garden. Dates are release dates.
 
+## 0.6.0 — 2026-07-07 · *The night garden* 🌙
+
+The same garden, asleep — deep greens, moonlit marigold, and every chart
+still readable by starlight.
+
+### Added
+
+- **Night mode**, designed as a nighttime palette of the same garden rather
+  than a generic dark theme. The ☀️/🌙/🌗 button in the header cycles three
+  modes: fixed day, fixed night, and **auto** — which follows the clock
+  (day 7am–7pm, night otherwise). Auto re-checks as dusk crosses while the
+  app is open. Your choice is remembered on this device (it deliberately
+  rides outside backups) and is applied *before first paint*, so the app
+  never flashes the wrong sky. The PWA's chrome color follows along.
+- New users start in auto — the garden greets you in whatever light the
+  hour calls for.
+
+### Notes
+
+- Auto follows the clock, not the operating system's dark-mode setting —
+  a deliberate choice so the garden gets its nights even on systems locked
+  to light mode.
+- Under the hood, the palette moved from per-component constants to CSS
+  variables (day values byte-identical — verified by pixel-diffing every
+  tab), which is what makes theme switching a single attribute flip.
+
 ## 0.5.0 — 2026-07-07 · *Tending notes* ✏️
 
 Typos happen. Now they're a tap to fix, not a delete-and-retype.
