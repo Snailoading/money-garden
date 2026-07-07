@@ -10,7 +10,7 @@ import { fmt, monthLabel, todayISO } from "../../engine/format";
 import { C, inputStyle } from "../theme";
 import { CardTitle, Empty, Field } from "../bits";
 
-export function Log({ d, view, addTransaction, deleteTransaction, updateTransaction, markNoSpend }: {
+export function Log({ state, d, view, addTransaction, deleteTransaction, updateTransaction, markNoSpend }: {
   state: State;
   d: Derived;
   /** A browsed past month; null/undefined = today. */
@@ -54,14 +54,30 @@ export function Log({ d, view, addTransaction, deleteTransaction, updateTransact
     setENote(t.note);
     setEDate(t.date);
   };
-  const canSaveEdit = parseFloat(eAmount) > 0;
+  // Linked entries keep their type: saving entries belong to watering flows,
+  // goalId/commitmentId entries have side effects a type change would orphan.
+  const typeLocked = (t: Transaction) => t.type === "saving" || Boolean(t.goalId || t.commitmentId);
+  // A draw entry (expense + goalId) can only grow as far as the goal's
+  // remaining balance — otherwise deletion couldn't reverse it exactly.
+  const maxDrawFor = (t: Transaction): number | null => {
+    if (t.type !== "expense" || !t.goalId) return null;
+    const g = state.goals.find((x) => x.id === t.goalId);
+    return g ? t.amount + g.saved : null;
+  };
+  const canSaveFor = (t: Transaction) => {
+    const a = parseFloat(eAmount);
+    if (!(a > 0)) return false;
+    const max = maxDrawFor(t);
+    return max === null || a <= max;
+  };
   const saveEdit = (t: Transaction) => {
-    if (!canSaveEdit) return;
+    if (!canSaveFor(t)) return;
     const patch: Partial<Omit<Transaction, "id">> = { amount: parseFloat(eAmount), note: eNote.trim(), date: eDate };
-    // Saving entries keep their type — they belong to the watering flows.
-    if (t.type !== "saving") {
+    if (!typeLocked(t)) {
       patch.type = eType;
       patch.category = eType === "income" ? "other" : eCategory;
+    } else if (t.type === "expense") {
+      patch.category = eCategory; // draws/payments keep their type, not their category
     }
     updateTransaction(t.id, patch);
     setEditingId(null);
@@ -137,7 +153,7 @@ export function Log({ d, view, addTransaction, deleteTransaction, updateTransact
                 return (
                   <li key={t.id} style={{ margin: "4px 0", padding: "12px 10px", borderRadius: 12, background: C.mist, border: `1.5px solid ${C.border}`, display: "grid", gap: 10 }}
                     onKeyDown={(e) => { if (e.key === "Enter") saveEdit(t); if (e.key === "Escape") setEditingId(null); }}>
-                    {t.type !== "saving" && (
+                    {!typeLocked(t) && (
                       <div style={{ display: "flex", gap: 8 }}>
                         {([["expense", "🧾 Expense"], ["income", "💵 Income"]] as const).map(([v, l]) => (
                           <button key={v} className="mg-btn" onClick={() => setEType(v)}
@@ -152,7 +168,7 @@ export function Log({ d, view, addTransaction, deleteTransaction, updateTransact
                         <input className="mg-num" type="number" min="0" step="0.01" value={eAmount} autoFocus
                           onChange={(e) => setEAmount(e.target.value)} style={inputStyle} />
                       </Field>
-                      {t.type !== "saving" && eType === "expense" && (
+                      {(typeLocked(t) ? t.type === "expense" : eType === "expense") && (
                         <Field label="Category">
                           <select value={eCategory} onChange={(e) => setECategory(e.target.value)} style={inputStyle}>
                             {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>)}
@@ -166,12 +182,20 @@ export function Log({ d, view, addTransaction, deleteTransaction, updateTransact
                         <input type="date" value={eDate} max={todayISO()} onChange={(e) => setEDate(e.target.value)} style={inputStyle} />
                       </Field>
                     </div>
-                    {t.goalId && (
+                    {t.goalId && t.type === "saving" && (
                       <div style={{ fontSize: 12, color: C.inkSoft }}>💧 Linked to a goal — changing the amount waters or drains it.</div>
                     )}
+                    {t.goalId && t.type === "expense" && (
+                      <div style={{ fontSize: 12, color: parseFloat(eAmount) > (maxDrawFor(t) ?? Infinity) ? C.tomato : C.inkSoft }}>
+                        🪣 Drawn from a goal — changing the amount adjusts it{maxDrawFor(t) !== null ? ` (up to ${fmt(maxDrawFor(t)!)})` : ""}.
+                      </div>
+                    )}
+                    {t.commitmentId && (
+                      <div style={{ fontSize: 12, color: C.inkSoft }}>💸 A commitment payment — deleting it un-does the payment.</div>
+                    )}
                     <div style={{ display: "flex", gap: 8 }}>
-                      <button className="mg-btn" onClick={() => saveEdit(t)} disabled={!canSaveEdit}
-                        style={{ background: canSaveEdit ? C.leaf : C.border, color: C.inkContrast, border: "none", borderRadius: 10, padding: "8px 18px", fontWeight: 700, fontSize: 13, cursor: canSaveEdit ? "pointer" : "not-allowed" }}>
+                      <button className="mg-btn" onClick={() => saveEdit(t)} disabled={!canSaveFor(t)}
+                        style={{ background: canSaveFor(t) ? C.leaf : C.border, color: C.inkContrast, border: "none", borderRadius: 10, padding: "8px 18px", fontWeight: 700, fontSize: 13, cursor: canSaveFor(t) ? "pointer" : "not-allowed" }}>
                         Save
                       </button>
                       <button className="mg-btn" onClick={() => setEditingId(null)}
