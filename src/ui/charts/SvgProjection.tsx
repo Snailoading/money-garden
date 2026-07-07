@@ -1,7 +1,8 @@
 /*
  * FIRE projection: expected compounding line, the ±2% market band drawn as a
  * closed polygon (out along the kind edge, back along the slow edge), and a
- * dashed freedom-number line. Verbatim from the reference.
+ * dashed freedom-number line. Colors via style props so the palette's var()
+ * references resolve.
  */
 import { useRef } from "react";
 import type { CurvePoint } from "../../engine/fire";
@@ -30,36 +31,36 @@ export function SvgProjection({ curve, fireNumber, retLo, retHi }: { curve: Curv
       <defs><clipPath id={cid}><rect x="0" y="0" height={H} width={on ? W : 0} style={{ transition: "width 1.1s ease" }} /></clipPath></defs>
       {ticks.map((v, i) => (
         <g key={i}>
-          <line x1={pl} x2={W - pr} y1={y(v)} y2={y(v)} stroke={C.border} strokeDasharray="3 4" />
-          <text x={pl - 6} y={y(v) + 4} textAnchor="end" fontSize="11" fill={C.inkSoft} className="mg-num">{fmtK(v)}</text>
+          <line x1={pl} x2={W - pr} y1={y(v)} y2={y(v)} strokeDasharray="3 4" style={{ stroke: C.border }} />
+          <text x={pl - 6} y={y(v) + 4} textAnchor="end" fontSize="11" className="mg-num" style={{ fill: C.inkSoft }}>{fmtK(v)}</text>
         </g>
       ))}
       {curve.map((p, i) => ((i % xStep === 0 || i === curve.length - 1) &&
-        <text key={i} x={x(i)} y={H - 6} textAnchor="middle" fontSize="11" fill={C.inkSoft} className="mg-num">{p.age}</text>
+        <text key={i} x={x(i)} y={H - 6} textAnchor="middle" fontSize="11" className="mg-num" style={{ fill: C.inkSoft }}>{p.age}</text>
       ))}
       <g clipPath={"url(#" + cid + ")"}>
-        <path d={band} fill={C.leaf} opacity="0.14" />
-        <path d={line} fill="none" stroke={C.leafDark} strokeWidth="2.5" strokeLinejoin="round" />
+        <path d={band} opacity="0.14" style={{ fill: C.leaf }} />
+        <path d={line} strokeWidth="2.5" strokeLinejoin="round" style={{ fill: "none", stroke: C.leafDark }} />
       </g>
       {fireNumber > 0 && fireNumber < maxY && (
         <g>
-          <line x1={pl} x2={W - pr} y1={y(fireNumber)} y2={y(fireNumber)} stroke={C.tomato} strokeWidth="1.8" strokeDasharray="7 5" />
-          <text x={W - pr} y={y(fireNumber) - 6} textAnchor="end" fontSize="11.5" fontWeight="700" fill={C.tomato}>Freedom {fmtK(fireNumber)}</text>
+          <line x1={pl} x2={W - pr} y1={y(fireNumber)} y2={y(fireNumber)} strokeWidth="1.8" strokeDasharray="7 5" style={{ stroke: C.tomato }} />
+          <text x={W - pr} y={y(fireNumber) - 6} textAnchor="end" fontSize="11.5" fontWeight="700" style={{ fill: C.tomato }}>Freedom {fmtK(fireNumber)}</text>
         </g>
       )}
-      <text x={pl} y={pt + 2} fontSize="10.5" fill={C.inkSoft}>band: {retLo}–{retHi}%/yr</text>
+      <text x={pl} y={pt + 2} fontSize="10.5" style={{ fill: C.inkSoft }}>band: {retLo}–{retHi}%/yr</text>
       {hi != null && (() => {
         const p = curve[hi]; const bw = 158, bh = 58;
         let tx = x(hi) + 10; if (tx + bw > W - pr) tx = x(hi) - bw - 10;
         const ty = Math.max(pt, Math.min(y(p.value) - bh / 2, H - pb - bh));
         return (
           <g style={{ pointerEvents: "none" }}>
-            <line x1={x(hi)} x2={x(hi)} y1={pt} y2={H - pb} stroke={C.border} />
-            <circle cx={x(hi)} cy={y(p.value)} r="4.5" fill={C.leafDark} />
-            <rect x={tx} y={ty} width={bw} height={bh} rx="9" fill={C.card} stroke={C.border} strokeWidth="1.5" />
-            <text x={tx + 10} y={ty + 17} fontSize="11" fontWeight="700" fill={C.ink}>Age {p.age}</text>
-            <text x={tx + 10} y={ty + 33} fontSize="11" fill={C.leafDark} className="mg-num">Expected {fmt(p.value)}</text>
-            <text x={tx + 10} y={ty + 49} fontSize="11" fill={C.inkSoft} className="mg-num">Range {fmtK(p.band[0])} – {fmtK(p.band[1])}</text>
+            <line x1={x(hi)} x2={x(hi)} y1={pt} y2={H - pb} style={{ stroke: C.border }} />
+            <circle cx={x(hi)} cy={y(p.value)} r="4.5" style={{ fill: C.leafDark }} />
+            <rect x={tx} y={ty} width={bw} height={bh} rx="9" strokeWidth="1.5" style={{ fill: C.card, stroke: C.border }} />
+            <text x={tx + 10} y={ty + 17} fontSize="11" fontWeight="700" style={{ fill: C.ink }}>Age {p.age}</text>
+            <text x={tx + 10} y={ty + 33} fontSize="11" className="mg-num" style={{ fill: C.leafDark }}>Expected {fmt(p.value)}</text>
+            <text x={tx + 10} y={ty + 49} fontSize="11" className="mg-num" style={{ fill: C.inkSoft }}>Range {fmtK(p.band[0])} – {fmtK(p.band[1])}</text>
           </g>
         );
       })()}

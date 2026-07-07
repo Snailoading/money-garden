@@ -1,7 +1,7 @@
 /*
  * Spending-pace chart: cumulative spend (filled line) vs an even-pace dashed
  * line. Dependency-free SVG with a pointer tooltip and a clip-rect entry
- * animation. Verbatim from the reference.
+ * animation. Colors via style props so the palette's var() references resolve.
  */
 import { useRef } from "react";
 import type { DailyPoint } from "../../engine/stats";
@@ -31,17 +31,17 @@ export function SvgPace({ data }: { data: DailyPoint[] }) {
       <defs><clipPath id={cid}><rect x="0" y="0" height={H} width={on ? W : 0} style={{ transition: "width .9s ease" }} /></clipPath></defs>
       {ticks.map((v, i) => (
         <g key={i}>
-          <line x1={pl} x2={W - pr} y1={y(v)} y2={y(v)} stroke={C.border} strokeDasharray="3 5" />
-          <text x={pl - 6} y={y(v) + 4} textAnchor="end" fontSize="11" fill={C.inkSoft} className="mg-num">{v >= 1000 ? "$" + (v / 1000).toFixed(1) + "k" : "$" + Math.round(v)}</text>
+          <line x1={pl} x2={W - pr} y1={y(v)} y2={y(v)} strokeDasharray="3 5" style={{ stroke: C.border }} />
+          <text x={pl - 6} y={y(v) + 4} textAnchor="end" fontSize="11" className="mg-num" style={{ fill: C.inkSoft }}>{v >= 1000 ? "$" + (v / 1000).toFixed(1) + "k" : "$" + Math.round(v)}</text>
         </g>
       ))}
       {data.map((p, i) => ((i % xStep === 0 || i === data.length - 1) &&
-        <text key={i} x={x(i)} y={H - 6} textAnchor="middle" fontSize="11" fill={C.inkSoft} className="mg-num">{p.day}</text>
+        <text key={i} x={x(i)} y={H - 6} textAnchor="middle" fontSize="11" className="mg-num" style={{ fill: C.inkSoft }}>{p.day}</text>
       ))}
       <g clipPath={"url(#" + cid + ")"}>
-        <path d={area} fill={C.leaf} opacity="0.18" />
-        <path d={path("pace")} fill="none" stroke={C.border} strokeWidth="2" strokeDasharray="6 4" />
-        <path d={path("spent")} fill="none" stroke={C.leafDark} strokeWidth="2.5" strokeLinejoin="round" />
+        <path d={area} opacity="0.18" style={{ fill: C.leaf }} />
+        <path d={path("pace")} strokeWidth="2" strokeDasharray="6 4" style={{ fill: "none", stroke: C.border }} />
+        <path d={path("spent")} strokeWidth="2.5" strokeLinejoin="round" style={{ fill: "none", stroke: C.leafDark }} />
       </g>
       {hi != null && (() => {
         const p = data[hi]; const bw = 132, bh = 58;
@@ -50,13 +50,13 @@ export function SvgPace({ data }: { data: DailyPoint[] }) {
         const ty = Math.max(pt, Math.min(y(Math.max(p.spent || 0, p.pace || 0)) - bh / 2, H - pb - bh));
         return (
           <g style={{ pointerEvents: "none" }}>
-            <line x1={x(hi)} x2={x(hi)} y1={pt} y2={H - pb} stroke={C.border} />
-            <circle cx={x(hi)} cy={y(p.spent || 0)} r="4" fill={C.leafDark} />
-            <circle cx={x(hi)} cy={y(p.pace || 0)} r="3.5" fill={C.card} stroke={C.inkSoft} strokeWidth="1.5" />
-            <rect x={tx} y={ty} width={bw} height={bh} rx="9" fill={C.card} stroke={C.border} strokeWidth="1.5" />
-            <text x={tx + 10} y={ty + 17} fontSize="11" fontWeight="700" fill={C.ink}>Day {p.day}</text>
-            <text x={tx + 10} y={ty + 33} fontSize="11" fill={C.leafDark} className="mg-num">Spent {fmt(p.spent || 0)}</text>
-            <text x={tx + 10} y={ty + 49} fontSize="11" fill={C.inkSoft} className="mg-num">Even pace {fmt(p.pace || 0)}</text>
+            <line x1={x(hi)} x2={x(hi)} y1={pt} y2={H - pb} style={{ stroke: C.border }} />
+            <circle cx={x(hi)} cy={y(p.spent || 0)} r="4" style={{ fill: C.leafDark }} />
+            <circle cx={x(hi)} cy={y(p.pace || 0)} r="3.5" strokeWidth="1.5" style={{ fill: C.card, stroke: C.inkSoft }} />
+            <rect x={tx} y={ty} width={bw} height={bh} rx="9" strokeWidth="1.5" style={{ fill: C.card, stroke: C.border }} />
+            <text x={tx + 10} y={ty + 17} fontSize="11" fontWeight="700" style={{ fill: C.ink }}>Day {p.day}</text>
+            <text x={tx + 10} y={ty + 33} fontSize="11" className="mg-num" style={{ fill: C.leafDark }}>Spent {fmt(p.spent || 0)}</text>
+            <text x={tx + 10} y={ty + 49} fontSize="11" className="mg-num" style={{ fill: C.inkSoft }}>Even pace {fmt(p.pace || 0)}</text>
           </g>
         );
       })()}

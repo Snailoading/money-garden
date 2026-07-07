@@ -79,7 +79,7 @@ export function Log({ d, view, addTransaction, deleteTransaction, updateTransact
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           {([["expense", "🧾 Expense"], ["income", "💵 Income"]] as const).map(([v, l]) => (
             <button key={v} className="mg-btn" onClick={() => setType(v)}
-              style={{ padding: "8px 16px", borderRadius: 999, cursor: "pointer", fontWeight: 700, fontSize: 14, border: `1.5px solid ${type === v ? C.ink : C.border}`, background: type === v ? C.ink : "#fff", color: type === v ? "#fff" : C.ink }}>
+              style={{ padding: "8px 16px", borderRadius: 999, cursor: "pointer", fontWeight: 700, fontSize: 14, border: `1.5px solid ${type === v ? C.ink : C.border}`, background: type === v ? C.ink : C.card, color: type === v ? C.inkContrast : C.ink }}>
               {l}
             </button>
           ))}
@@ -107,7 +107,7 @@ export function Log({ d, view, addTransaction, deleteTransaction, updateTransact
           </Field>
         </div>
         <button className="mg-btn" onClick={submit} disabled={!amount}
-          style={{ marginTop: 14, background: amount ? C.leaf : C.border, color: "#fff", border: "none", borderRadius: 12, padding: "11px 22px", fontWeight: 700, fontSize: 15, cursor: amount ? "pointer" : "not-allowed" }}>
+          style={{ marginTop: 14, background: amount ? C.leaf : C.border, color: C.inkContrast, border: "none", borderRadius: 12, padding: "11px 22px", fontWeight: 700, fontSize: 15, cursor: amount ? "pointer" : "not-allowed" }}>
           {type === "expense" ? "Add expense" : "Add income"}
         </button>
       </section>
@@ -130,7 +130,7 @@ export function Log({ d, view, addTransaction, deleteTransaction, updateTransact
                       <div style={{ display: "flex", gap: 8 }}>
                         {([["expense", "🧾 Expense"], ["income", "💵 Income"]] as const).map(([v, l]) => (
                           <button key={v} className="mg-btn" onClick={() => setEType(v)}
-                            style={{ padding: "5px 12px", borderRadius: 999, cursor: "pointer", fontWeight: 700, fontSize: 12, border: `1.5px solid ${eType === v ? C.ink : C.border}`, background: eType === v ? C.ink : "#fff", color: eType === v ? "#fff" : C.ink }}>
+                            style={{ padding: "5px 12px", borderRadius: 999, cursor: "pointer", fontWeight: 700, fontSize: 12, border: `1.5px solid ${eType === v ? C.ink : C.border}`, background: eType === v ? C.ink : C.card, color: eType === v ? C.inkContrast : C.ink }}>
                             {l}
                           </button>
                         ))}
@@ -160,7 +160,7 @@ export function Log({ d, view, addTransaction, deleteTransaction, updateTransact
                     )}
                     <div style={{ display: "flex", gap: 8 }}>
                       <button className="mg-btn" onClick={() => saveEdit(t)} disabled={!canSaveEdit}
-                        style={{ background: canSaveEdit ? C.leaf : C.border, color: "#fff", border: "none", borderRadius: 10, padding: "8px 18px", fontWeight: 700, fontSize: 13, cursor: canSaveEdit ? "pointer" : "not-allowed" }}>
+                        style={{ background: canSaveEdit ? C.leaf : C.border, color: C.inkContrast, border: "none", borderRadius: 10, padding: "8px 18px", fontWeight: 700, fontSize: 13, cursor: canSaveEdit ? "pointer" : "not-allowed" }}>
                         Save
                       </button>
                       <button className="mg-btn" onClick={() => setEditingId(null)}
@@ -189,7 +189,7 @@ export function Log({ d, view, addTransaction, deleteTransaction, updateTransact
                   {confirmDeleteId === t.id ? (
                     <button className="mg-btn" onClick={() => { deleteTransaction(t.id); setConfirmDeleteId(null); }}
                       title="Really delete this entry" aria-label="Really delete this entry"
-                      style={{ background: C.tomato, border: "none", borderRadius: 999, padding: "4px 10px", fontWeight: 700, fontSize: 12, color: "#fff", cursor: "pointer", whiteSpace: "nowrap" }}>
+                      style={{ background: C.tomato, border: "none", borderRadius: 999, padding: "4px 10px", fontWeight: 700, fontSize: 12, color: C.inkContrast, cursor: "pointer", whiteSpace: "nowrap" }}>
                       Delete?
                     </button>
                   ) : (

@@ -12,7 +12,7 @@ import { monthRange } from "../engine/trends";
 import { bumpStreak, deserialize, emptyState, removeTransaction, sampleState, serialize, updateTransaction } from "../engine/state";
 import { buildBackup, parseBackup, type ImportPreview } from "../engine/backup";
 import { createStore } from "../engine/storage";
-import { C } from "./theme";
+import { C, resolveTheme, THEME_COLOR, THEME_KEY, type ThemeMode } from "./theme";
 import { Overview } from "./tabs/Overview";
 import { Log } from "./tabs/Log";
 import { Budgets } from "./tabs/Budgets";
@@ -42,6 +42,8 @@ export function MoneyGarden() {
   const [pendingImport, setPendingImport] = useState<ImportPreview | null>(null);
   /** YYYY-MM being browsed; null = today. Affects Overview, Log, Budget plots. */
   const [viewYm, setViewYm] = useState<string | null>(null);
+  /** ☀️ day / 🌙 night / 🌗 auto (follows the clock, day 7am–7pm). */
+  const [themeMode, setThemeMode] = useState<ThemeMode>("auto");
   const memoryFallback = useRef(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const importInput = useRef<HTMLInputElement>(null);
@@ -80,6 +82,41 @@ export function MoneyGarden() {
     setToast(msg);
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 3200);
+  };
+
+  /* ---------- theme: day / night / auto ---------- */
+  useEffect(() => {
+    (async () => {
+      const res = await store.get(THEME_KEY);
+      const v = res?.value;
+      if (v === "day" || v === "night" || v === "auto") setThemeMode(v);
+    })();
+  }, []);
+
+  useEffect(() => {
+    const apply = () => {
+      const t = resolveTheme(themeMode);
+      document.documentElement.dataset.theme = t;
+      // Keep the PWA chrome (address bar / title bar) in the same weather.
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEME_COLOR[t]);
+    };
+    apply();
+    if (themeMode !== "auto") return;
+    // In auto, the garden crosses dusk/dawn while open — re-check each
+    // minute and whenever the tab wakes up.
+    const iv = setInterval(apply, 60_000);
+    document.addEventListener("visibilitychange", apply);
+    return () => {
+      clearInterval(iv);
+      document.removeEventListener("visibilitychange", apply);
+    };
+  }, [themeMode]);
+
+  const cycleTheme = () => {
+    const next: ThemeMode = themeMode === "day" ? "night" : themeMode === "night" ? "auto" : "day";
+    setThemeMode(next);
+    void store.set(THEME_KEY, next);
+    showToast(next === "day" ? "☀️ Day garden" : next === "night" ? "🌙 Night garden" : "🌗 Following the clock — day 7am–7pm");
   };
 
   /* ---------- derived numbers (engine) ---------- */
@@ -239,14 +276,14 @@ export function MoneyGarden() {
             <div style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: -6 }}>
               <button className="mg-btn" onClick={() => canPrev && goToMonth(months[shownIdx - 1])} disabled={!canPrev}
                 aria-label="Previous month" style={navBtnStyle(canPrev)}>‹</button>
-              <div style={{ fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: viewYm ? "#9A7418" : C.inkSoft, fontWeight: 700 }}>
+              <div style={{ fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: viewYm ? C.amber : C.inkSoft, fontWeight: 700 }}>
                 {monthLabel(shownYm, true)}
               </div>
               <button className="mg-btn" onClick={() => canNext && goToMonth(months[shownIdx + 1] ?? currentYm)} disabled={!canNext}
                 aria-label="Next month" style={navBtnStyle(canNext)}>›</button>
               {viewYm && (
                 <button className="mg-btn" onClick={() => setViewYm(null)}
-                  style={{ marginLeft: 4, border: `1.5px solid #9A7418`, background: "#FBF3DC", color: "#9A7418", borderRadius: 999, padding: "2px 10px", fontWeight: 700, fontSize: 11, cursor: "pointer" }}>
+                  style={{ marginLeft: 4, border: `1.5px solid ${C.amber}`, background: C.tintAmber, color: C.amber, borderRadius: 999, padding: "2px 10px", fontWeight: 700, fontSize: 11, cursor: "pointer" }}>
                   ↩ today
                 </button>
               )}
@@ -256,6 +293,11 @@ export function MoneyGarden() {
             </h1>
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <button className="mg-btn" onClick={cycleTheme} aria-label="Switch theme (day, night, or auto)"
+              title={themeMode === "day" ? "Day garden — tap for night" : themeMode === "night" ? "Night garden — tap for auto" : "Auto: follows the clock, day 7am–7pm — tap for day"}
+              style={{ background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: "8px 12px", fontSize: 20, lineHeight: 1, cursor: "pointer" }}>
+              {themeMode === "day" ? "☀️" : themeMode === "night" ? "🌙" : "🌗"}
+            </button>
             <div className="mg-card" style={{ padding: "8px 14px", display: "flex", gap: 8, alignItems: "center" }} title="Garden health — budget pace, saving, and logging habits">
               <span style={{ fontSize: 22 }}>{weather.icon}</span>
               <div>
@@ -277,7 +319,7 @@ export function MoneyGarden() {
               style={{
                 padding: "8px 14px", borderRadius: 999, cursor: "pointer", fontWeight: 600, fontSize: 14,
                 background: tab === t.id ? C.ink : "transparent",
-                color: tab === t.id ? "#fff" : C.ink,
+                color: tab === t.id ? C.inkContrast : C.ink,
               }}>
               <span style={{ marginRight: 6 }}>{t.icon}</span>{t.label}
             </button>
@@ -293,7 +335,7 @@ export function MoneyGarden() {
               <div style={{ color: C.inkSoft, fontSize: 14 }}>Log your first expense or plant a goal — or explore with sample data first.</div>
             </div>
             <button className="mg-btn" onClick={() => { setStateSafe(sampleState()); setViewYm(null); }}
-              style={{ background: C.leaf, color: "#fff", border: "none", borderRadius: 12, padding: "10px 18px", fontWeight: 700, cursor: "pointer" }}>
+              style={{ background: C.leaf, color: C.inkContrast, border: "none", borderRadius: 12, padding: "10px 18px", fontWeight: 700, cursor: "pointer" }}>
               Plant sample data
             </button>
           </div>
@@ -319,7 +361,7 @@ export function MoneyGarden() {
             </p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button className="mg-btn" onClick={confirmImport}
-                style={{ background: C.tomato, border: `1.5px solid ${C.tomato}`, borderRadius: 10, padding: "8px 16px", fontWeight: 700, fontSize: 13, color: "#fff", cursor: "pointer" }}>
+                style={{ background: C.tomato, border: `1.5px solid ${C.tomato}`, borderRadius: 10, padding: "8px 16px", fontWeight: 700, fontSize: 13, color: C.inkContrast, cursor: "pointer" }}>
                 Replace my garden
               </button>
               <button className="mg-btn" onClick={() => setPendingImport(null)}
@@ -357,7 +399,7 @@ export function MoneyGarden() {
             )}
             {confirmReset ? (
               <button className="mg-btn" onClick={() => { setStateSafe(emptyState()); setConfirmReset(false); setViewYm(null); setTab("overview"); showToast("🍂 Fresh soil — everything cleared"); }}
-                style={{ background: C.tomato, border: `1.5px solid ${C.tomato}`, borderRadius: 10, padding: "7px 14px", fontWeight: 700, fontSize: 13, color: "#fff", cursor: "pointer" }}>
+                style={{ background: C.tomato, border: `1.5px solid ${C.tomato}`, borderRadius: 10, padding: "7px 14px", fontWeight: 700, fontSize: 13, color: C.inkContrast, cursor: "pointer" }}>
                 Really erase everything?
               </button>
             ) : (
@@ -373,8 +415,8 @@ export function MoneyGarden() {
       {toast && (
         <div role="status" style={{
           position: "fixed", bottom: 22, left: "50%", transform: "translateX(-50%)",
-          background: C.ink, color: "#fff", padding: "12px 20px", borderRadius: 14,
-          fontWeight: 600, boxShadow: "0 10px 30px rgba(28,53,42,.35)", animation: "mg-pop .25s ease", zIndex: 50, maxWidth: "90vw",
+          background: C.ink, color: C.inkContrast, padding: "12px 20px", borderRadius: 14,
+          fontWeight: 600, boxShadow: `0 10px 30px ${C.shadow}`, animation: "mg-pop .25s ease", zIndex: 50, maxWidth: "90vw",
         }}>{toast}</div>
       )}
     </div>

@@ -179,7 +179,7 @@ export function Orchard({ state, d, setInvest, addHolding, updateHolding, delete
                   onChange={(e) => setWaterAmt(e.target.value)} onKeyDown={(e) => e.key === "Enter" && doWater()}
                   style={{ ...inputStyle, flex: "0 1 110px", width: 110, minWidth: 84 }} aria-label="One-off amount to invest" />
                 <button className="mg-btn" onClick={doWater} disabled={!waterAmt}
-                  style={{ background: waterAmt ? C.leafDark : C.border, color: "#fff", border: "none", borderRadius: 12, padding: "10px 16px", fontWeight: 700, cursor: waterAmt ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}>
+                  style={{ background: waterAmt ? C.leafDark : C.border, color: C.inkContrast, border: "none", borderRadius: 12, padding: "10px 16px", fontWeight: 700, cursor: waterAmt ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}>
                   💧 Water
                 </button>
               </div>
@@ -200,7 +200,7 @@ export function Orchard({ state, d, setInvest, addHolding, updateHolding, delete
               </Field>
             </div>
             <button className="mg-btn" onClick={submit} disabled={!name.trim() || !value}
-              style={{ background: name.trim() && value ? C.leaf : C.border, color: "#fff", border: "none", borderRadius: 12, padding: "10px 16px", fontWeight: 700, cursor: name.trim() && value ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}>
+              style={{ background: name.trim() && value ? C.leaf : C.border, color: C.inkContrast, border: "none", borderRadius: 12, padding: "10px 16px", fontWeight: 700, cursor: name.trim() && value ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}>
               🌳 Plant
             </button>
           </div>
