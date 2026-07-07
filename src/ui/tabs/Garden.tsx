@@ -10,8 +10,10 @@ import { C, inputStyle } from "../theme";
 import { CardTitle, Empty, Field } from "../bits";
 import { Plant } from "../art/Plant";
 
-export function Garden({ state, addGoal, waterGoal, deleteGoal, updateGoal, drawFromGoal }: {
+export function Garden({ state, monthlyExpenses, addGoal, waterGoal, deleteGoal, updateGoal, drawFromGoal }: {
   state: State;
+  /** Typical monthly spending — the basis for emergency-fund coverage (from derive). */
+  monthlyExpenses: number;
   addGoal: (g: Omit<Goal, "id">) => void;
   waterGoal: (id: string, amount: number) => void;
   deleteGoal: (id: string) => void;
@@ -248,6 +250,18 @@ export function Garden({ state, addGoal, waterGoal, deleteGoal, updateGoal, draw
                 <div className="mg-num" style={{ fontWeight: 700, fontSize: 15 }}>
                   {fmt(g.saved)} <span style={{ color: C.inkSoft, fontWeight: 400 }}>of {fmt(g.target)}</span>
                 </div>
+                {g.isEmergency && (() => {
+                  // Coverage in months of typical spending — the standard the
+                  // 🛟 fund is actually measured against. Moves with your
+                  // spending average, not only when you water (hence "≈").
+                  const months = monthlyExpenses > 0 ? g.saved / monthlyExpenses : 0;
+                  const zone = months < 3 ? C.tomato : months <= 6 ? C.leafDark : C.inkSoft;
+                  return (
+                    <div className="mg-num" style={{ fontSize: 12.5, color: zone, fontWeight: 600 }}>
+                      ≈ {months.toFixed(1)} months of expenses <span style={{ color: C.inkSoft, fontWeight: 400 }}>· aim for 3–6</span>
+                    </div>
+                  );
+                })()}
                 <div style={{ width: "100%", height: 10, background: C.mist, border: `1.5px solid ${C.border}`, borderRadius: 999, overflow: "hidden" }}>
                   <div style={{ width: `${progress * 100}%`, height: "100%", background: bloom, transition: "width .5s ease" }} />
                 </div>

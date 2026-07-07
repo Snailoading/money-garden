@@ -389,7 +389,7 @@ export function MoneyGarden() {
         {tab === "overview" && <Overview state={state} d={derived} view={monthView} setIncome={setIncome} goTo={(t) => setTab(t as TabId)} />}
         {tab === "log" && <Log state={state} d={derived} view={monthView} addTransaction={addTransaction} deleteTransaction={deleteTransaction} updateTransaction={editTransaction} markNoSpend={markNoSpendDay} />}
         {tab === "budgets" && <Budgets state={state} d={derived} view={monthView} setBudget={setBudget} addCommitment={addCommitment} deleteCommitment={deleteCommitment} logCommitmentPayment={logCommitmentPayment} updateCommitment={editCommitment} />}
-        {tab === "garden" && <Garden state={state} addGoal={addGoal} waterGoal={waterGoal} deleteGoal={deleteGoal} updateGoal={editGoal} drawFromGoal={drawFromGoal} />}
+        {tab === "garden" && <Garden state={state} monthlyExpenses={derived.monthlyExpenses} addGoal={addGoal} waterGoal={waterGoal} deleteGoal={deleteGoal} updateGoal={editGoal} drawFromGoal={drawFromGoal} />}
         {tab === "orchard" && <Orchard state={state} d={derived} setInvest={setInvest} addHolding={addHolding} updateHolding={updateHolding} deleteHolding={deleteHolding} waterOrchard={waterOrchard} />}
         {tab === "seasons" && <Seasons state={state} goToMonth={(ym) => { goToMonth(ym); setTab("overview"); }} />}
         {tab === "advice" && <Advice state={state} d={derived} />}
