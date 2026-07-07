@@ -2,6 +2,36 @@
 
 All notable changes to Money Garden. Dates are release dates.
 
+## 0.8.0 — 2026-07-08 · *The rain barrel* 🪣
+
+The emergency fund finally works like one — and goals grew the same care
+tools everything else has.
+
+### Added
+
+- **Draw from a goal:** every goal with a balance has "🪣 Draw from this
+  goal" — rent due before payday, or spending the laptop fund on the
+  laptop. It logs an honest expense (it counts in your budgets and monthly
+  spend) and drains the goal, the advisor's coverage reading drops
+  accordingly, and deleting the entry puts the money back exactly. Draws
+  are capped at the goal's balance — you can't pour out more than the
+  barrel holds; log any remainder as a regular expense.
+- **Edit goals in place:** name, target, flower, and the emergency flag get
+  the same ✏️ treatment as everything else. The balance itself stays
+  journal-driven — you change it by watering, drawing, or tending entries,
+  so every dollar remains traceable.
+- **One lifebuoy, visibly moved:** marking a goal as your emergency fund
+  unflags the previous one (the advisor only ever tracks one), with an
+  inline notice before you save and a toast naming the new holder. The
+  demoted goal keeps every dollar — it just hands over the 🛟.
+- **Two-step goal deletion**, closing the last one-tap-destruction hole.
+
+### Notes
+
+- Editing a linked draw entry is capped the same way (the form shows the
+  ceiling), and linked entries keep their type — converting a draw into
+  income would orphan what it means.
+
 ## 0.7.0 — 2026-07-07 · *Garden care* 🧤
 
 Fixes and kindnesses, most of them from actually living with the app.
