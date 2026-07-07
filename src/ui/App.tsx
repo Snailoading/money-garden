@@ -9,7 +9,7 @@ import { DEFAULT_INVEST, STORAGE_KEY } from "../engine/types";
 import { fmt, monthKey, monthLabel, uid, todayISO } from "../engine/format";
 import { derive, deriveMonthView, weatherFor } from "../engine/stats";
 import { monthRange } from "../engine/trends";
-import { bumpStreak, deserialize, emptyState, removeTransaction, sampleState, serialize, updateCommitment, updateTransaction } from "../engine/state";
+import { bumpStreak, deserialize, emptyState, insertGoal, removeTransaction, sampleState, serialize, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
 import { buildBackup, parseBackup, type ImportPreview } from "../engine/backup";
 import { createStore } from "../engine/storage";
 import { C, resolveTheme, THEME_COLOR, THEME_KEY, type ThemeMode } from "./theme";
@@ -166,7 +166,31 @@ export function MoneyGarden() {
     showToast(adjustedGoal ? `✏️ Entry updated — "${adjustedGoal.name}" adjusted too` : "✏️ Entry updated");
   };
 
-  const addGoal = (g: Omit<Goal, "id">) => setStateSafe({ ...state, goals: [...state.goals, { ...g, id: uid() }] });
+  const addGoal = (g: Omit<Goal, "id">) => {
+    const movingLifebuoy = g.isEmergency && state.goals.some((x) => x.isEmergency);
+    setStateSafe(insertGoal(state, { ...g, id: uid() }));
+    if (movingLifebuoy) showToast(`🛟 "${g.name}" is now your emergency fund`);
+  };
+
+  const editGoal = (id: string, patch: Partial<Omit<Goal, "id" | "saved">>) => {
+    const existing = state.goals.find((x) => x.id === id);
+    if (!existing) return;
+    const movingLifebuoy = patch.isEmergency === true && state.goals.some((x) => x.isEmergency && x.id !== id);
+    setStateSafe(updateGoal(state, id, patch));
+    showToast(movingLifebuoy ? `🛟 "${patch.name ?? existing.name}" is now your emergency fund` : "✏️ Goal updated");
+  };
+
+  // Spend from a goal: one honest expense entry (it hits budgets and monthly
+  // spend like any other) that also drains the goal via its goalId. The UI
+  // caps the amount at the balance so the entry stays exactly reversible.
+  const drawFromGoal = (id: string, amount: number, category: string, note: string) => {
+    const goal = state.goals.find((g) => g.id === id);
+    if (!goal || !(amount > 0) || amount > goal.saved) return;
+    const tx: Transaction = { id: uid(), type: "expense", amount, category, note: note.trim() || `From "${goal.name}"`, date: todayISO(), goalId: id };
+    const goals = state.goals.map((g) => (g.id === id ? { ...g, saved: g.saved - amount } : g));
+    setStateSafe({ ...state, goals, transactions: [tx, ...state.transactions], streak: bumpStreak(state.streak) });
+    showToast(`🪣 ${fmt(amount)} drawn from "${goal.name}"`);
+  };
 
   const waterGoal = (id: string, amount: number) => {
     const goals = state.goals.map((g) => {
@@ -365,7 +389,7 @@ export function MoneyGarden() {
         {tab === "overview" && <Overview state={state} d={derived} view={monthView} setIncome={setIncome} goTo={(t) => setTab(t as TabId)} />}
         {tab === "log" && <Log state={state} d={derived} view={monthView} addTransaction={addTransaction} deleteTransaction={deleteTransaction} updateTransaction={editTransaction} markNoSpend={markNoSpendDay} />}
         {tab === "budgets" && <Budgets state={state} d={derived} view={monthView} setBudget={setBudget} addCommitment={addCommitment} deleteCommitment={deleteCommitment} logCommitmentPayment={logCommitmentPayment} updateCommitment={editCommitment} />}
-        {tab === "garden" && <Garden state={state} addGoal={addGoal} waterGoal={waterGoal} deleteGoal={deleteGoal} />}
+        {tab === "garden" && <Garden state={state} addGoal={addGoal} waterGoal={waterGoal} deleteGoal={deleteGoal} updateGoal={editGoal} drawFromGoal={drawFromGoal} />}
         {tab === "orchard" && <Orchard state={state} d={derived} setInvest={setInvest} addHolding={addHolding} updateHolding={updateHolding} deleteHolding={deleteHolding} waterOrchard={waterOrchard} />}
         {tab === "seasons" && <Seasons state={state} goToMonth={(ym) => { goToMonth(ym); setTab("overview"); }} />}
         {tab === "advice" && <Advice state={state} d={derived} />}

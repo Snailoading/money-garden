@@ -4,7 +4,7 @@
  * 264 (load-time normalization) and 294–300 (streak).
  */
 
-import type { Commitment, Invest, State, Streak, Transaction } from "./types";
+import type { Commitment, Goal, Invest, State, Streak, Transaction } from "./types";
 import { CATEGORIES, DEFAULT_INVEST } from "./types";
 import { toLocalISO, todayISO, uid } from "./format";
 
@@ -118,6 +118,42 @@ function adjustLinkedGoal(state: State, goalId: string | undefined, delta: numbe
   );
 }
 
+/**
+ * The direction a linked entry moves its goal: saving entries watered it
+ * (reversal drains), expense entries drew from it (reversal re-waters).
+ */
+const linkSign = (t: Transaction): number => (t.type === "expense" ? -1 : 1);
+
+/** Only one 🛟 at a time: flagging a goal unflags every other. */
+const withExclusiveEmergency = (goals: State["goals"], keptId: string): State["goals"] =>
+  goals.map((g) => (g.id === keptId ? g : g.isEmergency ? { ...g, isEmergency: false } : g));
+
+/**
+ * Edit a goal in place (unknown id = no-op). The balance is deliberately
+ * NOT editable here — it stays journal-driven via watering/draw entries so
+ * every dollar remains traceable. Setting isEmergency moves the lifebuoy:
+ * the flag is cleared from all other goals.
+ */
+export function updateGoal(
+  state: State,
+  id: string,
+  patch: Partial<Omit<Goal, "id" | "saved">>,
+): State {
+  const existing = state.goals.find((g) => g.id === id);
+  if (!existing) return state;
+  let goals = state.goals.map((g) => (g.id === id ? { ...existing, ...patch, id } : g));
+  if (patch.isEmergency === true) goals = withExclusiveEmergency(goals, id);
+  return { ...state, goals };
+}
+
+/** Add a goal, honoring lifebuoy exclusivity when it arrives flagged. */
+export function insertGoal(state: State, goal: Goal): State {
+  const goals = goal.isEmergency
+    ? [...withExclusiveEmergency(state.goals, goal.id), goal]
+    : [...state.goals, goal];
+  return { ...state, goals };
+}
+
 /** Deleting a linked installment payment un-counts it (floored at 0). */
 function revertInstallmentPayment(state: State, commitmentId: string | undefined): State["commitments"] {
   if (!commitmentId) return state.commitments;
@@ -146,7 +182,7 @@ export function updateTransaction(
   return {
     ...state,
     transactions: state.transactions.map((t) => (t.id === id ? next : t)),
-    goals: adjustLinkedGoal(state, existing.goalId, delta),
+    goals: adjustLinkedGoal(state, existing.goalId, delta * linkSign(existing)),
   };
 }
 
@@ -162,7 +198,7 @@ export function removeTransaction(state: State, id: string): State {
   return {
     ...state,
     transactions: state.transactions.filter((t) => t.id !== id),
-    goals: adjustLinkedGoal(state, existing.goalId, -existing.amount),
+    goals: adjustLinkedGoal(state, existing.goalId, -existing.amount * linkSign(existing)),
     commitments: revertInstallmentPayment(state, existing.commitmentId),
   };
 }
