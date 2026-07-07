@@ -37,7 +37,7 @@ First visit looks bare? Tap **Plant sample data** to explore with realistic numb
 The month at a glance: a big friendly **"left to spend"** number (with a per-day pace through month-end), earned / spent / sent-to-goals, and your savings rate. A **spending-pace chart** plots your cumulative spend against an even-pace line so you can see mid-month whether you're running hot, and a **category donut** shows where the money actually went. Your goals sprout along the horizon.
 
 ### ✏️ Log
-The daily driver. Record expenses (10 categories, each tagged *need* or *want*), income, and transfers to savings — with notes and dates, Enter-to-submit, and one-tap delete. Typo? Every entry **edits in place** (✏️): amount, category, note, date — and fixing a goal-watering entry adjusts the goal's balance too. Every number in the app recalculates instantly. A **logging streak** 🔥 rewards the habit; awareness is half the battle.
+The daily driver. Record expenses (10 categories, each tagged *need* or *want*), income, and transfers to savings — with notes and dates, Enter-to-submit, and one-tap delete. Typo? Every entry **edits in place** (✏️): amount, category, note, date — and fixing a goal-watering entry adjusts the goal's balance too. Every number in the app recalculates instantly. A **logging streak** 🔥 rewards the habit — and a 🌵 **no-spend day** counts too, because not spending is the best log of all.
 
 ### 🧺 Budgets
 Set monthly limits per category with color-coded progress bars: green means room to grow, amber means nearly full, red means **overgrown** (with the exact overage, so you know what to prune). Below the plots, **Vines & Trellis** tracks recurring commitments:
@@ -45,7 +45,7 @@ Set monthly limits per category with color-coded progress bars: green means room
 - **🌿 Vines (subscriptions):** monthly or annual cadence, payment day, optional end date, and the running monthly + yearly drain they all add up to.
 - **🪜 The trellis (installments):** tax bills and big purchases paid in steps — per-payment amount, progress bar, and automatic retirement when the last payment clears.
 
-A **due-soon strip** flags anything billing within 14 days (red within 3), and **💸 Log payment** records the expense to your journal in one tap. Day-31 subscriptions politely bill on Feb 28 like civilized plants.
+A **due-soon strip** flags anything billing within 14 days (red within 3), and **💸 Log payment** records the expense to your journal in one tap — advancing the next-due date, which quietly reverts if you delete the entry. Rows edit in place (✏️) for price hikes and changed billing days. Day-31 subscriptions politely bill on Feb 28 like civilized plants.
 
 ### 🌷 Garden
 Savings goals as plants — sunflower, tulip, bluebell, poppy, or lavender — growing through five stages (seed → sprout → leaves → bud → full bloom), advancing as you fund them. **💧 Water** a goal to log the transfer on the spot. Mark one goal as your **emergency fund** 🛟 (the rain barrel) and the advisor tracks it against the classic 3–6-months-of-expenses standard. Full bloom comes with a gentle sway of celebration.

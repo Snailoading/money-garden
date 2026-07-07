@@ -106,11 +106,25 @@ export function deserialize(raw: string): State {
   return migrate(JSON.parse(raw));
 }
 
-/** Move a linked goal's balance by delta, clamped like watering: [0, target]. */
+/**
+ * Move a linked goal's balance by delta, floored at 0. No target cap:
+ * goals may overflow (v0.7.0) — "$900 of $500" is truthful, and it keeps
+ * every journal entry exactly reversible.
+ */
 function adjustLinkedGoal(state: State, goalId: string | undefined, delta: number): State["goals"] {
   if (!goalId || delta === 0) return state.goals;
   return state.goals.map((g) =>
-    g.id === goalId ? { ...g, saved: Math.min(g.target, Math.max(0, g.saved + delta)) } : g,
+    g.id === goalId ? { ...g, saved: Math.max(0, g.saved + delta) } : g,
+  );
+}
+
+/** Deleting a linked installment payment un-counts it (floored at 0). */
+function revertInstallmentPayment(state: State, commitmentId: string | undefined): State["commitments"] {
+  if (!commitmentId) return state.commitments;
+  return state.commitments.map((c) =>
+    c.id === commitmentId && c.kind === "inst"
+      ? { ...c, paidCount: Math.max(0, (c.paidCount || 0) - 1) }
+      : c,
   );
 }
 
@@ -138,7 +152,9 @@ export function updateTransaction(
 
 /**
  * Delete a logged entry — the symmetric counterpart to updateTransaction:
- * a linked entry drains its goal by the deleted amount (floor 0).
+ * a goal-linked entry drains its goal by the deleted amount (floor 0), and
+ * a commitment-linked installment payment un-counts itself. The next-due
+ * date reverts on its own — it's derived from the linked transactions.
  */
 export function removeTransaction(state: State, id: string): State {
   const existing = state.transactions.find((t) => t.id === id);
@@ -147,6 +163,24 @@ export function removeTransaction(state: State, id: string): State {
     ...state,
     transactions: state.transactions.filter((t) => t.id !== id),
     goals: adjustLinkedGoal(state, existing.goalId, -existing.amount),
+    commitments: revertInstallmentPayment(state, existing.commitmentId),
+  };
+}
+
+/**
+ * Edit a commitment in place (unknown id = no-op). Pure field merge — the
+ * derived due dates and monthly drains recompute from the new values.
+ */
+export function updateCommitment(
+  state: State,
+  id: string,
+  patch: Partial<Omit<Commitment, "id">>,
+): State {
+  const existing = state.commitments.find((c) => c.id === id);
+  if (!existing) return state;
+  return {
+    ...state,
+    commitments: state.commitments.map((c) => (c.id === id ? { ...existing, ...patch, id } : c)),
   };
 }
 

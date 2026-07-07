@@ -156,7 +156,7 @@ export function derive(state: State, now: Date = new Date()): Derived {
   const emergencyMonths = emergency ? emergency.saved / (monthlyExpenses || 1) : 0;
 
   const fire = deriveFire(state.invest, monthlyExpenses);
-  const commit = deriveCommitments(state.commitments || [], now);
+  const commit = deriveCommitments(state.commitments || [], now, state.transactions);
 
   return {
     monthTx, spent, earned, income, savedThisMonth, left, savingsRate, byCat,

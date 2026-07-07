@@ -10,7 +10,7 @@ import { fmt, monthLabel, todayISO } from "../../engine/format";
 import { C, inputStyle } from "../theme";
 import { CardTitle, Empty, Field } from "../bits";
 
-export function Log({ d, view, addTransaction, deleteTransaction, updateTransaction }: {
+export function Log({ d, view, addTransaction, deleteTransaction, updateTransaction, markNoSpend }: {
   state: State;
   d: Derived;
   /** A browsed past month; null/undefined = today. */
@@ -18,6 +18,8 @@ export function Log({ d, view, addTransaction, deleteTransaction, updateTransact
   addTransaction: (tx: Omit<Transaction, "id">) => void;
   deleteTransaction: (id: string) => void;
   updateTransaction: (id: string, patch: Partial<Omit<Transaction, "id">>) => void;
+  /** Bumps the streak without a journal entry — no-spend days count as tending. */
+  markNoSpend: () => void;
 }) {
   const [type, setType] = useState<"expense" | "income">("expense");
   const [amount, setAmount] = useState("");
@@ -106,10 +108,19 @@ export function Log({ d, view, addTransaction, deleteTransaction, updateTransact
             <input type="date" value={date} max={todayISO()} onChange={(e) => setDate(e.target.value)} style={inputStyle} />
           </Field>
         </div>
-        <button className="mg-btn" onClick={submit} disabled={!amount}
-          style={{ marginTop: 14, background: amount ? C.leaf : C.border, color: C.inkContrast, border: "none", borderRadius: 12, padding: "11px 22px", fontWeight: 700, fontSize: 15, cursor: amount ? "pointer" : "not-allowed" }}>
-          {type === "expense" ? "Add expense" : "Add income"}
-        </button>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginTop: 14 }}>
+          <button className="mg-btn" onClick={submit} disabled={!amount}
+            style={{ background: amount ? C.leaf : C.border, color: C.inkContrast, border: "none", borderRadius: 12, padding: "11px 22px", fontWeight: 700, fontSize: 15, cursor: amount ? "pointer" : "not-allowed" }}>
+            {type === "expense" ? "Add expense" : "Add income"}
+          </button>
+          <span style={{ fontSize: 13, color: C.inkSoft }}>
+            Nothing to log?{" "}
+            <button className="mg-btn" onClick={markNoSpend}
+              style={{ background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: 999, padding: "6px 12px", fontWeight: 700, fontSize: 12.5, color: C.inkSoft, cursor: "pointer" }}>
+              🌵 Mark a no-spend day
+            </button>
+          </span>
+        </div>
       </section>
 
       <section className="mg-card" style={{ padding: 20 }}>

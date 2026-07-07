@@ -69,7 +69,7 @@ export function Garden({ state, addGoal, waterGoal, deleteGoal }: {
           {state.goals.map((g) => {
             const progress = Math.min(1, g.saved / g.target);
             const bloom = PLANT_KINDS.find((p) => p.id === g.plant)?.bloom || C.marigold;
-            const stageWord = progress >= 1 ? "In full bloom 🌸" : progress >= 0.7 ? "Budding" : progress >= 0.4 ? "Growing tall" : progress >= 0.12 ? "Sprouting" : "Just planted";
+            const stageWord = g.saved > g.target ? "Overflowing 🌊" : progress >= 1 ? "In full bloom 🌸" : progress >= 0.7 ? "Budding" : progress >= 0.4 ? "Growing tall" : progress >= 0.12 ? "Sprouting" : "Just planted";
             const water = () => {
               const a = parseFloat(waterAmounts[g.id]);
               if (a > 0) {

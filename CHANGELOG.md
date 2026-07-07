@@ -2,6 +2,35 @@
 
 All notable changes to Money Garden. Dates are release dates.
 
+## 0.7.0 — 2026-07-07 · *Garden care* 🧤
+
+Fixes and kindnesses, most of them from actually living with the app.
+
+### Added
+
+- **🌵 No-spend days count as tending.** A one-tap "Mark a no-spend day" in
+  the Log tab keeps your streak alive without inventing a journal entry —
+  the streak now rewards *showing up*, not spending. (Spotted by its
+  gardener: the old rule quietly encouraged logging a purchase just to keep
+  the flame.)
+- **Edit commitments in place:** vines and trellis rows now have a ✏️ like
+  the ledger — for price increases, changed billing days, renamed plans,
+  or correcting an installment's counts.
+- **"Log payment" now actually moves the date.** Payments are linked to
+  their commitment, so logging one advances the next-due date a cycle (and
+  quiets the due-soon strip and renewal advice); deleting the payment
+  reverts the date — and un-counts an installment payment, fixing the
+  stuck "5 of 6 paid". Payments logged before v0.7.0 aren't linked.
+
+### Fixed
+
+- **Goals overflow honestly.** Watering more than a goal needs used to cap
+  the flower but journal the full amount — so deleting that entry drained
+  money you'd genuinely saved. Goals can now overflow ("$1,775 of $1,500 ·
+  Overflowing 🌊"): every number is real and every entry reverses exactly.
+- Night mode: the Monthly income box typed in black-on-dark; it now uses
+  the theme's ink like every other field.
+
 ## 0.6.0 — 2026-07-07 · *The night garden* 🌙
 
 The same garden, asleep — deep greens, moonlit marigold, and every chart

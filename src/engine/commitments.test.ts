@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Commitment } from "./types";
-import { clampDay, commitmentEnded, daysUntil, deriveCommitments, nextDueDate } from "./commitments";
+import type { Commitment, Transaction } from "./types";
+import { clampDay, commitmentEnded, daysUntil, deriveCommitments, nextDueDate, nextDueWithPayments } from "./commitments";
 
 // Commitment date math is entirely local-time, so fixed local dates are
 // deterministic in any timezone. Noon avoids any midnight edge.
@@ -87,6 +87,55 @@ describe("nextDueDate — annual", () => {
   it("defaults a missing payMonth to January", () => {
     const due = nextDueDate(sub({ cadence: "annual", payMonth: 0, payDay: 10 }), june15);
     expect([due.getFullYear(), due.getMonth(), due.getDate()]).toEqual([2027, 0, 10]);
+  });
+});
+
+describe("nextDueWithPayments", () => {
+  const pay = (id: string, date: string): Transaction =>
+    ({ id: `p-${date}`, type: "expense", amount: 12, category: "subs", note: "", date, commitmentId: id });
+
+  it("advances a monthly due date once its payment is logged", () => {
+    const c = sub({ payDay: 20 }); // due June 20 as of June 15
+    const due = nextDueWithPayments(c, [pay("s1", "2026-06-18")], june15);
+    expect([due.getMonth(), due.getDate()]).toEqual([6, 20]); // July 20
+  });
+
+  it("counts payments up to 15 days early, even across a month boundary", () => {
+    const c = sub({ payDay: 2 });
+    const nowLateJune = new Date(2026, 5, 25, 12); // due July 2
+    const due = nextDueWithPayments(c, [pay("s1", "2026-06-28")], nowLateJune);
+    expect([due.getMonth(), due.getDate()]).toEqual([7, 2]); // August 2
+  });
+
+  it("ignores unlinked payments, other commitments' payments, and stale ones", () => {
+    const c = sub({ payDay: 20 });
+    const unlinked: Transaction = { id: "x", type: "expense", amount: 12, category: "subs", note: "", date: "2026-06-18" };
+    expect(nextDueWithPayments(c, [unlinked], june15).getMonth()).toBe(5); // still June
+    expect(nextDueWithPayments(c, [pay("other", "2026-06-18")], june15).getMonth()).toBe(5);
+    expect(nextDueWithPayments(c, [pay("s1", "2026-05-20")], june15).getMonth()).toBe(5); // last cycle's
+  });
+
+  it("never double-advances: after the paid date passes, the next cycle shows unpaid", () => {
+    const c = sub({ payDay: 12 });
+    const paidJune = pay("s1", "2026-06-12");
+    // On June 15 the June payment has been made → July 12.
+    expect(nextDueWithPayments(c, [paidJune], june15).getMonth()).toBe(6);
+    // A month later, that old payment must not also cover July.
+    const july15 = new Date(2026, 6, 15, 12);
+    expect(nextDueWithPayments(c, [paidJune], july15).getMonth()).toBe(7); // Aug (July unpaid, rolled naturally)
+  });
+
+  it("advances an annual renewal a full year when paid (31-day window)", () => {
+    const c = sub({ cadence: "annual", payMonth: 7, payDay: 1 }); // due July 1, 2026
+    const due = nextDueWithPayments(c, [pay("s1", "2026-06-20")], june15);
+    expect([due.getFullYear(), due.getMonth(), due.getDate()]).toEqual([2027, 6, 1]);
+  });
+
+  it("clamps the advanced date in short months (day 31 → Feb 28)", () => {
+    const c = sub({ payDay: 31 });
+    const nowJan = new Date(2026, 0, 15, 12); // due Jan 31
+    const due = nextDueWithPayments(c, [pay("s1", "2026-01-30")], nowJan);
+    expect([due.getMonth(), due.getDate()]).toEqual([1, 28]); // Feb 28
   });
 });
 

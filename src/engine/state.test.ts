@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { State, Transaction } from "./types";
 import { CATEGORIES, DEFAULT_INVEST } from "./types";
-import { bumpStreak, deserialize, emptyState, migrate, removeTransaction, sampleState, serialize, updateTransaction } from "./state";
+import { bumpStreak, deserialize, emptyState, migrate, removeTransaction, sampleState, serialize, updateCommitment, updateTransaction } from "./state";
 import { todayISO } from "./format";
 
 describe("emptyState", () => {
@@ -97,9 +97,9 @@ describe("updateTransaction / removeTransaction", () => {
     expect(overdrain.goals[0].saved).toBe(0); // 100 − 400 floors at 0
   });
 
-  it("caps a linked edit at the goal's target, like watering does", () => {
+  it("lets a linked edit overflow the goal's target (overflow is truthful)", () => {
     const s = updateTransaction(base(), "t1", { amount: 2000 });
-    expect(s.goals[0].saved).toBe(1000); // 400 + 1600 capped at target
+    expect(s.goals[0].saved).toBe(2000); // 400 + 1600 — no cap since v0.7.0
   });
 
   it("removing a linked entry drains the goal by its amount", () => {
@@ -119,6 +119,47 @@ describe("updateTransaction / removeTransaction", () => {
     const dangling: State = { ...base(), goals: [] };
     expect(updateTransaction(dangling, "t1", { amount: 500 }).goals).toEqual([]);
     expect(removeTransaction(dangling, "t1").goals).toEqual([]);
+  });
+});
+
+describe("commitment-linked payments", () => {
+  const inst = { id: "c1", kind: "inst" as const, name: "Tax bill", amount: 240, cadence: "monthly" as const, payDay: 20, payMonth: 1, totalPayments: 6, paidCount: 3, category: "other" };
+  const payment: Transaction = { id: "p1", type: "expense", amount: 240, category: "other", note: "Installment: Tax bill", date: "2026-07-20", commitmentId: "c1" };
+  const base = (): State => ({ ...emptyState(), commitments: [{ ...inst }], transactions: [{ ...payment }] });
+
+  it("deleting a linked installment payment un-counts it", () => {
+    const s = removeTransaction(base(), "p1");
+    expect(s.commitments[0].paidCount).toBe(2);
+  });
+
+  it("floors paidCount at 0 and ignores legacy/unlinked deletions", () => {
+    const zero: State = { ...base(), commitments: [{ ...inst, paidCount: 0 }] };
+    expect(removeTransaction(zero, "p1").commitments[0].paidCount).toBe(0);
+    const legacy: State = { ...base(), transactions: [{ ...payment, commitmentId: undefined }] };
+    expect(removeTransaction(legacy, "p1").commitments[0].paidCount).toBe(3);
+  });
+
+  it("does not touch subscriptions on deletion (nothing stored to revert)", () => {
+    const sub = { ...inst, id: "c2", kind: "sub" as const, totalPayments: undefined, paidCount: undefined, endDate: "" };
+    const s: State = { ...emptyState(), commitments: [sub], transactions: [{ ...payment, commitmentId: "c2" }] };
+    expect(removeTransaction(s, "p1").commitments[0]).toEqual(sub);
+  });
+});
+
+describe("updateCommitment", () => {
+  const sub = { id: "c1", kind: "sub" as const, name: "Gym", amount: 35, cadence: "monthly" as const, payDay: 1, payMonth: 1, endDate: "", category: "subs" };
+  const base = (): State => ({ ...emptyState(), commitments: [{ ...sub }] });
+
+  it("merges a patch, keeping the id", () => {
+    const s = updateCommitment(base(), "c1", { amount: 42, payDay: 15, name: "Gym (new plan)" });
+    expect(s.commitments[0]).toMatchObject({ id: "c1", amount: 42, payDay: 15, name: "Gym (new plan)", kind: "sub" });
+  });
+
+  it("is a no-op for unknown ids and leaves other commitments alone", () => {
+    const before = base();
+    expect(updateCommitment(before, "nope", { amount: 1 })).toBe(before);
+    const two: State = { ...before, commitments: [{ ...sub }, { ...sub, id: "c2" }] };
+    expect(updateCommitment(two, "c1", { amount: 42 }).commitments[1].amount).toBe(35);
   });
 });
 
