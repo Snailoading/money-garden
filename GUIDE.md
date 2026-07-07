@@ -16,7 +16,7 @@ New garden looking empty? Tap **🌼 Plant sample data** to wander around with r
 ## Finding your way around
 
 - **🌤️ Overview** — your month at a glance: what's left to spend, what came in, what went out, and two little charts showing your pace and where the money went. The weather card up top is your garden's health — sunny skies mean your money is thriving.
-- **✏️ Log** — the daily habit. Jot down expenses, income, and savings in seconds. Made a typo? Tap an entry's ✏️ to fix it right there (fixing a goal contribution updates the flower too). Logging on consecutive days grows a 🔥 streak.
+- **✏️ Log** — the daily habit. Jot down expenses, income, and savings in seconds. Made a typo? Tap an entry's ✏️ to fix it right there (fixing a goal contribution updates the flower too). Logging on consecutive days grows a 🔥 streak — and spent nothing today? Tap **🌵 Mark a no-spend day**; that counts double in spirit.
 - **🧺 Budgets** — give each spending category a plot with a limit. Green = room to grow, amber = nearly full, red = overgrown. Below that, track your subscriptions (🌿 vines) and installment plans (🪜 the trellis) — the app warns you a couple of weeks before anything bills, and **💸 Log payment** records it in one tap.
 - **🌷 Garden** — plant a savings goal, pick its flower, and 💧 water it whenever you put money aside. It grows from seed to full bloom as you go. Tick one goal as your **emergency fund** 🛟 — the app tracks it against the "3–6 months of expenses" safety net.
 - **🍂 Seasons** — your almanac: up to a year of months side by side — what came in, what went out, what you kept. Tap any month to step into it, or use the little ‹ › arrows by the date up top to wander through your history (the **↩ today** button brings you home).
