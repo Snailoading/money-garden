@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { State, Transaction } from "./types";
 import { CATEGORIES, DEFAULT_INVEST } from "./types";
-import { bumpStreak, deserialize, emptyState, migrate, removeTransaction, sampleState, serialize, updateCommitment, updateTransaction } from "./state";
+import { bumpStreak, deserialize, emptyState, insertGoal, migrate, removeTransaction, sampleState, serialize, updateCommitment, updateGoal, updateTransaction } from "./state";
 import { todayISO } from "./format";
 
 describe("emptyState", () => {
@@ -119,6 +119,58 @@ describe("updateTransaction / removeTransaction", () => {
     const dangling: State = { ...base(), goals: [] };
     expect(updateTransaction(dangling, "t1", { amount: 500 }).goals).toEqual([]);
     expect(removeTransaction(dangling, "t1").goals).toEqual([]);
+  });
+});
+
+describe("goal draws (linked expense entries)", () => {
+  const goal = { id: "g1", name: "Rain barrel", plant: "sunflower", target: 6000, saved: 2000, isEmergency: true };
+  const draw: Transaction = { id: "d1", type: "expense", amount: 500, category: "housing", note: "Rent from the barrel", date: "2026-07-08", goalId: "g1" };
+  const base = (): State => ({ ...emptyState(), goals: [{ ...goal }], transactions: [{ ...draw }] });
+
+  it("deleting a draw re-waters the goal (mirror of watering deletion)", () => {
+    const s = removeTransaction(base(), "d1");
+    expect(s.goals[0].saved).toBe(2500); // 2000 + 500 back
+  });
+
+  it("editing a draw's amount moves the goal the opposite way to watering", () => {
+    expect(updateTransaction(base(), "d1", { amount: 800 }).goals[0].saved).toBe(1700); // drew 300 more
+    expect(updateTransaction(base(), "d1", { amount: 200 }).goals[0].saved).toBe(2300); // drew 300 less
+  });
+
+  it("floors at zero as a defensive backstop (the UI caps draws first)", () => {
+    expect(updateTransaction(base(), "d1", { amount: 5000 }).goals[0].saved).toBe(0);
+  });
+});
+
+describe("updateGoal / insertGoal", () => {
+  const g = (id: string, isEmergency = false) => ({ id, name: `Goal ${id}`, plant: "tulip", target: 1000, saved: 100, isEmergency });
+  const base = (): State => ({ ...emptyState(), goals: [g("a", true), g("b"), g("c")] });
+
+  it("merges a patch, keeping id and balance", () => {
+    const s = updateGoal(base(), "b", { name: "Renamed", target: 2500, plant: "poppy" });
+    expect(s.goals[1]).toMatchObject({ id: "b", name: "Renamed", target: 2500, plant: "poppy", saved: 100 });
+  });
+
+  it("moves the lifebuoy: flagging one goal unflags the others", () => {
+    const s = updateGoal(base(), "b", { isEmergency: true });
+    expect(s.goals.map((x) => x.isEmergency)).toEqual([false, true, false]);
+  });
+
+  it("unflagging does not touch other goals", () => {
+    const s = updateGoal(base(), "a", { isEmergency: false });
+    expect(s.goals.map((x) => x.isEmergency)).toEqual([false, false, false]);
+  });
+
+  it("is a no-op for unknown ids", () => {
+    const before = base();
+    expect(updateGoal(before, "nope", { name: "x" })).toBe(before);
+  });
+
+  it("insertGoal honors exclusivity for a flagged newcomer, not otherwise", () => {
+    const flagged = insertGoal(base(), { ...g("d", true) });
+    expect(flagged.goals.map((x) => x.isEmergency)).toEqual([false, false, false, true]);
+    const plain = insertGoal(base(), { ...g("e") });
+    expect(plain.goals.map((x) => x.isEmergency)).toEqual([true, false, false, false]);
   });
 });
 
