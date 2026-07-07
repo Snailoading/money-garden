@@ -9,7 +9,7 @@ import { DEFAULT_INVEST, STORAGE_KEY } from "../engine/types";
 import { fmt, monthKey, monthLabel, uid, todayISO } from "../engine/format";
 import { derive, deriveMonthView, weatherFor } from "../engine/stats";
 import { monthRange } from "../engine/trends";
-import { bumpStreak, deserialize, emptyState, removeTransaction, sampleState, serialize, updateTransaction } from "../engine/state";
+import { bumpStreak, deserialize, emptyState, removeTransaction, sampleState, serialize, updateCommitment, updateTransaction } from "../engine/state";
 import { buildBackup, parseBackup, type ImportPreview } from "../engine/backup";
 import { createStore } from "../engine/storage";
 import { C, resolveTheme, THEME_COLOR, THEME_KEY, type ThemeMode } from "./theme";
@@ -171,7 +171,9 @@ export function MoneyGarden() {
   const waterGoal = (id: string, amount: number) => {
     const goals = state.goals.map((g) => {
       if (g.id !== id) return g;
-      const saved = Math.min(g.target, g.saved + amount);
+      // No target cap (v0.7.0): overflowing is truthful, and it keeps the
+      // journal entry exactly reversible.
+      const saved = g.saved + amount;
       if (saved >= g.target && g.saved < g.target) showToast(`🌸 "${g.name}" is in full bloom — goal reached!`);
       return { ...g, saved };
     });
@@ -213,10 +215,29 @@ export function MoneyGarden() {
   const logCommitmentPayment = (id: string) => {
     const c = (state.commitments || []).find((x) => x.id === id);
     if (!c) return;
-    const tx: Transaction = { id: uid(), type: "expense", amount: Number(c.amount) || 0, category: c.category || "subs", note: `${c.kind === "inst" ? "Installment" : "Subscription"}: ${c.name}`, date: todayISO() };
+    // commitmentId links the entry: the next-due date derives from it and
+    // deleting it reverts the payment (incl. installment paidCount).
+    const tx: Transaction = { id: uid(), type: "expense", amount: Number(c.amount) || 0, category: c.category || "subs", note: `${c.kind === "inst" ? "Installment" : "Subscription"}: ${c.name}`, date: todayISO(), commitmentId: c.id };
     const commitments = (state.commitments || []).map((x) => (x.id === id && x.kind === "inst" ? { ...x, paidCount: (x.paidCount || 0) + 1 } : x));
     setStateSafe({ ...state, commitments, transactions: [tx, ...state.transactions], streak: bumpStreak(state.streak) });
     showToast(`💸 ${fmt(c.amount)} logged for "${c.name}"`);
+  };
+
+  const editCommitment = (id: string, patch: Partial<Omit<Commitment, "id">>) => {
+    setStateSafe(updateCommitment(state, id, patch));
+    showToast("✏️ Commitment updated");
+  };
+
+  // A tended garden isn't always a watered one — no-spend days keep the
+  // streak alive without inventing a journal entry.
+  const markNoSpendDay = () => {
+    const bumped = bumpStreak(state.streak);
+    if (bumped === state.streak) {
+      showToast("🌱 Today's already tended — see you tomorrow.");
+      return;
+    }
+    setStateSafe({ ...state, streak: bumped });
+    showToast("🌵 A no-spend day — the garden rests.");
   };
 
   /* ---------- backup: export & import ---------- */
@@ -342,8 +363,8 @@ export function MoneyGarden() {
         )}
 
         {tab === "overview" && <Overview state={state} d={derived} view={monthView} setIncome={setIncome} goTo={(t) => setTab(t as TabId)} />}
-        {tab === "log" && <Log state={state} d={derived} view={monthView} addTransaction={addTransaction} deleteTransaction={deleteTransaction} updateTransaction={editTransaction} />}
-        {tab === "budgets" && <Budgets state={state} d={derived} view={monthView} setBudget={setBudget} addCommitment={addCommitment} deleteCommitment={deleteCommitment} logCommitmentPayment={logCommitmentPayment} />}
+        {tab === "log" && <Log state={state} d={derived} view={monthView} addTransaction={addTransaction} deleteTransaction={deleteTransaction} updateTransaction={editTransaction} markNoSpend={markNoSpendDay} />}
+        {tab === "budgets" && <Budgets state={state} d={derived} view={monthView} setBudget={setBudget} addCommitment={addCommitment} deleteCommitment={deleteCommitment} logCommitmentPayment={logCommitmentPayment} updateCommitment={editCommitment} />}
         {tab === "garden" && <Garden state={state} addGoal={addGoal} waterGoal={waterGoal} deleteGoal={deleteGoal} />}
         {tab === "orchard" && <Orchard state={state} d={derived} setInvest={setInvest} addHolding={addHolding} updateHolding={updateHolding} deleteHolding={deleteHolding} waterOrchard={waterOrchard} />}
         {tab === "seasons" && <Seasons state={state} goToMonth={(ym) => { goToMonth(ym); setTab("overview"); }} />}

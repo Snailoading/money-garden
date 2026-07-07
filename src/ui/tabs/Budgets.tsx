@@ -7,11 +7,11 @@ import type { Commitment, State } from "../../engine/types";
 import { CATEGORIES } from "../../engine/types";
 import type { Derived, MonthView } from "../../engine/stats";
 import { fmt, MONTH_NAMES, monthLabel, shortDate, todayISO } from "../../engine/format";
-import { commitmentEnded, daysUntil, nextDueDate } from "../../engine/commitments";
+import { commitmentEnded, daysUntil, nextDueWithPayments } from "../../engine/commitments";
 import { C, inputStyle } from "../theme";
 import { CardTitle, Field } from "../bits";
 
-export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommitment, logCommitmentPayment }: {
+export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommitment, logCommitmentPayment, updateCommitment }: {
   state: State;
   d: Derived;
   /** A browsed past month; null/undefined = today. Affects the plots only. */
@@ -20,6 +20,7 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
   addCommitment: (c: Omit<Commitment, "id">) => void;
   deleteCommitment: (id: string) => void;
   logCommitmentPayment: (id: string) => void;
+  updateCommitment: (id: string, patch: Partial<Omit<Commitment, "id">>) => void;
 }) {
   const cm = d.commit;
   const [cKind, setCKind] = useState<"sub" | "inst">("sub");
@@ -53,9 +54,119 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
   const subs = cm.all.filter((c) => c.kind === "sub");
   const insts = cm.all.filter((c) => c.kind === "inst");
 
+  // Inline commitment editing — one at a time, same idiom as the ledger.
+  const [editingCId, setEditingCId] = useState<string | null>(null);
+  const [eName, setEName] = useState("");
+  const [eAmount, setEAmount] = useState("");
+  const [eCadence, setECadence] = useState<"monthly" | "annual">("monthly");
+  const [eDay, setEDay] = useState<number | string>(1);
+  const [eMonth, setEMonth] = useState<number | string>(1);
+  const [eEnd, setEEnd] = useState("");
+  const [eTotal, setETotal] = useState("");
+  const [ePaid, setEPaid] = useState("");
+  const [eCategory, setECategory] = useState("subs");
+
+  const openEditC = (c: Commitment) => {
+    setEditingCId(c.id);
+    setEName(c.name);
+    setEAmount(String(c.amount));
+    setECadence(c.cadence);
+    setEDay(c.payDay);
+    setEMonth(c.payMonth || 1);
+    setEEnd(c.endDate || "");
+    setETotal(c.totalPayments != null ? String(c.totalPayments) : "");
+    setEPaid(c.paidCount != null ? String(c.paidCount) : "");
+    setECategory(c.category);
+  };
+  const canSaveC = Boolean(eName.trim() && parseFloat(eAmount) > 0);
+  const saveEditC = (c: Commitment) => {
+    if (!canSaveC) return;
+    const patch: Partial<Omit<Commitment, "id">> = {
+      name: eName.trim(),
+      amount: parseFloat(eAmount),
+      payDay: Math.min(31, Math.max(1, parseInt(String(eDay)) || 1)),
+      category: eCategory,
+    };
+    if (c.kind === "sub") {
+      patch.cadence = eCadence;
+      patch.payMonth = Math.min(12, Math.max(1, parseInt(String(eMonth)) || 1));
+      patch.endDate = eEnd;
+    } else {
+      patch.totalPayments = Math.max(1, parseInt(eTotal) || 1);
+      patch.paidCount = Math.max(0, parseInt(ePaid) || 0);
+    }
+    updateCommitment(c.id, patch);
+    setEditingCId(null);
+  };
+
+  // A render function, NOT a component: it closes over the edit state, and a
+  // component identity would change on each keystroke, remounting the form
+  // and dropping input focus.
+  const commitmentEditPanel = (c: Commitment) => (
+    <div key={c.id} style={{ padding: "12px 10px", borderRadius: 12, background: C.mist, border: `1.5px solid ${C.border}`, display: "grid", gap: 10 }}
+      onKeyDown={(e) => { if (e.key === "Enter") saveEditC(c); if (e.key === "Escape") setEditingCId(null); }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8 }}>
+        <Field label="Name">
+          <input value={eName} maxLength={40} onChange={(e) => setEName(e.target.value)} style={inputStyle} autoFocus />
+        </Field>
+        <Field label={c.kind === "inst" ? "Per payment" : "Amount"}>
+          <input className="mg-num" type="number" min="0.01" step="0.01" value={eAmount} onChange={(e) => setEAmount(e.target.value)} style={inputStyle} />
+        </Field>
+        {c.kind === "sub" && (
+          <Field label="Cadence">
+            <select value={eCadence} onChange={(e) => setECadence(e.target.value as "monthly" | "annual")} style={inputStyle}>
+              <option value="monthly">Monthly</option>
+              <option value="annual">Yearly</option>
+            </select>
+          </Field>
+        )}
+        {c.kind === "sub" && eCadence === "annual" && (
+          <Field label="Month">
+            <select value={eMonth} onChange={(e) => setEMonth(e.target.value)} style={inputStyle}>
+              {MONTH_NAMES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+            </select>
+          </Field>
+        )}
+        <Field label="Day">
+          <input className="mg-num" type="number" min="1" max="31" value={eDay} onChange={(e) => setEDay(e.target.value)} style={inputStyle} />
+        </Field>
+        {c.kind === "sub" ? (
+          <Field label="End date (optional)">
+            <input type="date" value={eEnd} onChange={(e) => setEEnd(e.target.value)} style={inputStyle} />
+          </Field>
+        ) : (
+          <>
+            <Field label="# payments">
+              <input className="mg-num" type="number" min="1" value={eTotal} onChange={(e) => setETotal(e.target.value)} style={inputStyle} />
+            </Field>
+            <Field label="Already paid">
+              <input className="mg-num" type="number" min="0" value={ePaid} onChange={(e) => setEPaid(e.target.value)} style={inputStyle} />
+            </Field>
+          </>
+        )}
+        <Field label="Category">
+          <select value={eCategory} onChange={(e) => setECategory(e.target.value)} style={inputStyle}>
+            {CATEGORIES.map((cat) => <option key={cat.id} value={cat.id}>{cat.emoji} {cat.label}</option>)}
+          </select>
+        </Field>
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button className="mg-btn" onClick={() => saveEditC(c)} disabled={!canSaveC}
+          style={{ background: canSaveC ? C.leaf : C.border, color: C.inkContrast, border: "none", borderRadius: 10, padding: "8px 18px", fontWeight: 700, fontSize: 13, cursor: canSaveC ? "pointer" : "not-allowed" }}>
+          Save
+        </button>
+        <button className="mg-btn" onClick={() => setEditingCId(null)}
+          style={{ background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "8px 14px", fontWeight: 600, fontSize: 13, color: C.inkSoft, cursor: "pointer" }}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+
   const CommitmentRow = ({ c }: { c: Commitment }) => {
-    const ended = commitmentEnded(c);
-    const due = nextDueDate(c);
+    const ended = commitmentEnded(c, new Date(), state.transactions);
+    // Payments-aware: logging a payment advances the date; deleting reverts it.
+    const due = nextDueWithPayments(c, state.transactions);
     const days = daysUntil(due);
     const cat = CATEGORIES.find((x) => x.id === c.category);
     return (
@@ -88,11 +199,16 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
             💸 Log payment
           </button>
         )}
+        <button className="mg-btn" onClick={() => openEditC(c)} title="Edit" aria-label={`Edit ${c.name}`}
+          style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 14, padding: 4 }}>✏️</button>
         <button className="mg-btn" onClick={() => deleteCommitment(c.id)} title="Remove" aria-label={`Remove ${c.name}`}
           style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 14 }}>✕</button>
       </div>
     );
   };
+
+  const renderCommitment = (c: Commitment) =>
+    c.id === editingCId ? commitmentEditPanel(c) : <CommitmentRow key={c.id} c={c} />;
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
@@ -155,8 +271,8 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
           {subs.length === 0 && insts.length === 0 && (
             <div style={{ fontSize: 13.5, color: C.inkSoft, padding: "4px 0 8px" }}>Nothing recurring tracked yet — add your first vine or installment below.</div>
           )}
-          {subs.map((c) => <CommitmentRow key={c.id} c={c} />)}
-          {insts.map((c) => <CommitmentRow key={c.id} c={c} />)}
+          {subs.map(renderCommitment)}
+          {insts.map(renderCommitment)}
         </div>
 
         {/* add form */}
