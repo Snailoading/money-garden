@@ -69,6 +69,7 @@ A rules-based gardener's notebook, generating prioritized notes from your actual
 - **Backup & restore** 🏦 — one click downloads your whole garden as a readable, versioned JSON file; importing shows you what's inside (and what it would replace) before asking for an explicit confirm. Old backups and even raw data dumps import cleanly.
 - **A two-step "erase everything"** — no single click can salt your fields.
 - **Fraunces & DM Sans**, self-hosted; the exact garden palette; tabular numerals so your figures line up like fence posts.
+- **A night garden** 🌙 — the same garden after dark, not a different app. The ☀️/🌙/🌗 button cycles day, night, and auto (follows the clock: day 7am–7pm), remembered across visits and applied before first paint so there's never a flash of the wrong sky.
 
 ## The math, honestly
 
@@ -89,7 +90,7 @@ Your data is written to your device's storage under the key `money-garden:state-
 
 ## Roadmap 🗺️
 
-~~Export/backup & import (JSON)~~ ✓ → ~~month history & trend charts~~ ✓ → ~~inline transaction editing~~ ✓ → dark mode (*night garden* 🌙) → debt tracking (*weeds* 🌿✂️) → monthly harvest reports → bank CSV import → net worth over time → native mobile apps with home-screen widgets.
+~~Export/backup & import (JSON)~~ ✓ → ~~month history & trend charts~~ ✓ → ~~inline transaction editing~~ ✓ → ~~dark mode (*night garden* 🌙)~~ ✓ → debt tracking (*weeds* 🌿✂️) → monthly harvest reports → bank CSV import → net worth over time → native mobile apps with home-screen widgets.
 
 ---
 

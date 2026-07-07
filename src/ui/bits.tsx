@@ -26,7 +26,7 @@ export function Empty({ text, cta, onClick }: { text: string; cta?: string; onCl
     <div style={{ padding: "26px 10px", textAlign: "center", color: C.inkSoft, fontSize: 14 }}>
       <div style={{ marginBottom: 10 }}>{text}</div>
       {cta && (
-        <button className="mg-btn" onClick={onClick} style={{ background: C.ink, color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 700, cursor: "pointer" }}>
+        <button className="mg-btn" onClick={onClick} style={{ background: C.ink, color: C.inkContrast, border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 700, cursor: "pointer" }}>
           {cta}
         </button>
       )}

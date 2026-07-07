@@ -1,7 +1,8 @@
 /*
  * Category donut: arcs built by hand with SVG arc commands, per-slice hover
  * (dim the rest, scale the hovered slice) and a scale/rotate entry animation.
- * Verbatim from the reference.
+ * Colors via style props so the palette's var() references resolve. The
+ * categorical slice palette itself is data (literal hexes), not chrome.
  */
 import { useState } from "react";
 import { fmt } from "../../engine/format";
@@ -22,9 +23,9 @@ export function SvgDonut({ data, palette }: { data: DonutDatum[]; palette: strin
   const center = hi != null ? data[hi] : null;
   const CenterLabel = () => (
     <g style={{ pointerEvents: "none" }}>
-      <text x={cx} y={cy - 11} textAnchor="middle" fontSize="10.5" fill={C.inkSoft}>{center ? (center.name.length > 15 ? center.name.slice(0, 14) + "…" : center.name) : "This month"}</text>
-      <text x={cx} y={cy + 7} textAnchor="middle" fontSize="15" fontWeight="700" fill={C.ink} className="mg-num">{fmt(center ? center.value : total)}</text>
-      <text x={cx} y={cy + 23} textAnchor="middle" fontSize="10.5" fill={C.inkSoft} className="mg-num">{center ? Math.round((center.value / total) * 100) + "%" : "total spend"}</text>
+      <text x={cx} y={cy - 11} textAnchor="middle" fontSize="10.5" style={{ fill: C.inkSoft }}>{center ? (center.name.length > 15 ? center.name.slice(0, 14) + "…" : center.name) : "This month"}</text>
+      <text x={cx} y={cy + 7} textAnchor="middle" fontSize="15" fontWeight="700" className="mg-num" style={{ fill: C.ink }}>{fmt(center ? center.value : total)}</text>
+      <text x={cx} y={cy + 23} textAnchor="middle" fontSize="10.5" className="mg-num" style={{ fill: C.inkSoft }}>{center ? Math.round((center.value / total) * 100) + "%" : "total spend"}</text>
     </g>
   );
   const revealStyle = { transform: on ? "scale(1) rotate(0deg)" : "scale(.85) rotate(-8deg)", opacity: on ? 1 : 0, transition: "transform .55s cubic-bezier(.2,.8,.3,1), opacity .4s ease", transformOrigin: "center", transformBox: "view-box" } as const;
@@ -33,7 +34,7 @@ export function SvgDonut({ data, palette }: { data: DonutDatum[]; palette: strin
     return (
       <svg viewBox="0 0 170 170" style={{ width: "100%", height: "100%" }} role="img" aria-label="Spending by category">
         <g style={revealStyle}>
-          <circle cx={cx} cy={cy} r={(R + r) / 2} fill="none" stroke={palette[0]} strokeWidth={R - r}
+          <circle cx={cx} cy={cy} r={(R + r) / 2} strokeWidth={R - r} style={{ fill: "none", stroke: palette[0] }}
             onPointerEnter={() => setHi(0)} onPointerLeave={() => setHi(null)} onPointerDown={() => setHi(0)} />
         </g>
         <CenterLabel />
@@ -55,9 +56,9 @@ export function SvgDonut({ data, palette }: { data: DonutDatum[]; palette: strin
           const d = "M " + pt2(g.s, R) + " A " + R + " " + R + " 0 " + large + " 1 " + pt2(g.e, R) +
                     " L " + pt2(g.e, r) + " A " + r + " " + r + " 0 " + large + " 0 " + pt2(g.s, r) + " Z";
           return (
-            <path key={i} d={d} fill={g.color}
+            <path key={i} d={d}
               onPointerEnter={() => setHi(i)} onPointerLeave={() => setHi(null)} onPointerDown={() => setHi(i)}
-              style={{ cursor: "pointer", opacity: hi == null || hi === i ? 1 : 0.45, transform: hi === i ? "scale(1.045)" : "scale(1)", transformOrigin: "center", transformBox: "view-box", transition: "transform .15s ease, opacity .15s ease" }} />
+              style={{ fill: g.color, cursor: "pointer", opacity: hi == null || hi === i ? 1 : 0.45, transform: hi === i ? "scale(1.045)" : "scale(1)", transformOrigin: "center", transformBox: "view-box", transition: "transform .15s ease, opacity .15s ease" }} />
           );
         })}
       </g>

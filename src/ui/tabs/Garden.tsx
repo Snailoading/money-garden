@@ -57,7 +57,7 @@ export function Garden({ state, addGoal, waterGoal, deleteGoal }: {
           This is my emergency fund (the advisor tracks it against 3–6 months of expenses)
         </label>
         <button className="mg-btn" onClick={submit} disabled={!name.trim() || !target}
-          style={{ marginTop: 12, background: name.trim() && target ? C.leaf : C.border, color: "#fff", border: "none", borderRadius: 12, padding: "11px 22px", fontWeight: 700, cursor: name.trim() && target ? "pointer" : "not-allowed" }}>
+          style={{ marginTop: 12, background: name.trim() && target ? C.leaf : C.border, color: C.inkContrast, border: "none", borderRadius: 12, padding: "11px 22px", fontWeight: 700, cursor: name.trim() && target ? "pointer" : "not-allowed" }}>
           🌱 Plant it
         </button>
       </section>
@@ -98,7 +98,7 @@ export function Garden({ state, addGoal, waterGoal, deleteGoal }: {
                       onKeyDown={(e) => { if (e.key === "Enter") water(); }}
                       style={{ ...inputStyle, flex: 1, padding: "7px 9px" }} aria-label={`Amount to add to ${g.name}`} />
                     <button className="mg-btn" onClick={water}
-                      style={{ background: C.leafDark, color: "#fff", border: "none", borderRadius: 10, padding: "7px 14px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+                      style={{ background: C.leafDark, color: C.inkContrast, border: "none", borderRadius: 10, padding: "7px 14px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
                       💧 Water
                     </button>
                   </div>

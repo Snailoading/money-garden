@@ -48,9 +48,82 @@
     U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
+/*
+ * The garden's palette — single source of truth. Components consume these
+ * through the typed C object in theme.ts (C.leaf === "var(--leaf)").
+ * The night set lives under [data-theme="night"]; theme.test.ts guards that
+ * both blocks define the identical variable names.
+ */
+:root {
+  --bg: #eef4e9;
+  --ink: #1c352a;
+  --ink-soft: #4a6355;
+  --leaf: #3e9b5f;
+  --leaf-dark: #2c7546;
+  --marigold: #f0b429;
+  --tomato: #de5d42;
+  --soil: #8a6f52;
+  --card: #ffffff;
+  --border: #d8e5d0;
+  --mist: #f7faf4;
+  /* text on ink-colored fills (active tab, toast) */
+  --ink-contrast: #ffffff;
+  /* darker amber for small text where marigold lacks contrast */
+  --amber: #9a7418;
+  /* priority-pill and chip tints */
+  --tint-tomato: #fbeae5;
+  --tint-amber: #fbf3dc;
+  --tint-leaf: #e9f4ec;
+  --chip-need: #e2f0e6;
+  --chip-want: #f0e9de;
+  /* garden art */
+  --seed: #c9a36b;
+  --soil-light: #a08560;
+  --trunk: #7a5c3e;
+  --canopy: #57ab72;
+  --seedhead: #7a4e2a;
+  --seedhead-hi: #9a6b3f;
+  --gold-hi: #f6c64b;
+  --gold-mid: #e8a81c;
+  --shadow: rgba(28, 53, 42, 0.35);
+}
+
+/* The night garden — the same garden at midnight: deep blue sky, moonlit
+ * text, but the living things (leaves, marigold, soil) stay warm. */
+[data-theme="night"] {
+  --bg: #0d1524;
+  --ink: #e9eff8;
+  --ink-soft: #9db0c7;
+  --leaf: #4fb374;
+  --leaf-dark: #7ed6a0;
+  --marigold: #f5c34d;
+  --tomato: #e9705a;
+  --soil: #6b5540;
+  --card: #162135;
+  --border: #2b3b55;
+  --mist: #1d2a42;
+  --ink-contrast: #0d1524;
+  --amber: #d9b054;
+  --tint-tomato: #3b2531;
+  --tint-amber: #37301f;
+  --tint-leaf: #1c3530;
+  --chip-need: #1f3a36;
+  --chip-want: #393127;
+  --seed: #9c7c4e;
+  --soil-light: #7a6449;
+  --trunk: #5e4730;
+  --canopy: #3f8a58;
+  --seedhead: #5e3d21;
+  --seedhead-hi: #7a542f;
+  --gold-hi: #d9a832;
+  --gold-mid: #c69420;
+  --shadow: rgba(0, 0, 5, 0.6);
+}
+
 html,
 body {
   margin: 0;
+  background: var(--bg);
 }
 
 * {
@@ -76,7 +149,7 @@ input[type="date"]::-webkit-date-and-time-value {
 input:focus-visible,
 select:focus-visible,
 button:focus-visible {
-  outline: 3px solid #f0b429; /* marigold */
+  outline: 3px solid var(--marigold);
   outline-offset: 2px;
   border-radius: 8px;
 }
@@ -110,8 +183,8 @@ button:focus-visible {
 }
 
 .mg-card {
-  background: #ffffff; /* card */
-  border: 1.5px solid #d8e5d0; /* border */
+  background: var(--card);
+  border: 1.5px solid var(--border);
   border-radius: 18px;
 }
 .mg-num {
@@ -121,10 +194,10 @@ button:focus-visible {
   border: 1.5px solid transparent;
 }
 .mg-tab:hover {
-  border-color: #d8e5d0; /* border */
+  border-color: var(--border);
 }
 .mg-row:hover {
-  background: #f7faf4; /* mist */
+  background: var(--mist);
 }
 .mg-btn {
   transition: transform 0.08s ease;

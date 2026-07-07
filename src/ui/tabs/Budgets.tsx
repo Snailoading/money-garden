@@ -100,7 +100,7 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
         <CardTitle>Monthly plots</CardTitle>
         <p style={{ margin: "0 0 14px", fontSize: 13.5, color: C.inkSoft }}>
           Each category is a plot of soil with a budget. Green means room to grow, amber means nearly full, red means it's overgrown. Total planned: <b className="mg-num">{fmt(d.totalBudget)}</b>.
-          {view && <> <b style={{ color: "#9A7418" }}>Viewing {monthLabel(view.ym)}'s spending against your current plot sizes</b> — budgets aren't stored per month.</>}
+          {view && <> <b style={{ color: C.amber }}>Viewing {monthLabel(view.ym)}'s spending against your current plot sizes</b> — budgets aren't stored per month.</>}
         </p>
         <div style={{ display: "grid", gap: 12 }}>
           {CATEGORIES.map((c) => {
@@ -113,7 +113,7 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                   <span style={{ fontWeight: 600, fontSize: 14 }}>
                     {c.emoji} {c.label}
-                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: c.kind === "need" ? C.leafDark : C.soil, background: c.kind === "need" ? "#E2F0E6" : "#F0E9DE", padding: "2px 8px", borderRadius: 999 }}>{c.kind}</span>
+                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: c.kind === "need" ? C.leafDark : C.soil, background: c.kind === "need" ? C.chipNeed : C.chipWant, padding: "2px 8px", borderRadius: 999 }}>{c.kind}</span>
                   </span>
                   <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
                     <span className="mg-num" style={{ color: pct > 1 ? C.tomato : C.inkSoft }}>{fmt(spent)} of</span>
@@ -144,7 +144,7 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
         {cm.dueSoon.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
             {cm.dueSoon.map(({ c, due, days }) => (
-              <span key={c.id} style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, border: `1.5px solid ${days <= 3 ? C.tomato : C.border}`, color: days <= 3 ? C.tomato : C.inkSoft, background: days <= 3 ? "#FBEAE5" : C.mist }}>
+              <span key={c.id} style={{ fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, border: `1.5px solid ${days <= 3 ? C.tomato : C.border}`, color: days <= 3 ? C.tomato : C.inkSoft, background: days <= 3 ? C.tintTomato : C.mist }}>
                 {c.kind === "inst" ? "🪜" : "🌿"} {c.name} · {fmt(c.amount)} {days === 0 ? "today" : `in ${days}d`} ({shortDate(due)})
               </span>
             ))}
@@ -164,7 +164,7 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
           <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
             {([{ id: "sub", label: "🌿 Subscription" }, { id: "inst", label: "🪜 Installment" }] as const).map((k) => (
               <button key={k.id} className="mg-btn" onClick={() => setCKind(k.id)}
-                style={{ background: cKind === k.id ? C.leaf : "transparent", color: cKind === k.id ? "#fff" : C.inkSoft, border: `1.5px solid ${cKind === k.id ? C.leaf : C.border}`, borderRadius: 999, padding: "6px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                style={{ background: cKind === k.id ? C.leaf : "transparent", color: cKind === k.id ? C.inkContrast : C.inkSoft, border: `1.5px solid ${cKind === k.id ? C.leaf : C.border}`, borderRadius: 999, padding: "6px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
                 {k.label}
               </button>
             ))}
@@ -232,7 +232,7 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
               </Field>
             </div>
             <button className="mg-btn" onClick={submitCommitment} disabled={!canAdd}
-              style={{ background: canAdd ? C.leaf : C.border, color: "#fff", border: "none", borderRadius: 12, padding: "10px 16px", fontWeight: 700, cursor: canAdd ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}>
+              style={{ background: canAdd ? C.leaf : C.border, color: C.inkContrast, border: "none", borderRadius: 12, padding: "10px 16px", fontWeight: 700, cursor: canAdd ? "pointer" : "not-allowed", whiteSpace: "nowrap" }}>
               {cKind === "inst" ? "🪜 Stake it" : "🌿 Plant vine"}
             </button>
           </div>

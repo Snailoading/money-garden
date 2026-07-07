@@ -37,11 +37,11 @@ function Frame({ maxY, fmtTick, children }: { maxY: number; fmtTick: (v: number)
     <>
       {[1 / 3, 2 / 3, 1].map((t, i) => (
         <g key={i}>
-          <line x1={pl} x2={W - pr} y1={y(t * maxY)} y2={y(t * maxY)} stroke={C.border} strokeDasharray="3 5" />
-          <text x={pl - 6} y={y(t * maxY) + 4} textAnchor="end" fontSize="11" fill={C.inkSoft} className="mg-num">{fmtTick(t * maxY)}</text>
+          <line x1={pl} x2={W - pr} y1={y(t * maxY)} y2={y(t * maxY)} strokeDasharray="3 5" style={{ stroke: C.border }} />
+          <text x={pl - 6} y={y(t * maxY) + 4} textAnchor="end" fontSize="11" className="mg-num" style={{ fill: C.inkSoft }}>{fmtTick(t * maxY)}</text>
         </g>
       ))}
-      <line x1={pl} x2={W - pr} y1={y(0)} y2={y(0)} stroke={C.border} />
+      <line x1={pl} x2={W - pr} y1={y(0)} y2={y(0)} style={{ stroke: C.border }} />
       {children}
     </>
   );
@@ -51,7 +51,7 @@ function MonthLabels({ trends }: { trends: TrendPoint[] }) {
   return (
     <>
       {trends.map((p, i) => (
-        <text key={p.ym} x={cxOf(i, trends.length)} y={H - 6} textAnchor="middle" fontSize="10" fill={C.inkSoft} className="mg-num">{p.label}</text>
+        <text key={p.ym} x={cxOf(i, trends.length)} y={H - 6} textAnchor="middle" fontSize="10" className="mg-num" style={{ fill: C.inkSoft }}>{p.label}</text>
       ))}
     </>
   );
@@ -64,11 +64,11 @@ function Tooltip({ x, rows, title }: { x: number; rows: [string, string, string]
   const ty = pt + 4;
   return (
     <g style={{ pointerEvents: "none" }}>
-      <line x1={x} x2={x} y1={pt} y2={H - pb} stroke={C.border} />
-      <rect x={tx} y={ty} width={bw} height={bh} rx="9" fill={C.card} stroke={C.border} strokeWidth="1.5" />
-      <text x={tx + 10} y={ty + 17} fontSize="11" fontWeight="700" fill={C.ink}>{title}</text>
+      <line x1={x} x2={x} y1={pt} y2={H - pb} style={{ stroke: C.border }} />
+      <rect x={tx} y={ty} width={bw} height={bh} rx="9" strokeWidth="1.5" style={{ fill: C.card, stroke: C.border }} />
+      <text x={tx + 10} y={ty + 17} fontSize="11" fontWeight="700" style={{ fill: C.ink }}>{title}</text>
       {rows.map(([label, value, color], i) => (
-        <text key={label} x={tx + 10} y={ty + 33 + i * 16} fontSize="11" fill={color} className="mg-num">{label} {value}</text>
+        <text key={label} x={tx + 10} y={ty + 33 + i * 16} fontSize="11" className="mg-num" style={{ fill: color }}>{label} {value}</text>
       ))}
     </g>
   );
@@ -97,17 +97,17 @@ export function SeasonsBars({ trends, onPick }: { trends: TrendPoint[]; onPick?:
             const cx = cxOf(i, n);
             return (
               <g key={p.ym} opacity={p.partial ? 0.55 : 1}>
-                <rect x={cx - bw - 1} y={y(p.earned)} width={bw} height={Math.max(0, y(0) - y(p.earned))} rx="2" fill={C.leafDark} />
-                <rect x={cx + 1} y={y(p.spent)} width={bw} height={Math.max(0, y(0) - y(p.spent))} rx="2" fill={C.tomato} />
+                <rect x={cx - bw - 1} y={y(p.earned)} width={bw} height={Math.max(0, y(0) - y(p.earned))} rx="2" style={{ fill: C.leafDark }} />
+                <rect x={cx + 1} y={y(p.spent)} width={bw} height={Math.max(0, y(0) - y(p.spent))} rx="2" style={{ fill: C.tomato }} />
               </g>
             );
           })}
           {n > 1 && (
             <polyline points={trends.map((p, i) => `${cxOf(i, n).toFixed(1)},${y(p.saved).toFixed(1)}`).join(" ")}
-              fill="none" stroke={C.marigold} strokeWidth="2" strokeLinejoin="round" />
+              strokeWidth="2" strokeLinejoin="round" style={{ fill: "none", stroke: C.marigold }} />
           )}
           {trends.map((p, i) => (
-            <circle key={p.ym} cx={cxOf(i, n)} cy={y(p.saved)} r="3" fill={C.marigold} stroke={C.card} strokeWidth="1" />
+            <circle key={p.ym} cx={cxOf(i, n)} cy={y(p.saved)} r="3" strokeWidth="1" style={{ fill: C.marigold, stroke: C.card }} />
           ))}
         </g>
         {/* invisible pick targets — tapping a month walks into it */}
@@ -120,7 +120,7 @@ export function SeasonsBars({ trends, onPick }: { trends: TrendPoint[]; onPick?:
             rows={[
               ["Earned", fmt(trends[hi].earned), C.leafDark],
               ["Spent", fmt(trends[hi].spent), C.tomato],
-              ["Saved", fmt(trends[hi].saved), "#9A7418"],
+              ["Saved", fmt(trends[hi].saved), C.amber],
             ]} />
         )}
       </Frame>
@@ -146,16 +146,16 @@ export function SeasonsRate({ trends }: { trends: TrendPoint[] }) {
       <Frame maxY={maxY} fmtTick={(v) => Math.round(v) + "%"}>
         <MonthLabels trends={trends} />
         <g>
-          <line x1={pl} x2={W - pr} y1={y(20)} y2={y(20)} stroke={C.marigold} strokeWidth="1.8" strokeDasharray="7 5" />
-          <text x={W - pr} y={y(20) - 6} textAnchor="end" fontSize="10.5" fontWeight="700" fill="#9A7418">20% benchmark</text>
+          <line x1={pl} x2={W - pr} y1={y(20)} y2={y(20)} strokeWidth="1.8" strokeDasharray="7 5" style={{ stroke: C.marigold }} />
+          <text x={W - pr} y={y(20) - 6} textAnchor="end" fontSize="10.5" fontWeight="700" style={{ fill: C.amber }}>20% benchmark</text>
         </g>
         <g clipPath={`url(#${cid})`}>
           {n > 1 && (
             <polyline points={trends.map((p, i) => `${cxOf(i, n).toFixed(1)},${y(p.savingsRate * 100).toFixed(1)}`).join(" ")}
-              fill="none" stroke={C.leafDark} strokeWidth="2.5" strokeLinejoin="round" />
+              strokeWidth="2.5" strokeLinejoin="round" style={{ fill: "none", stroke: C.leafDark }} />
           )}
           {trends.map((p, i) => (
-            <circle key={p.ym} cx={cxOf(i, n)} cy={y(p.savingsRate * 100)} r="3.5" fill={C.leafDark} stroke={C.card} strokeWidth="1" opacity={p.partial ? 0.55 : 1} />
+            <circle key={p.ym} cx={cxOf(i, n)} cy={y(p.savingsRate * 100)} r="3.5" strokeWidth="1" opacity={p.partial ? 0.55 : 1} style={{ fill: C.leafDark, stroke: C.card }} />
           ))}
         </g>
         {hi != null && (
@@ -192,8 +192,8 @@ export function SeasonsSplit({ trends }: { trends: TrendPoint[] }) {
             const wantsTop = y(p.needs + p.wants);
             return (
               <g key={p.ym} opacity={p.partial ? 0.55 : 1}>
-                <rect x={cx - bw / 2} y={needsTop} width={bw} height={Math.max(0, y(0) - needsTop)} fill={C.leafDark} rx="2" />
-                <rect x={cx - bw / 2} y={wantsTop} width={bw} height={Math.max(0, needsTop - wantsTop)} fill={C.marigold} rx="2" />
+                <rect x={cx - bw / 2} y={needsTop} width={bw} height={Math.max(0, y(0) - needsTop)} rx="2" style={{ fill: C.leafDark }} />
+                <rect x={cx - bw / 2} y={wantsTop} width={bw} height={Math.max(0, needsTop - wantsTop)} rx="2" style={{ fill: C.marigold }} />
               </g>
             );
           })}
@@ -202,7 +202,7 @@ export function SeasonsSplit({ trends }: { trends: TrendPoint[] }) {
           <Tooltip x={cxOf(hi, n)} title={trends[hi].label + (trends[hi].partial ? " (so far)" : "")}
             rows={[
               ["Needs", fmt(trends[hi].needs), C.leafDark],
-              ["Wants", fmt(trends[hi].wants), "#9A7418"],
+              ["Wants", fmt(trends[hi].wants), C.amber],
             ]} />
         )}
       </Frame>

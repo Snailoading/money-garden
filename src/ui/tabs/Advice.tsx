@@ -10,9 +10,9 @@ import { C } from "../theme";
 import { CardTitle } from "../bits";
 
 const prioStyle: Record<Priority, { bg: string; label: string; color: string }> = {
-  1: { bg: "#FBEAE5", label: PRIORITY_LABELS[1], color: C.tomato },
-  2: { bg: "#FBF3DC", label: PRIORITY_LABELS[2], color: "#9A7418" },
-  3: { bg: "#E9F4EC", label: PRIORITY_LABELS[3], color: C.leafDark },
+  1: { bg: C.tintTomato, label: PRIORITY_LABELS[1], color: C.tomato },
+  2: { bg: C.tintAmber, label: PRIORITY_LABELS[2], color: C.amber },
+  3: { bg: C.tintLeaf, label: PRIORITY_LABELS[3], color: C.leafDark },
 };
 
 export function Advice({ state, d }: { state: State; d: Derived }) {
