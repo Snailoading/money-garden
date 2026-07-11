@@ -6,6 +6,8 @@ Money doesn't have to feel like a spreadsheet with a grudge. In Money Garden, yo
 
 Local-first, single-user, no accounts, no server, no analytics. Every number lives on your own device and nowhere else. Plant coins, pull weeds, grow free. 🌱
 
+📖 **[User guide](GUIDE.md)** · 🗒️ **[Changelog](CHANGELOG.md)** · 🏗️ **[Architecture](ARCHITECTURE.md)**
+
 ---
 
 ## Getting started
