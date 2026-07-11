@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.2 — 2026-07-12 · *Take the garden with you* 📲
+
+Now that the garden lives at a link, it can live on your home screen.
+
+### Added
+
+- **A one-time install invitation** when the app opens in a browser tab: a
+  small overlay explaining how to install — tailored per platform (iPhone:
+  Share → Add to Home Screen, plus the real reason: it protects your data
+  from Safari's periodic storage cleanup; Android: browser menu; desktop:
+  the address-bar install icon or Safari's Add to Dock). Any dismissal —
+  the button, tapping outside, or Escape — is permanent, and anyone already
+  running the installed app never sees it at all.
+- GitHub Pages deployment: every push to main tests, builds, and publishes
+  the hosted PWA automatically.
+
 All notable changes to Money Garden. Dates are release dates.
 
 ## 0.8.1 — 2026-07-08 · *Rain barrel, read clearly* 🪣

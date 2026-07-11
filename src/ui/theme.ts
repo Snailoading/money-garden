@@ -48,6 +48,22 @@ export type ThemeMode = "day" | "night" | "auto";
 export const NIGHT_STARTS = 19;
 export const NIGHT_ENDS = 7;
 export const THEME_KEY = "money-garden:theme";
+export const INSTALL_HINT_KEY = "money-garden:install-hint";
+
+/** True when launched from an installed/home-screen PWA, not a browser tab. */
+export const isStandalone = (): boolean =>
+  typeof window !== "undefined" &&
+  (window.matchMedia?.("(display-mode: standalone)").matches ||
+    // iOS Safari's legacy flag for home-screen web apps.
+    (window.navigator as unknown as { standalone?: boolean }).standalone === true);
+
+/** Rough platform sniff, only to tailor the install instructions' wording. */
+export const isIOS = (): boolean =>
+  typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+/** Coarse pointer ≈ phone/tablet — splits the Android vs desktop install copy. */
+export const isTouchDevice = (): boolean =>
+  typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
 
 export const resolveTheme = (mode: ThemeMode, now: Date = new Date()): "day" | "night" => {
   if (mode !== "auto") return mode;
