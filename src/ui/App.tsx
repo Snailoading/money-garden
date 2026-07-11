@@ -12,7 +12,7 @@ import { monthRange } from "../engine/trends";
 import { bumpStreak, deserialize, emptyState, insertGoal, removeTransaction, sampleState, serialize, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
 import { buildBackup, parseBackup, type ImportPreview } from "../engine/backup";
 import { createStore } from "../engine/storage";
-import { C, resolveTheme, THEME_COLOR, THEME_KEY, type ThemeMode } from "./theme";
+import { C, INSTALL_HINT_KEY, isIOS, isStandalone, isTouchDevice, resolveTheme, THEME_COLOR, THEME_KEY, type ThemeMode } from "./theme";
 import { Overview } from "./tabs/Overview";
 import { Log } from "./tabs/Log";
 import { Budgets } from "./tabs/Budgets";
@@ -44,6 +44,8 @@ export function MoneyGarden() {
   const [viewYm, setViewYm] = useState<string | null>(null);
   /** ☀️ day / 🌙 night / 🌗 auto (follows the clock, day 7am–7pm). */
   const [themeMode, setThemeMode] = useState<ThemeMode>("auto");
+  /** Dismissed once → never nag again (browser tab only; installed users never see it). */
+  const [installDismissed, setInstallDismissed] = useState(true); // hidden until we've checked storage
   const memoryFallback = useRef(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const importInput = useRef<HTMLInputElement>(null);
@@ -118,6 +120,31 @@ export function MoneyGarden() {
     void store.set(THEME_KEY, next);
     showToast(next === "day" ? "☀️ Day garden" : next === "night" ? "🌙 Night garden" : "🌗 Following the clock — day 7am–7pm");
   };
+
+  /* ---------- install hint (browser-tab users only) ---------- */
+  useEffect(() => {
+    // Installed users never see it; for everyone else, honor a past dismissal.
+    if (isStandalone()) return;
+    (async () => {
+      const res = await store.get(INSTALL_HINT_KEY);
+      if (res?.value !== "dismissed") setInstallDismissed(false);
+    })();
+  }, []);
+
+  const dismissInstall = () => {
+    setInstallDismissed(true);
+    void store.set(INSTALL_HINT_KEY, "dismissed");
+  };
+
+  // Escape dismisses via a document listener, so the button needs no
+  // autofocus — which would paint the focus ring the moment the dialog opens.
+  useEffect(() => {
+    if (installDismissed) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") dismissInstall(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [installDismissed]);
 
   /* ---------- derived numbers (engine) ---------- */
   const derived = useMemo(() => (state ? derive(state) : null), [state]);
@@ -463,6 +490,31 @@ export function MoneyGarden() {
           background: C.ink, color: C.inkContrast, padding: "12px 20px", borderRadius: 14,
           fontWeight: 600, boxShadow: `0 10px 30px ${C.shadow}`, animation: "mg-pop .25s ease", zIndex: 50, maxWidth: "90vw",
         }}>{toast}</div>
+      )}
+
+      {/* ===== one-time install invitation (browser tabs only) =====
+          Any dismissal — button, tapping outside, Escape — is permanent. */}
+      {!installDismissed && (
+        <div role="dialog" aria-modal="true" aria-label="Add Money Garden to your home screen"
+          onClick={dismissInstall}
+          style={{ position: "fixed", inset: 0, background: C.shadow, zIndex: 60, display: "grid", placeItems: "center", padding: 20 }}>
+          <div className="mg-card" onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: 400, padding: "26px 24px", display: "grid", gap: 10, justifyItems: "center", textAlign: "center", boxShadow: `0 18px 50px ${C.shadow}`, animation: "mg-pop .3s ease" }}>
+            <div style={{ fontSize: 38, lineHeight: 1 }}>{isIOS() || isTouchDevice() ? "📲" : "🖥️"}</div>
+            <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 21 }}>Take the garden with you</div>
+            <p style={{ margin: 0, fontSize: 14, color: C.inkSoft, lineHeight: 1.6 }}>
+              {isIOS()
+                ? <>Tap <b style={{ color: C.ink }}>Share</b> → <b style={{ color: C.ink }}>Add to Home Screen</b> for a full-screen app — it also keeps your garden safe from Safari's periodic storage cleanup.</>
+                : isTouchDevice()
+                  ? <>Install it from your browser menu — <b style={{ color: C.ink }}>Add to Home screen</b> or <b style={{ color: C.ink }}>Install app</b> — for a full-screen app that works offline.</>
+                  : <>Look for the <b style={{ color: C.ink }}>install icon in the address bar</b> (Chrome/Edge) or <b style={{ color: C.ink }}>File → Add to Dock</b> (Safari) for a windowed app of its own.</>}
+            </p>
+            <button className="mg-btn" onClick={dismissInstall}
+              style={{ marginTop: 6, background: C.leaf, color: C.inkContrast, border: "none", borderRadius: 12, padding: "10px 22px", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+              Got it
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
