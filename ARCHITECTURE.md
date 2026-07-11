@@ -122,6 +122,37 @@ attributes, because the latter don't resolve `var()`.
 Fonts (Fraunces + DM Sans, variable woff2) are self-hosted in
 `src/assets/fonts/` — the app makes **zero** network requests at runtime.
 
+## Hosting
+
+`base: "./"` (vite.config.ts) emits relative asset paths, so the hosted
+build works from any subpath — verified serving `dist/` under `/money-garden/`.
+Never hand-write a root-absolute asset path (`src="/x.png"`); use relative or
+`import`, or it breaks off-root.
+
+- **Current: GitHub Pages** via `.github/workflows/deploy.yml` — tests, builds
+  `dist/`, deploys on push to `main`. Free for the public repo; served at
+  `https://snailoading.github.io/money-garden/`. (One-time: Settings → Pages →
+  Source → GitHub Actions.)
+- **Alternative: Cloudflare Pages** — point it at the repo (build `npm run
+  build`, output `dist`); no workflow needed. Root URL, unlimited bandwidth,
+  per-branch previews, and — the real reason to switch — custom response
+  headers via a `_headers` file, which GitHub Pages can't do. Worth it if a
+  custom domain or a Content-Security-Policy is wanted. Starter `_headers`:
+
+  ```
+  /*
+    Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'
+    Referrer-Policy: no-referrer
+    X-Content-Type-Options: nosniff
+  ```
+
+  The big win is `default-src`/`connect-src 'self'`: nothing can be sent to
+  another origin and no external script can load. `'unsafe-inline'` is needed
+  for the pre-paint theme boot script and React's inline `style` attributes;
+  tighten `script-src` to a sha256 hash of the (static) boot script for a
+  stricter policy. The `_headers` file is inert on GitHub Pages, so it can be
+  added any time.
+
 ## Where things would grow next
 
 - **Meridian** (second frontend): consume `src/engine/` as-is; nothing in it
