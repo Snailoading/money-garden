@@ -227,7 +227,10 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
         ) : (
           <>
             <div className={"mg-collapse" + (searchOpen && showFilters ? " open" : "")}>
-              <div>
+              {/* overflow:hidden clips at the padding edge — the 6px padding
+                  (pulled back by the negative margin so nothing shifts) keeps
+                  the edge inputs' focus outlines inside the clip box. */}
+              <div style={{ padding: "0 6px", margin: "0 -6px" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, padding: "4px 0 12px" }}>
                   <Field label="Type">
                     <select value={fType} style={inputStyle}
