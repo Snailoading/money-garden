@@ -1,7 +1,7 @@
 /*
  * Small shared UI pieces: Stat, CardTitle, Empty, Field, PlantMini.
  */
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { C } from "./theme";
 import { Plant } from "./art/Plant";
 
@@ -17,8 +17,8 @@ export function Stat({ label, value, color, sub }: { label: string; value: strin
   );
 }
 
-export function CardTitle({ children }: { children: ReactNode }) {
-  return <h2 style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 20, margin: "0 0 10px" }}>{children}</h2>;
+export function CardTitle({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+  return <h2 style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 20, margin: "0 0 10px", ...style }}>{children}</h2>;
 }
 
 export function Empty({ text, cta, onClick }: { text: string; cta?: string; onClick?: () => void }) {

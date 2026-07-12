@@ -205,3 +205,61 @@ button:focus-visible {
 .mg-btn:active {
   transform: scale(0.96);
 }
+
+/*
+ * Ledger search (Log tab) — a 🔍 button that stretches into a search pill.
+ * Closed it's a 40px circle; .open animates max-width so the circle becomes
+ * the pill (px→px so the transition interpolates; 640px is "wider than any
+ * card", the flex row decides the real width). The inner controls
+ * (.mg-search-extra) fade in slightly after the stretch starts and are
+ * visibility-hidden when closed so they can't be tabbed into.
+ */
+.mg-search {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 40px;
+  flex: 1 1 auto;
+  min-width: 40px;
+  max-width: 40px;
+  margin-left: auto;
+  overflow: hidden;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  background: var(--mist);
+  transition: max-width 0.25s ease;
+}
+.mg-search.open {
+  max-width: 640px;
+}
+.mg-search-extra {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0s linear 0.2s, transform 0.08s ease;
+}
+.mg-search.open .mg-search-extra {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.2s ease 0.1s, visibility 0s, transform 0.08s ease;
+}
+
+/* Height-animated disclosure (the filter panel) — the 0fr→1fr grid trick
+ * animates to the content's own height without measuring it in JS. */
+.mg-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s ease;
+}
+.mg-collapse.open {
+  grid-template-rows: 1fr;
+}
+.mg-collapse > div {
+  overflow: hidden;
+  min-height: 0;
+  visibility: hidden;
+  transition: visibility 0s linear 0.25s;
+}
+.mg-collapse.open > div {
+  visibility: visible;
+  transition: visibility 0s;
+}
