@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.9.0 — 2026-07-12 · *Leafing through the journal* 🔍
+
+### Added
+
+- **Journal search & filters on the Log tab.** The ledger's title row grew a
+  🔍 button that stretches into a search pill (and shrinks back on ✕ — the
+  morph goes instant under reduced motion). Type to search notes and category
+  names — including what empty-note rows display ("Goal contribution",
+  "Groceries") — and a Filters toggle slides open type / category / date-range
+  controls. Everything applies to the month you're viewing; flip ‹ › and the
+  filter follows. Closing the search clears it all, so a narrowed list can
+  never linger invisibly. An active filter shows "N of M entries" with a
+  Clear pill, and a row you're mid-editing stays visible even if the filter
+  stops matching it.
+- The filtering itself is a new pure engine module, `src/engine/journal.ts`
+  (`filterTransactions`, `matchesFilter`, `isFilterActive`), with tests.
+
+### Changed
+
+- **The ledger no longer silently stops at 40 rows.** Busy months (and long
+  filter results) now end in a "Show 40 more (N remaining)" button instead of
+  quietly hiding everything past the cap.
+
 ## 0.8.3 — 2026-07-12 · *The advisor mentions it too* 🪴
 
 ### Added

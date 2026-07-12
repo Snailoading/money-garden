@@ -26,7 +26,7 @@ leaves on that trunk; the engine could be transplanted into another frontend
 └───────────────┬────────────────────────────────────────────────────────┘
                 │  plain function calls, plain data back
 ┌───────────────▼────────────────────────────────────────────────────────┐
-│  ENGINE  (src/engine/ — pure TypeScript, no React/DOM, 143 tests)      │
+│  ENGINE  (src/engine/ — pure TypeScript, no React/DOM, 188 tests)      │
 │                                                                        │
 │   types.ts ◄──────────── everyone (State shape, CATEGORIES, defaults)  │
 │   format.ts ◄─────────── everyone (fmt, dates — LOCAL calendar)        │
@@ -38,6 +38,8 @@ leaves on that trunk; the engine could be transplanted into another frontend
 │      └── commitments.ts  deriveCommitments(), nextDueDate(), …         │
 │   trends.ts   monthRange(), monthlyTrends() → Seasons + nav bounds     │
 │   advice.ts   buildAdvice(state, derived) → prioritized Tip[]          │
+│   journal.ts  filterTransactions(), matchesFilter(), isFilterActive()  │
+│               (Log search/filter; depends on types.ts only)            │
 │   state.ts    emptyState, sampleState, migrate, serialize, bumpStreak  │
 │   backup.ts   buildBackup(), parseBackup() → seed-vault envelope       │
 │   storage.ts  createStore() → three-tier adapter (below)               │

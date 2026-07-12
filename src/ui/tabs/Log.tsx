@@ -3,12 +3,17 @@
  * month's ledger.
  */
 import { useRef, useState } from "react";
-import type { State, Transaction } from "../../engine/types";
+import type { State, Transaction, TransactionType } from "../../engine/types";
 import { CATEGORIES } from "../../engine/types";
 import type { Derived, MonthView } from "../../engine/stats";
+import type { JournalFilter } from "../../engine/journal";
+import { isFilterActive, matchesFilter, SAVING_LABEL } from "../../engine/journal";
 import { fmt, monthLabel, todayISO } from "../../engine/format";
 import { C, inputStyle } from "../theme";
 import { CardTitle, Empty, Field } from "../bits";
+
+/** Rows rendered per "page" of the ledger — more revealed via Show more. */
+const PAGE = 40;
 
 export function Log({ state, d, view, addTransaction, deleteTransaction, updateTransaction, markNoSpend }: {
   state: State;
@@ -34,6 +39,33 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
   const [eCategory, setECategory] = useState("groceries");
   const [eNote, setENote] = useState("");
   const [eDate, setEDate] = useState("");
+
+  // Search & filters — the 🔍 morphs into a search pill; everything clears
+  // when it collapses, so a narrowed list can never be an invisible mystery.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [fType, setFType] = useState<"all" | TransactionType>("all");
+  const [fCategory, setFCategory] = useState("all");
+  const [fFrom, setFFrom] = useState("");
+  const [fTo, setFTo] = useState("");
+  const [visibleCount, setVisibleCount] = useState(PAGE);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  const openSearch = () => {
+    setSearchOpen(true);
+    // autoFocus only fires on mount; the input is always mounted (it animates),
+    // so focus on the next frame once it's visible.
+    requestAnimationFrame(() => searchRef.current?.focus());
+  };
+  const clearFilters = () => {
+    setQuery(""); setFType("all"); setFCategory("all"); setFFrom(""); setFTo("");
+  };
+  const closeSearch = () => {
+    clearFilters();
+    setShowFilters(false);
+    setSearchOpen(false);
+  };
 
   // Two-step delete, same idiom as the footer's reset: first tap arms the
   // row ("Delete?"), auto-reverting after 4s; second tap deletes.
@@ -90,6 +122,30 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
     setAmount(""); setNote("");
   };
 
+  const jf: JournalFilter = {
+    text: query,
+    type: fType === "all" ? undefined : fType,
+    category: fCategory === "all" ? undefined : fCategory,
+    from: fFrom || undefined,
+    to: fTo || undefined,
+  };
+  const monthTx = (view ?? d).monthTx;
+  // The row being edited is pinned into the results even if the filter no
+  // longer matches it — typing in search must never swallow an open editor.
+  const filtered = monthTx.filter((t) => t.id === editingId || matchesFilter(t, jf));
+  const shown = filtered.slice(0, visibleCount);
+  const hidden = filtered.length - shown.length;
+  const filterActive = isFilterActive(jf);
+
+  // Rewind Show-more whenever the month or the filter changes — the
+  // adjust-state-during-render pattern (no effect, no remount, focus kept).
+  const listKey = `${view?.ym ?? "now"}|${query}|${fType}|${fCategory}|${fFrom}|${fTo}`;
+  const [prevKey, setPrevKey] = useState(listKey);
+  if (listKey !== prevKey) {
+    setPrevKey(listKey);
+    setVisibleCount(PAGE);
+  }
+
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <section className="mg-card" style={{ padding: 20 }}>
@@ -140,12 +196,85 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
       </section>
 
       <section className="mg-card" style={{ padding: 20 }}>
-        <CardTitle>{view ? `${monthLabel(view.ym)}'s ledger` : "This month's ledger"}</CardTitle>
-        {(view ?? d).monthTx.length === 0 ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <CardTitle style={{ margin: 0, flex: "0 1 auto", minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {view ? `${monthLabel(view.ym)}'s ledger` : "This month's ledger"}
+          </CardTitle>
+          {monthTx.length > 0 && (
+            <div className={"mg-search" + (searchOpen ? " open" : "")}>
+              <button className="mg-btn" onClick={searchOpen ? () => searchRef.current?.focus() : openSearch}
+                aria-label="Search the journal" title="Search the journal" tabIndex={searchOpen ? -1 : 0}
+                style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 15, width: 37, height: 37, flex: "0 0 auto", padding: 0, borderRadius: 999 }}>
+                🔍
+              </button>
+              <input ref={searchRef} className="mg-search-extra" value={query} placeholder="Search the journal…" maxLength={60}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Escape" && closeSearch()}
+                style={{ flex: 1, minWidth: 0, border: "none", background: "transparent", outline: "none", font: "inherit", fontSize: 14, color: C.ink, padding: 0, height: "100%" }} />
+              <button className="mg-btn mg-search-extra" onClick={() => setShowFilters((v) => !v)}
+                style={{ padding: "5px 12px", borderRadius: 999, cursor: "pointer", fontWeight: 700, fontSize: 12, flex: "0 0 auto", border: `1.5px solid ${showFilters || filterActive ? C.ink : C.border}`, background: showFilters || filterActive ? C.ink : C.card, color: showFilters || filterActive ? C.inkContrast : C.ink }}>
+                Filters
+              </button>
+              <button className="mg-btn mg-search-extra" onClick={closeSearch} aria-label="Close search" title="Close search"
+                style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 15, flex: "0 0 auto", padding: "0 12px 0 4px" }}>
+                ✕
+              </button>
+            </div>
+          )}
+        </div>
+        {monthTx.length === 0 ? (
           <Empty text={view ? "Nothing was logged that month." : "Nothing logged yet this month."} />
         ) : (
+          <>
+            <div className={"mg-collapse" + (searchOpen && showFilters ? " open" : "")}>
+              <div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, padding: "4px 0 12px" }}>
+                  <Field label="Type">
+                    <select value={fType} style={inputStyle}
+                      onChange={(e) => {
+                        const v = e.target.value as "all" | TransactionType;
+                        setFType(v);
+                        // income/saving rows all store category "other" — a leftover
+                        // category filter would invisibly empty the results.
+                        if (v === "income" || v === "saving") setFCategory("all");
+                      }}>
+                      <option value="all">All</option>
+                      <option value="expense">🧾 Expenses</option>
+                      <option value="income">💵 Income</option>
+                      <option value="saving">🪴 Savings</option>
+                    </select>
+                  </Field>
+                  {(fType === "all" || fType === "expense") && (
+                    <Field label="Category">
+                      <select value={fCategory} onChange={(e) => setFCategory(e.target.value)} style={inputStyle}>
+                        <option value="all">All</option>
+                        {CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>)}
+                      </select>
+                    </Field>
+                  )}
+                  <Field label="From">
+                    <input type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} style={inputStyle} />
+                  </Field>
+                  <Field label="To">
+                    <input type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} style={inputStyle} />
+                  </Field>
+                </div>
+              </div>
+            </div>
+            {filterActive && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12.5, color: C.inkSoft, marginBottom: 8 }}>
+                <span>{filtered.length} of {monthTx.length} entries</span>
+                <button className="mg-btn" onClick={clearFilters}
+                  style={{ background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: 999, padding: "3px 10px", fontWeight: 700, fontSize: 11.5, color: C.inkSoft, cursor: "pointer" }}>
+                  Clear
+                </button>
+              </div>
+            )}
+            {filterActive && filtered.length === 0 ? (
+              <Empty text="No entries match — the journal's quiet under these filters." cta="Clear filters" onClick={clearFilters} />
+            ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            {(view ?? d).monthTx.slice(0, 40).map((t) => {
+            {shown.map((t) => {
               const cat = CATEGORIES.find((c) => c.id === t.category);
               const sign = t.type === "income" ? "+" : t.type === "saving" ? "→" : "−";
               const color = t.type === "income" ? C.leafDark : t.type === "saving" ? C.marigold : C.ink;
@@ -214,7 +343,7 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
                   <span style={{ fontSize: 20 }}>{t.type === "income" ? "💵" : t.type === "saving" ? "🪴" : cat?.emoji || "🌀"}</span>
                   <span style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {t.note || (t.type === "saving" ? "Goal contribution" : cat?.label || "Other")}
+                      {t.note || (t.type === "saving" ? SAVING_LABEL : cat?.label || "Other")}
                     </div>
                     <div style={{ fontSize: 11.5, color: C.inkSoft }}>
                       {new Date(t.date + "T12:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
@@ -238,6 +367,14 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
               );
             })}
           </ul>
+            )}
+            {hidden > 0 && (
+              <button className="mg-btn" onClick={() => setVisibleCount((c) => c + PAGE)}
+                style={{ width: "100%", marginTop: 8, background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "10px 0", fontWeight: 700, fontSize: 13, color: C.inkSoft, cursor: "pointer" }}>
+                Show {Math.min(PAGE, hidden)} more ({hidden} remaining)
+              </button>
+            )}
+          </>
         )}
       </section>
     </div>
