@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.3 — 2026-07-12 · *The advisor mentions it too* 🪴
+
+### Added
+
+- **A standing install note on the Advice tab** ("Pot the garden — install
+  it as an app"), for anyone who closed the one-time overlay without
+  reading it. Same per-platform instructions, styled like a "Worth doing"
+  note but clearly app-housekeeping, always the last card. Its ✕ mutes it
+  (and the overlay) for good, and installing removes it on its own. It
+  lives in the UI layer, not the advice engine — the engine's promise of
+  "computed only from your real data" stays intact.
+
 ## 0.8.2 — 2026-07-12 · *Take the garden with you* 📲
 
 Now that the garden lives at a link, it can live on your home screen.

@@ -44,8 +44,13 @@ export function MoneyGarden() {
   const [viewYm, setViewYm] = useState<string | null>(null);
   /** ☀️ day / 🌙 night / 🌗 auto (follows the clock, day 7am–7pm). */
   const [themeMode, setThemeMode] = useState<ThemeMode>("auto");
-  /** Dismissed once → never nag again (browser tab only; installed users never see it). */
-  const [installDismissed, setInstallDismissed] = useState(true); // hidden until we've checked storage
+  /**
+   * Install-hint preference: "show" → overlay + Advice-tab tip · "dismissed"
+   * (overlay closed) → Advice tip only, in case it was closed hastily ·
+   * "muted" (tip's ✕) → neither, ever. Defaults muted until storage is
+   * checked, and stays muted for installed (standalone) launches.
+   */
+  const [installPref, setInstallPref] = useState<"show" | "dismissed" | "muted">("muted");
   const memoryFallback = useRef(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const importInput = useRef<HTMLInputElement>(null);
@@ -123,28 +128,33 @@ export function MoneyGarden() {
 
   /* ---------- install hint (browser-tab users only) ---------- */
   useEffect(() => {
-    // Installed users never see it; for everyone else, honor a past dismissal.
+    // Installed users never see either surface; others get their saved level.
     if (isStandalone()) return;
     (async () => {
       const res = await store.get(INSTALL_HINT_KEY);
-      if (res?.value !== "dismissed") setInstallDismissed(false);
+      const v = res?.value;
+      setInstallPref(v === "muted" ? "muted" : v === "dismissed" ? "dismissed" : "show");
     })();
   }, []);
 
   const dismissInstall = () => {
-    setInstallDismissed(true);
+    setInstallPref("dismissed");
     void store.set(INSTALL_HINT_KEY, "dismissed");
+  };
+  const muteInstallTip = () => {
+    setInstallPref("muted");
+    void store.set(INSTALL_HINT_KEY, "muted");
   };
 
   // Escape dismisses via a document listener, so the button needs no
   // autofocus — which would paint the focus ring the moment the dialog opens.
   useEffect(() => {
-    if (installDismissed) return;
+    if (installPref !== "show") return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") dismissInstall(); };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [installDismissed]);
+  }, [installPref]);
 
   /* ---------- derived numbers (engine) ---------- */
   const derived = useMemo(() => (state ? derive(state) : null), [state]);
@@ -419,7 +429,7 @@ export function MoneyGarden() {
         {tab === "garden" && <Garden state={state} monthlyExpenses={derived.monthlyExpenses} addGoal={addGoal} waterGoal={waterGoal} deleteGoal={deleteGoal} updateGoal={editGoal} drawFromGoal={drawFromGoal} />}
         {tab === "orchard" && <Orchard state={state} d={derived} setInvest={setInvest} addHolding={addHolding} updateHolding={updateHolding} deleteHolding={deleteHolding} waterOrchard={waterOrchard} />}
         {tab === "seasons" && <Seasons state={state} goToMonth={(ym) => { goToMonth(ym); setTab("overview"); }} />}
-        {tab === "advice" && <Advice state={state} d={derived} />}
+        {tab === "advice" && <Advice state={state} d={derived} showInstallTip={installPref !== "muted"} onMuteInstallTip={muteInstallTip} />}
 
         {/* ===== import confirm card ===== */}
         {pendingImport && (
@@ -494,7 +504,7 @@ export function MoneyGarden() {
 
       {/* ===== one-time install invitation (browser tabs only) =====
           Any dismissal — button, tapping outside, Escape — is permanent. */}
-      {!installDismissed && (
+      {installPref === "show" && (
         <div role="dialog" aria-modal="true" aria-label="Add Money Garden to your home screen"
           onClick={dismissInstall}
           style={{ position: "fixed", inset: 0, background: C.shadow, zIndex: 60, display: "grid", placeItems: "center", padding: 20 }}>
