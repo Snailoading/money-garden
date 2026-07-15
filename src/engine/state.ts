@@ -124,6 +124,23 @@ function adjustLinkedGoal(state: State, goalId: string | undefined, delta: numbe
  */
 const linkSign = (t: Transaction): number => (t.type === "expense" ? -1 : 1);
 
+/**
+ * Move a linked holding's value by delta, floored at 0 — the orchard twin of
+ * adjustLinkedGoal. Waterings are the only holding-linked entries (always
+ * saving-type, no sign flip). Unknown/absent ids are silent no-ops, and
+ * manual holding edits are revaluations that always win: reversal subtracts
+ * what the entry put in, never reconstructs a "correct" value after the fact.
+ */
+function adjustLinkedHolding(state: State, holdingId: string | undefined, delta: number): State["invest"] {
+  if (!holdingId || delta === 0) return state.invest;
+  return {
+    ...state.invest,
+    holdings: state.invest.holdings.map((h) =>
+      h.id === holdingId ? { ...h, value: Math.max(0, (Number(h.value) || 0) + delta) } : h,
+    ),
+  };
+}
+
 /** Only one 🛟 at a time: flagging a goal unflags every other. */
 const withExclusiveEmergency = (goals: State["goals"], keptId: string): State["goals"] =>
   goals.map((g) => (g.id === keptId ? g : g.isEmergency ? { ...g, isEmergency: false } : g));
@@ -166,9 +183,9 @@ function revertInstallmentPayment(state: State, commitmentId: string | undefined
 
 /**
  * Edit a logged entry in place. Editing is correction, not logging — the
- * streak is never touched. When the entry carries a goalId and the amount
- * changes, the linked goal is watered/drained by the difference (dangling
- * ids — goal since deleted — are silent no-ops).
+ * streak is never touched. When the entry carries a goalId or holdingId and
+ * the amount changes, the linked goal/holding moves by the difference
+ * (dangling ids — goal or holding since deleted — are silent no-ops).
  */
 export function updateTransaction(
   state: State,
@@ -183,14 +200,16 @@ export function updateTransaction(
     ...state,
     transactions: state.transactions.map((t) => (t.id === id ? next : t)),
     goals: adjustLinkedGoal(state, existing.goalId, delta * linkSign(existing)),
+    invest: adjustLinkedHolding(state, existing.holdingId, delta),
   };
 }
 
 /**
  * Delete a logged entry — the symmetric counterpart to updateTransaction:
- * a goal-linked entry drains its goal by the deleted amount (floor 0), and
- * a commitment-linked installment payment un-counts itself. The next-due
- * date reverts on its own — it's derived from the linked transactions.
+ * a goal-linked entry drains its goal by the deleted amount (floor 0), a
+ * holding-linked watering drains its holding likewise, and a commitment-
+ * linked installment payment un-counts itself. The next-due date reverts on
+ * its own — it's derived from the linked transactions.
  */
 export function removeTransaction(state: State, id: string): State {
   const existing = state.transactions.find((t) => t.id === id);
@@ -199,6 +218,7 @@ export function removeTransaction(state: State, id: string): State {
     ...state,
     transactions: state.transactions.filter((t) => t.id !== id),
     goals: adjustLinkedGoal(state, existing.goalId, -existing.amount * linkSign(existing)),
+    invest: adjustLinkedHolding(state, existing.holdingId, -existing.amount),
     commitments: revertInstallmentPayment(state, existing.commitmentId),
   };
 }
