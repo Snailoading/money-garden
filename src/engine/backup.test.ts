@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { State } from "./types";
+import type { State, Transaction } from "./types";
 import { buildBackup, parseBackup, SCHEMA_VERSION } from "./backup";
 import { emptyState, sampleState } from "./state";
 
@@ -32,6 +32,29 @@ describe("parseBackup — round trip", () => {
     expect(result.preview.exportedAt).toBe("2026-06-15");
     // 10 current-month + 2×10 prior-month sample transactions.
     expect(result.preview.counts).toEqual({ transactions: 30, goals: 3, commitments: 4, holdings: 2 });
+  });
+
+  it("carries transaction links (goalId/commitmentId/holdingId) through the round trip", () => {
+    const s: State = {
+      ...emptyState(),
+      invest: { ...emptyState().invest, holdings: [{ id: "h1", name: "Index fund", value: 9500 }] },
+      transactions: [
+        { id: "w1", type: "saving", amount: 500, category: "other", note: "→ Orchard: Index fund", date: "2026-06-10", holdingId: "h1" },
+        { id: "g1", type: "saving", amount: 100, category: "other", note: "→ Japan trip", date: "2026-06-11", goalId: "goal1" },
+      ],
+    };
+    const result = parseBackup(buildBackup(s, june15).json);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.preview.state.transactions[0].holdingId).toBe("h1");
+    expect(result.preview.state.transactions[1].goalId).toBe("goal1");
+    // And a pre-holdingId backup imports fine: missing link = unlinked entry.
+    const oldTx = { ...s.transactions[0] } as Partial<Transaction>;
+    delete oldTx.holdingId;
+    const oldResult = parseBackup(JSON.stringify({ ...s, transactions: [oldTx] }));
+    expect(oldResult.ok).toBe(true);
+    if (!oldResult.ok) return;
+    expect(oldResult.preview.state.transactions[0].holdingId).toBeUndefined();
   });
 
   it("accepts a bare state dump (hand-copied localStorage value)", () => {

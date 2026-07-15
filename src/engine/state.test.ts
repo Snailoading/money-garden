@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { State, Transaction } from "./types";
 import { CATEGORIES, DEFAULT_INVEST } from "./types";
 import { bumpStreak, deserialize, emptyState, insertGoal, migrate, removeTransaction, sampleState, serialize, updateCommitment, updateGoal, updateTransaction } from "./state";
+import { derive } from "./stats";
 import { todayISO } from "./format";
 
 describe("emptyState", () => {
@@ -139,6 +140,59 @@ describe("goal draws (linked expense entries)", () => {
 
   it("floors at zero as a defensive backstop (the UI caps draws first)", () => {
     expect(updateTransaction(base(), "d1", { amount: 5000 }).goals[0].saved).toBe(0);
+  });
+});
+
+describe("orchard waterings (holding-linked entries)", () => {
+  const holdings = [
+    { id: "h1", name: "Global index fund ETF", value: 10000 },
+    { id: "h2", name: "Retirement account", value: 5000 },
+  ];
+  const watering: Transaction = { id: "w1", type: "saving", amount: 500, category: "other", note: "→ Orchard: Global index fund ETF", date: "2026-07-10", holdingId: "h1" };
+  const base = (): State => ({
+    ...emptyState(),
+    invest: { ...emptyState().invest, holdings: holdings.map((h) => ({ ...h })) },
+    transactions: [{ ...watering }],
+  });
+
+  it("deleting a watering drains its holding by the amount; others untouched", () => {
+    const s = removeTransaction(base(), "w1");
+    expect(s.transactions).toEqual([]);
+    expect(s.invest.holdings.find((h) => h.id === "h1")!.value).toBe(9500); // 10000 − 500
+    expect(s.invest.holdings.find((h) => h.id === "h2")!.value).toBe(5000);
+  });
+
+  it("editing the amount moves the holding by the delta, both directions", () => {
+    expect(updateTransaction(base(), "w1", { amount: 800 }).invest.holdings[0].value).toBe(10300); // +300
+    expect(updateTransaction(base(), "w1", { amount: 200 }).invest.holdings[0].value).toBe(9700); // −300
+  });
+
+  it("floors at 0 after a downward manual revaluation (revaluations win)", () => {
+    const revalued: State = { ...base(), invest: { ...base().invest, holdings: [{ ...holdings[0], value: 300 }, { ...holdings[1] }] } };
+    expect(removeTransaction(revalued, "w1").invest.holdings[0].value).toBe(0); // 300 − 500 floors
+  });
+
+  it("non-amount edits never touch the holding", () => {
+    const s = updateTransaction(base(), "w1", { note: "→ the big tree", date: "2026-07-11" });
+    expect(s.invest.holdings[0].value).toBe(10000);
+  });
+
+  it("dangling holdingIds (tree felled) and legacy unlinked entries are no-ops", () => {
+    const felled: State = { ...base(), invest: { ...base().invest, holdings: [] } };
+    expect(removeTransaction(felled, "w1").invest.holdings).toEqual([]);
+    expect(updateTransaction(felled, "w1", { amount: 900 }).invest.holdings).toEqual([]);
+    const legacy: State = { ...base(), transactions: [{ ...watering, holdingId: undefined }] };
+    expect(removeTransaction(legacy, "w1").invest.holdings[0].value).toBe(10000);
+  });
+
+  it("the Freedom Tree follows: derive() after a reversal sees the reduced portfolio", () => {
+    const now = new Date(2026, 6, 15, 12);
+    const before = derive(base(), now);
+    const after = derive(removeTransaction(base(), "w1"), now);
+    // deriveFire sums invest.holdings — progress and Coast both track the drain.
+    expect(before.fire.portfolio).toBe(15000);
+    expect(after.fire.portfolio).toBe(14500);
+    expect(after.fire.progress).toBeLessThan(before.fire.progress);
   });
 });
 

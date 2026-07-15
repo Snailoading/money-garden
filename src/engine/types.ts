@@ -53,6 +53,12 @@ export interface Transaction {
    * installment payment decrements its paidCount. Absent on older entries.
    */
   commitmentId?: string;
+  /**
+   * Set on orchard-watering entries (since v0.9.1) so edits/deletes can
+   * adjust the holding's value. Absent on older entries — those are never
+   * retro-linked by note text.
+   */
+  holdingId?: string;
 }
 
 export interface Goal {
