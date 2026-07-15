@@ -325,6 +325,12 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
                         🪣 Drawn from a goal — changing the amount adjusts it (up to {fmt(maxDrawFor(t)!)}).
                       </div>
                     )}
+                    {t.holdingId && state.invest?.holdings.some((h) => h.id === t.holdingId) && (
+                      <div style={{ fontSize: 12, color: C.inkSoft }}>💧 Watered into the orchard — changing the amount adjusts the holding.</div>
+                    )}
+                    {t.holdingId && !state.invest?.holdings.some((h) => h.id === t.holdingId) && (
+                      <div style={{ fontSize: 12, color: C.inkSoft }}>🥀 The tree this watered has been felled — editing changes only the journal.</div>
+                    )}
                     {t.commitmentId && (
                       <div style={{ fontSize: 12, color: C.inkSoft }}>💸 A commitment payment — deleting it un-does the payment.</div>
                     )}

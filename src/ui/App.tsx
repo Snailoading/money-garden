@@ -262,7 +262,8 @@ export function MoneyGarden() {
     const target = inv.holdings.find((h) => h.id === id);
     if (!target || !(amount > 0)) return;
     const holdings = inv.holdings.map((h) => (h.id === id ? { ...h, value: (Number(h.value) || 0) + amount } : h));
-    const tx: Transaction = { id: uid(), type: "saving", amount, category: "other", note: `→ Orchard: ${target.name}`, date: todayISO() };
+    // holdingId links the entry so later edits/deletes can adjust the holding too.
+    const tx: Transaction = { id: uid(), type: "saving", amount, category: "other", note: `→ Orchard: ${target.name}`, date: todayISO(), holdingId: id };
     setStateSafe({ ...state, invest: { ...inv, holdings }, transactions: [tx, ...state.transactions], streak: bumpStreak(state.streak) });
     showToast(`💧 ${fmt(amount)} watered into "${target.name}"`);
   };
