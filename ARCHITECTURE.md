@@ -26,7 +26,7 @@ leaves on that trunk; the engine could be transplanted into another frontend
 └───────────────┬────────────────────────────────────────────────────────┘
                 │  plain function calls, plain data back
 ┌───────────────▼────────────────────────────────────────────────────────┐
-│  ENGINE  (src/engine/ — pure TypeScript, no React/DOM, 188 tests)      │
+│  ENGINE  (src/engine/ — pure TypeScript, no React/DOM, 195 tests)      │
 │                                                                        │
 │   types.ts ◄──────────── everyone (State shape, CATEGORIES, defaults)  │
 │   format.ts ◄─────────── everyone (fmt, dates — LOCAL calendar)        │
@@ -41,6 +41,8 @@ leaves on that trunk; the engine could be transplanted into another frontend
 │   journal.ts  filterTransactions(), matchesFilter(), isFilterActive()  │
 │               (Log search/filter; depends on types.ts only)            │
 │   state.ts    emptyState, sampleState, migrate, serialize, bumpStreak  │
+│               (update/removeTransaction exactly reverse the goalId,    │
+│               holdingId, and commitmentId linkage side-effects)        │
 │   backup.ts   buildBackup(), parseBackup() → seed-vault envelope       │
 │   storage.ts  createStore() → three-tier adapter (below)               │
 └───────────────┬────────────────────────────────────────────────────────┘

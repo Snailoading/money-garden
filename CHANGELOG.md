@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.1 — 2026-07-15 · *Every watering leaves a trace* 💧
+
+### Fixed
+
+- **Orchard waterings are now fully reversible from the journal.** Watering a
+  tree always logged an entry, but deleting or editing that entry left the
+  holding's value untouched — the one linkage the garden was missing. New
+  waterings now carry a link to their holding, so deleting the entry drains
+  the tree by the same amount (floored at zero), editing the amount adjusts
+  it by the difference, and the Freedom Tree's numbers follow along. Manual
+  holding edits are revaluations and still always win. Entries logged before
+  this release stay unlinked (the journal never guesses), and the edit panel
+  says which kind you're touching. Backups carry the new link automatically,
+  and old backups import unchanged.
+
 ## 0.9.0 — 2026-07-12 · *Leafing through the journal* 🔍
 
 ### Added
