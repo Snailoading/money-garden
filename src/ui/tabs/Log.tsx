@@ -10,6 +10,7 @@ import type { JournalFilter } from "../../engine/journal";
 import { isFilterActive, matchesFilter, SAVING_LABEL } from "../../engine/journal";
 import { fmt, monthLabel, todayISO } from "../../engine/format";
 import { C, inputStyle } from "../theme";
+import { useMediaQuery } from "../hooks";
 import { CardTitle, Empty, Field } from "../bits";
 
 /** Rows rendered per "page" of the ledger — more revealed via Show more. */
@@ -51,12 +52,17 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
   const [fTo, setFTo] = useState("");
   const [visibleCount, setVisibleCount] = useState(PAGE);
   const searchRef = useRef<HTMLInputElement>(null);
+  // Below ~380px the pill can't fit the full placeholder next to its buttons.
+  const narrowScreen = useMediaQuery("(max-width: 379px)");
 
   const openSearch = () => {
     setSearchOpen(true);
     // autoFocus only fires on mount; the input is always mounted (it animates),
-    // so focus on the next frame once it's visible.
-    requestAnimationFrame(() => searchRef.current?.focus());
+    // so focus on the next frame once it's visible. preventScroll matters:
+    // mid-animation the pill is still narrow, and the browser's scroll-into-
+    // view on focus would scroll the pill's clipped contents sideways,
+    // pushing the 🔍 out of the box for good.
+    requestAnimationFrame(() => searchRef.current?.focus({ preventScroll: true }));
   };
   const clearFilters = () => {
     setQuery(""); setFType("all"); setFCategory("all"); setFFrom(""); setFTo("");
@@ -196,21 +202,26 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
       </section>
 
       <section className="mg-card" style={{ padding: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-          <CardTitle style={{ margin: 0, flex: "0 1 auto", minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        {/* flexWrap: on narrow screens the open pill drops to its own full-width
+            row under the title instead of crushing it — nothing truncates. */}
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+          <CardTitle style={{ margin: 0, flex: "1 1 auto", minWidth: 0 }}>
             {view ? `${monthLabel(view.ym)}'s ledger` : "This month's ledger"}
           </CardTitle>
           {monthTx.length > 0 && (
             <div className={"mg-search" + (searchOpen ? " open" : "")}>
               <button className="mg-btn" onClick={searchOpen ? () => searchRef.current?.focus() : openSearch}
-                aria-label="Search the journal" title="Search the journal" tabIndex={searchOpen ? -1 : 0}
+                aria-label="Search the ledger" title="Search the ledger" tabIndex={searchOpen ? -1 : 0}
                 style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 15, width: 37, height: 37, flex: "0 0 auto", padding: 0, borderRadius: 999 }}>
                 🔍
               </button>
-              <input ref={searchRef} className="mg-search-extra" value={query} placeholder="Search the journal…" maxLength={60}
+              {/* size={1} kills the input's ~20-char intrinsic width so the pill's
+                  natural size never exceeds a phone screen; flex grows it back. */}
+              <input ref={searchRef} className="mg-search-extra" value={query} aria-label="Search the ledger"
+                placeholder={narrowScreen ? "Search…" : "Search the ledger…"} maxLength={60} size={1}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Escape" && closeSearch()}
-                style={{ flex: 1, minWidth: 0, border: "none", background: "transparent", outline: "none", font: "inherit", fontSize: 14, color: C.ink, padding: 0, height: "100%" }} />
+                style={{ flex: 1, minWidth: 56, border: "none", background: "transparent", outline: "none", font: "inherit", fontSize: 14, color: C.ink, padding: 0, height: "100%", textOverflow: "ellipsis" }} />
               <button className="mg-btn mg-search-extra" onClick={() => setShowFilters((v) => !v)}
                 style={{ padding: "5px 12px", borderRadius: 999, cursor: "pointer", fontWeight: 700, fontSize: 12, flex: "0 0 auto", border: `1.5px solid ${showFilters || filterActive ? C.ink : C.border}`, background: showFilters || filterActive ? C.ink : C.card, color: showFilters || filterActive ? C.inkContrast : C.ink }}>
                 Filters
@@ -274,7 +285,7 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
               </div>
             )}
             {filterActive && filtered.length === 0 ? (
-              <Empty text="No entries match — the journal's quiet under these filters." cta="Clear filters" onClick={clearFilters} />
+              <Empty text="No entries match — the ledger's quiet under these filters." cta="Clear filters" onClick={clearFilters} />
             ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {shown.map((t) => {
@@ -315,7 +326,7 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
                       </Field>
                     </div>
                     {t.goalId && !state.goals.some((g) => g.id === t.goalId) && (
-                      <div style={{ fontSize: 12, color: C.inkSoft }}>🥀 The goal this fed has been deleted — editing changes only the journal.</div>
+                      <div style={{ fontSize: 12, color: C.inkSoft }}>🥀 The goal this fed has been deleted — editing changes only the ledger.</div>
                     )}
                     {t.goalId && t.type === "saving" && state.goals.some((g) => g.id === t.goalId) && (
                       <div style={{ fontSize: 12, color: C.inkSoft }}>💧 Linked to a goal — changing the amount waters or drains it.</div>
@@ -329,7 +340,7 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
                       <div style={{ fontSize: 12, color: C.inkSoft }}>💧 Watered into the orchard — changing the amount adjusts the holding.</div>
                     )}
                     {t.holdingId && !state.invest?.holdings.some((h) => h.id === t.holdingId) && (
-                      <div style={{ fontSize: 12, color: C.inkSoft }}>🥀 The tree this watered has been felled — editing changes only the journal.</div>
+                      <div style={{ fontSize: 12, color: C.inkSoft }}>🥀 The tree this watered has been felled — editing changes only the ledger.</div>
                     )}
                     {t.commitmentId && (
                       <div style={{ fontSize: 12, color: C.inkSoft }}>💸 A commitment payment — deleting it un-does the payment.</div>
@@ -347,11 +358,17 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
                   </li>
                 );
               }
+              // The row wraps like the header does: when the note block can't
+              // get ~105px beside the amount/actions, those drop to a second
+              // line, right-aligned — nothing truncates on narrow screens.
+              // (105px keeps iPhone-width rows on one line; ~365px and below wrap.)
               return (
-                <li key={t.id} className="mg-row" style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 8px", borderRadius: 10 }}>
+                <li key={t.id} className="mg-row" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "2px 12px", padding: "9px 8px", borderRadius: 10 }}>
                   <span style={{ fontSize: 20 }}>{t.type === "income" ? "💵" : t.type === "saving" ? "🪴" : cat?.emoji || "🌀"}</span>
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <span style={{ flex: "1 1 105px", minWidth: 0 }}>
+                    {/* Long notes reflow onto a second line; the 2-line clamp is a
+                        backstop for pathological cases, not the normal path. */}
+                    <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 }}>
                       {t.note || (t.type === "saving" ? SAVING_LABEL : cat?.label || "Other")}
                     </div>
                     <div style={{ fontSize: 11.5, color: C.inkSoft }}>
@@ -359,19 +376,21 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
                       {t.type === "expense" && cat ? ` · ${cat.label}` : ""}
                     </div>
                   </span>
-                  <b className="mg-num" style={{ color, fontSize: 15 }}>{sign}{fmt(t.amount)}</b>
-                  <button className="mg-btn" onClick={() => openEdit(t)} title="Edit entry" aria-label="Edit entry"
-                    style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 14, padding: 4 }}>✏️</button>
-                  {confirmDeleteId === t.id ? (
-                    <button className="mg-btn" onClick={() => { deleteTransaction(t.id); setConfirmDeleteId(null); }}
-                      title="Really delete this entry" aria-label="Really delete this entry"
-                      style={{ background: C.tomato, border: "none", borderRadius: 999, padding: "4px 10px", fontWeight: 700, fontSize: 12, color: C.inkContrast, cursor: "pointer", whiteSpace: "nowrap" }}>
-                      Delete?
-                    </button>
-                  ) : (
-                    <button className="mg-btn" onClick={() => armDelete(t.id)} title="Delete entry" aria-label="Delete entry"
-                      style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 15, padding: 4 }}>✕</button>
-                  )}
+                  <span style={{ display: "flex", alignItems: "center", gap: 10, flex: "0 0 auto", marginLeft: "auto" }}>
+                    <b className="mg-num" style={{ color, fontSize: 15 }}>{sign}{fmt(t.amount)}</b>
+                    <button className="mg-btn" onClick={() => openEdit(t)} title="Edit entry" aria-label="Edit entry"
+                      style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 14, padding: 4 }}>✏️</button>
+                    {confirmDeleteId === t.id ? (
+                      <button className="mg-btn" onClick={() => { deleteTransaction(t.id); setConfirmDeleteId(null); }}
+                        title="Really delete this entry" aria-label="Really delete this entry"
+                        style={{ background: C.tomato, border: "none", borderRadius: 999, padding: "4px 10px", fontWeight: 700, fontSize: 12, color: C.inkContrast, cursor: "pointer", whiteSpace: "nowrap" }}>
+                        Delete?
+                      </button>
+                    ) : (
+                      <button className="mg-btn" onClick={() => armDelete(t.id)} title="Delete entry" aria-label="Delete entry"
+                        style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 15, padding: 4 }}>✕</button>
+                    )}
+                  </span>
                 </li>
               );
             })}
