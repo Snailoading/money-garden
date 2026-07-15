@@ -81,6 +81,10 @@ export const THEME_COLOR = { day: "#5A7D5A", night: "#141F18" } as const;
  */
 export const inputStyle: CSSProperties = {
   width: "100%",
+  // Browsers give form controls an intrinsic minimum width (min-width: auto)
+  // that overrides width: 100% in narrow grid tracks — date inputs especially.
+  // On phones the few overflowing pixels made Safari zoom the page out to fit.
+  minWidth: 0,
   height: 40,
   boxSizing: "border-box",
   padding: "9px 10px",

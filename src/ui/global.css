@@ -186,6 +186,12 @@ button:focus-visible {
   background: var(--card);
   border: 1.5px solid var(--border);
   border-radius: 18px;
+  /* Cards are items of each tab's grid wrapper. Grid items default to
+     min-width auto and refuse to shrink below their content's minimum,
+     which let a too-wide card push the whole page past the viewport —
+     mobile Safari then zooms the page out to fit. Let cards shrink;
+     their contents wrap/truncate instead. */
+  min-width: 0;
 }
 .mg-num {
   font-variant-numeric: tabular-nums;
@@ -230,6 +236,9 @@ button:focus-visible {
   transition: max-width 0.25s ease;
 }
 .mg-search.open {
+  /* flex-basis 220px: in the wrapping header row, if there isn't that much
+     room beside the title the open pill wraps onto its own full-width row. */
+  flex: 1 1 220px;
   max-width: 640px;
 }
 .mg-search-extra {

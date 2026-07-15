@@ -18,6 +18,23 @@ export function useReveal(): boolean {
 }
 
 /**
+ * Reactive media-query match — re-renders when the query flips (resize,
+ * rotation). Used for copy that adapts to the space available (e.g. the
+ * search placeholder on very narrow phones).
+ */
+export function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const onChange = () => setMatches(mql.matches);
+    mql.addEventListener("change", onChange);
+    onChange(); // sync in case the query changed between render and effect
+    return () => mql.removeEventListener("change", onChange);
+  }, [query]);
+  return matches;
+}
+
+/**
  * Map a pointer event into an SVG's viewBox x-coordinate. getScreenCTM
  * accounts for preserveAspectRatio letterboxing exactly — the element is
  * often wider than the drawing, which skewed the old proportional math.
