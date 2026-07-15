@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.9.2 — 2026-07-15 · *The garden fits every pot* 📱
+
+### Fixed
+
+- **The Log tab no longer zooms the whole page out on phones.** The v0.9.0
+  search pill and filter panel could demand more width than a phone screen —
+  the search box's built-in default width, cards refusing to shrink below
+  their content, and date fields' browser-enforced minimum width — and
+  mobile Safari's answer was to shrink the entire page to fit, so tabs
+  rendered at visibly different sizes. Cards now shrink with the window
+  (contents wrap or truncate instead), the search box always fits, and
+  every input respects its cell. Verified with zero horizontal overflow on
+  all seven tabs across window widths from 320px to 1440px.
+- On narrow screens the open search pill now takes a full-width row of its
+  own beneath the ledger title instead of squeezing in beside it — the title
+  stays whole and the search box keeps a usable typing area. Also fixed the
+  🔍 disappearing from the collapsed button: focusing the search box
+  mid-animation made the browser scroll the pill's clipped contents sideways
+  and they stayed shifted.
+- Ledger rows reflow the same way: when a note can't fit beside its amount
+  (~365px and below), the amount and buttons drop to a right-aligned second
+  line, receipt-style — notes like "Ramen with Sam" stay whole instead of
+  ellipsizing. Very long notes wrap to two lines.
+- The search placeholder adapts to the space: "Search the ledger…" normally,
+  "Search…" on very narrow screens — always fully visible.
+
+### Changed
+
+- Search copy says **ledger**, matching the card it sits under ("This
+  month's ledger"): placeholder, accessible labels, and the no-match line.
+  "Journal" is reserved for a possible future all-months search.
+
 ## 0.9.1 — 2026-07-15 · *Every watering leaves a trace* 💧
 
 ### Fixed
