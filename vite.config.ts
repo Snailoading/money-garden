@@ -26,6 +26,7 @@ function serviceWorkerPlugin(): Plugin {
         "./icons/money-garden-icon-180.png",
         "./icons/money-garden-icon-192.png",
         "./icons/money-garden-icon-512.png",
+        "./icons/money-garden-icon-maskable-512.png",
         "./icons/money-garden-icon.svg",
       ];
       const version = createHash("sha256").update(JSON.stringify(precache)).digest("hex").slice(0, 12);

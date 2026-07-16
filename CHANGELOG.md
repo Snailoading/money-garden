@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.3 — 2026-07-17 · *A bloom for every shape of pot* 🌻
+
+### Fixed
+
+- **Android home-screen icons no longer cut off the flower.** The app icon
+  was redesigned (v3): the sunflower bloom is centered with its coin seed
+  head, sized to sit inside the "safe zone" that circular and squircle
+  launcher masks preserve. The manifest now ships a dedicated full-bleed
+  maskable icon alongside the regular one, the iOS home-screen icon is
+  full-bleed so iOS's own corner rounding does the shaping (no more black
+  corner slivers), and every size — favicon included — is generated from the
+  one SVG source (`icons/money-garden-icon.svg`). Existing installs may keep
+  the old icon until removed and re-added; Android refreshes manifest icons
+  on its own schedule.
+
 ## 0.9.2 — 2026-07-15 · *The garden fits every pot* 📱
 
 ### Fixed
