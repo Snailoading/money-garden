@@ -86,6 +86,17 @@
   --gold-hi: #f6c64b;
   --gold-mid: #e8a81c;
   --shadow: rgba(28, 53, 42, 0.35);
+  /* categorical chart palette (donut slices + legend swatches) */
+  --cat-1: #3e9b5f;
+  --cat-2: #f0b429;
+  --cat-3: #5b7fd4;
+  --cat-4: #de5d42;
+  --cat-5: #9a7bd0;
+  --cat-6: #e56a9a;
+  --cat-7: #2c7546;
+  --cat-8: #8a6f52;
+  --cat-9: #6bb98a;
+  --cat-10: #c9a36b;
 }
 
 /* The night garden — the same garden at midnight: deep blue sky, moonlit
@@ -118,6 +129,17 @@
   --gold-hi: #d9a832;
   --gold-mid: #c69420;
   --shadow: rgba(0, 0, 5, 0.6);
+  /* categorical chart palette, brightened for the midnight card */
+  --cat-1: #4fb374;
+  --cat-2: #f5c34d;
+  --cat-3: #7d9ce5;
+  --cat-4: #e9705a;
+  --cat-5: #b399e0;
+  --cat-6: #ee8bb1;
+  --cat-7: #7ed6a0;
+  --cat-8: #a1855f;
+  --cat-9: #82cfa1;
+  --cat-10: #d3b07e;
 }
 
 html,
