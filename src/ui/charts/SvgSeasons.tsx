@@ -85,10 +85,12 @@ export function SeasonsBars({ trends, onPick }: { trends: TrendPoint[]; onPick?:
   const maxY = Math.max(1, ...trends.map((p) => Math.max(p.earned, p.spent, p.saved))) * 1.08;
   const y = (v: number) => pt + (1 - v / maxY) * (H - pt - pb);
   const bw = Math.min(16, band * 0.3);
+  const harvests = trends.filter((p) => p.drawn > 0);
   return (
     <svg ref={ref} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
       onPointerMove={locate} onPointerDown={locate} onPointerLeave={clear}
-      style={{ width: "100%", height: "100%", display: "block", touchAction: "pan-y" }} role="img" aria-label="Earned vs spent per month">
+      style={{ width: "100%", height: "100%", display: "block", touchAction: "pan-y" }} role="img"
+      aria-label={"Earned vs spent per month" + (harvests.length ? `; spent from goals in ${harvests.map((p) => p.label).join(", ")}` : "")}>
       <defs><clipPath id={cid}><rect x="0" y="0" height={H} width={on ? W : 0} style={{ transition: "width .9s ease" }} /></clipPath></defs>
       <Frame maxY={maxY} fmtTick={fmtK}>
         <MonthLabels trends={trends} />
@@ -110,6 +112,13 @@ export function SeasonsBars({ trends, onPick }: { trends: TrendPoint[]; onPick?:
             <circle key={p.ym} cx={cxOf(i, n)} cy={y(p.saved)} r="3" strokeWidth="1" style={{ fill: C.marigold, stroke: C.card }} />
           ))}
         </g>
+        {/* 🌸 harvest-month markers — cross-basis annotation at the foot of the
+            month, never a bar series (drawn is goal money, not this month's
+            budget; a big harvest would rescale the axis). Outside the entry
+            clip like SvgPace, and before the pick targets so taps still land. */}
+        {trends.map((p, i) => (p.drawn > 0 ? (
+          <text key={"d" + p.ym} x={cxOf(i, n)} y={H - pb - 5} textAnchor="middle" fontSize="12">🌸</text>
+        ) : null))}
         {/* invisible pick targets — tapping a month walks into it */}
         {onPick && trends.map((p, i) => (
           <rect key={p.ym} x={pl + band * i} y={pt} width={band} height={H - pt - pb} fill="transparent"
@@ -121,6 +130,10 @@ export function SeasonsBars({ trends, onPick }: { trends: TrendPoint[]; onPick?:
               ["Earned", fmt(trends[hi].earned), C.leafDark],
               ["Spent", fmt(trends[hi].spent), C.tomato],
               ["Saved", fmt(trends[hi].saved), C.amber],
+              // Conditional spread — like Python's *([row] if drawn else []).
+              ...(trends[hi].drawn > 0
+                ? [["🌸 Drawn", fmt(trends[hi].drawn), C.tomato] as [string, string, string]]
+                : []),
             ]} />
         )}
       </Frame>
