@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Money Garden app icon v3: centered sunflower bloom, circle-mask safe -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#358752"/>
+      <stop offset="1" stop-color="#2C7546"/>
+    </linearGradient>
+    <path id="petalF" d="M256 78 C 280 110 282 156 256 192 C 230 156 232 110 256 78 Z"/>
+    <path id="petalB" d="M256 66 C 278 100 280 150 256 188 C 232 150 234 100 256 66 Z"/>
+  </defs>
+
+  <rect x="0" y="0" width="512" height="512" rx="116" fill="url(#bg)"/>
+
+  <!-- two small leaves peeking from behind the bloom, inside the safe circle -->
+  <g stroke="#1C352A" stroke-width="11" stroke-linejoin="round">
+    <path d="M150 372 C 108 380 84 360 82 328 C 122 322 148 340 150 372 Z" fill="#3E9B5F" transform="rotate(18 150 372)"/>
+    <path d="M362 372 C 404 380 428 360 430 328 C 390 322 364 340 362 372 Z" fill="#5FBF7F" transform="rotate(-18 362 372)"/>
+  </g>
+
+  <!-- back petal layer (darker, offset half-step) -->
+  <g fill="#D99A1F" stroke="#1C352A" stroke-width="9">
+    <use href="#petalB" transform="rotate(12.857 256 256)"/>
+    <use href="#petalB" transform="rotate(38.571 256 256)"/>
+    <use href="#petalB" transform="rotate(64.286 256 256)"/>
+    <use href="#petalB" transform="rotate(90 256 256)"/>
+    <use href="#petalB" transform="rotate(115.714 256 256)"/>
+    <use href="#petalB" transform="rotate(141.429 256 256)"/>
+    <use href="#petalB" transform="rotate(167.143 256 256)"/>
+    <use href="#petalB" transform="rotate(192.857 256 256)"/>
+    <use href="#petalB" transform="rotate(218.571 256 256)"/>
+    <use href="#petalB" transform="rotate(244.286 256 256)"/>
+    <use href="#petalB" transform="rotate(270 256 256)"/>
+    <use href="#petalB" transform="rotate(295.714 256 256)"/>
+    <use href="#petalB" transform="rotate(321.429 256 256)"/>
+    <use href="#petalB" transform="rotate(347.143 256 256)"/>
+  </g>
+
+  <!-- front petal layer -->
+  <g fill="#F7C948" stroke="#1C352A" stroke-width="9">
+    <use href="#petalF" transform="rotate(0 256 256)"/>
+    <use href="#petalF" transform="rotate(25.714 256 256)"/>
+    <use href="#petalF" transform="rotate(51.429 256 256)"/>
+    <use href="#petalF" transform="rotate(77.143 256 256)"/>
+    <use href="#petalF" transform="rotate(102.857 256 256)"/>
+    <use href="#petalF" transform="rotate(128.571 256 256)"/>
+    <use href="#petalF" transform="rotate(154.286 256 256)"/>
+    <use href="#petalF" transform="rotate(180 256 256)"/>
+    <use href="#petalF" transform="rotate(205.714 256 256)"/>
+    <use href="#petalF" transform="rotate(231.429 256 256)"/>
+    <use href="#petalF" transform="rotate(257.143 256 256)"/>
+    <use href="#petalF" transform="rotate(282.857 256 256)"/>
+    <use href="#petalF" transform="rotate(308.571 256 256)"/>
+    <use href="#petalF" transform="rotate(334.286 256 256)"/>
+  </g>
+
+  <!-- seed head as a coin -->
+  <circle cx="256" cy="256" r="88" fill="#5E4026" stroke="#1C352A" stroke-width="15"/>
+  <circle cx="256" cy="256" r="64" fill="none" stroke="#F0B429" stroke-width="8" stroke-dasharray="11 10"/>
+  <text x="256" y="292" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="bold" font-size="104" fill="#F0B429">$</text>
+</svg>
