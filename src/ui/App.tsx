@@ -37,6 +37,12 @@ type TabId = (typeof TABS)[number]["id"];
 export function MoneyGarden() {
   const [state, setState] = useState<State | null>(null);
   const [tab, setTab] = useState<TabId>("overview");
+  // One-shot Log filter preset: the Overview's "Spent from goals" line jumps
+  // to the Log pre-filtered to draws. Cleared on any ordinary tab switch so a
+  // later manual visit to the Log starts unfiltered.
+  const [logPreset, setLogPreset] = useState<"draw" | null>(null);
+  const switchTab = (t: TabId) => { setLogPreset(null); setTab(t); };
+  const goToDraws = () => { setLogPreset("draw"); setTab("log"); };
   const [toast, setToast] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [pendingImport, setPendingImport] = useState<ImportPreview | null>(null);
@@ -398,7 +404,7 @@ export function MoneyGarden() {
         {/* tabs */}
         <nav style={{ display: "flex", gap: 6, marginTop: 18, flexWrap: "wrap" }}>
           {TABS.map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)} className="mg-tab mg-btn"
+            <button key={t.id} onClick={() => switchTab(t.id)} className="mg-tab mg-btn"
               style={{
                 padding: "8px 14px", borderRadius: 999, cursor: "pointer", fontWeight: 600, fontSize: 14,
                 background: tab === t.id ? C.ink : "transparent",
@@ -424,8 +430,8 @@ export function MoneyGarden() {
           </div>
         )}
 
-        {tab === "overview" && <Overview state={state} d={derived} view={monthView} setIncome={setIncome} goTo={(t) => setTab(t as TabId)} />}
-        {tab === "log" && <Log state={state} d={derived} view={monthView} addTransaction={addTransaction} deleteTransaction={deleteTransaction} updateTransaction={editTransaction} markNoSpend={markNoSpendDay} />}
+        {tab === "overview" && <Overview state={state} d={derived} view={monthView} setIncome={setIncome} goTo={(t) => switchTab(t as TabId)} goToDraws={goToDraws} />}
+        {tab === "log" && <Log state={state} d={derived} view={monthView} addTransaction={addTransaction} deleteTransaction={deleteTransaction} updateTransaction={editTransaction} markNoSpend={markNoSpendDay} initialFilter={logPreset} />}
         {tab === "budgets" && <Budgets state={state} d={derived} view={monthView} setBudget={setBudget} addCommitment={addCommitment} deleteCommitment={deleteCommitment} logCommitmentPayment={logCommitmentPayment} updateCommitment={editCommitment} />}
         {tab === "garden" && <Garden state={state} monthlyExpenses={derived.monthlyExpenses} addGoal={addGoal} waterGoal={waterGoal} deleteGoal={deleteGoal} updateGoal={editGoal} drawFromGoal={drawFromGoal} />}
         {tab === "orchard" && <Orchard state={state} d={derived} setInvest={setInvest} addHolding={addHolding} updateHolding={updateHolding} deleteHolding={deleteHolding} waterOrchard={waterOrchard} />}

@@ -27,7 +27,11 @@ export function SvgPace({ data }: { data: DailyPoint[] }) {
   return (
     <svg ref={ref} viewBox={"0 0 " + W + " " + H} preserveAspectRatio="xMidYMid meet"
       onPointerMove={locate} onPointerDown={locate} onPointerLeave={clear}
-      style={{ width: "100%", height: "100%", display: "block", touchAction: "pan-y" }} role="img" aria-label="Cumulative spending vs even pace">
+      style={{ width: "100%", height: "100%", display: "block", touchAction: "pan-y" }} role="img"
+      aria-label={"Cumulative spending vs even pace" + (() => {
+        const dd = data.filter((p) => p.drawn);
+        return dd.length ? `; spent from goals on day${dd.length > 1 ? "s" : ""} ${dd.map((p) => p.day).join(", ")}` : "";
+      })()}>
       <defs><clipPath id={cid}><rect x="0" y="0" height={H} width={on ? W : 0} style={{ transition: "width .9s ease" }} /></clipPath></defs>
       {ticks.map((v, i) => (
         <g key={i}>
@@ -43,8 +47,13 @@ export function SvgPace({ data }: { data: DailyPoint[] }) {
         <path d={path("pace")} strokeWidth="2" strokeDasharray="6 4" style={{ fill: "none", stroke: C.border }} />
         <path d={path("spent")} strokeWidth="2.5" strokeLinejoin="round" style={{ fill: "none", stroke: C.leafDark }} />
       </g>
+      {/* 🌸 goal-draw day markers — an annotation on the date axis, never part
+          of the cumulative line (it's budget-basis). Outside the entry clip. */}
+      {data.map((p, i) => (p.drawn ? (
+        <text key={"d" + i} x={x(i)} y={H - pb - 5} textAnchor="middle" fontSize="12">🌸</text>
+      ) : null))}
       {hi != null && (() => {
-        const p = data[hi]; const bw = 132, bh = 58;
+        const p = data[hi]; const bw = p.drawn ? 168 : 132, bh = p.drawn ? 74 : 58;
         // Tooltip flips to the left of the cursor when it would overflow.
         let tx = x(hi) + 10; if (tx + bw > W - pr) tx = x(hi) - bw - 10;
         const ty = Math.max(pt, Math.min(y(Math.max(p.spent || 0, p.pace || 0)) - bh / 2, H - pb - bh));
@@ -57,6 +66,17 @@ export function SvgPace({ data }: { data: DailyPoint[] }) {
             <text x={tx + 10} y={ty + 17} fontSize="11" fontWeight="700" style={{ fill: C.ink }}>Day {p.day}</text>
             <text x={tx + 10} y={ty + 33} fontSize="11" className="mg-num" style={{ fill: C.leafDark }}>Spent {fmt(p.spent || 0)}</text>
             <text x={tx + 10} y={ty + 49} fontSize="11" className="mg-num" style={{ fill: C.inkSoft }}>Even pace {fmt(p.pace || 0)}</text>
+            {p.drawn ? (
+              <text x={tx + 10} y={ty + 65} fontSize="11" className="mg-num" style={{ fill: C.tomato }}>
+                {/* Long goal names are trimmed so the row stays inside the box. */}
+                🌸 {fmt(p.drawn)}{(() => {
+                  const n = p.drawNames?.[0];
+                  if (!n) return " from goals";
+                  const trimmed = n.length > 14 ? n.slice(0, 13) + "…" : n;
+                  return ` · ${trimmed}${p.drawNames!.length > 1 ? ` +${p.drawNames!.length - 1}` : ""}`;
+                })()}
+              </text>
+            ) : null}
           </g>
         );
       })()}
