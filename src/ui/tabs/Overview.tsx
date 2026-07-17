@@ -34,7 +34,12 @@ export function Overview({ state, d, view, setIncome, goTo, goToDraws }: {
       {/* hero */}
       <section className="mg-card" style={{ padding: "26px 26px 0", overflow: "hidden", position: "relative" }}>
         <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 18 }}>
-          <div>
+          {/* flex-grow 999 vs 1: while the stats share this row, the headline
+              absorbs all free space so they keep their compact width on the
+              right (the wrap point itself is untouched — grow doesn't affect
+              it). The moment they wrap onto their own row, they're that row's
+              only grower and stretch edge to edge — receipt-style. */}
+          <div style={{ flex: "999 1 auto", minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: C.inkSoft, textTransform: "uppercase", letterSpacing: ".1em" }}>
               {isPast ? `Left over in ${monthLabel(view!.ym)}` : "Left to spend this month"}
             </div>
@@ -51,7 +56,7 @@ export function Overview({ state, d, view, setIncome, goTo, goToDraws }: {
                   : <>You're past this month's income — time to prune. 🌧️</>)}
             </div>
           </div>
-          <div style={{ display: "grid", gap: 8, alignContent: "start", minWidth: 220 }}>
+          <div style={{ display: "grid", gap: 8, alignContent: "start", minWidth: 220, flex: "1 1 auto" }}>
             <Stat label="Earned" value={fmt(src.income)} color={C.leafDark} />
             <Stat label="Spent" value={fmt(src.spent)} color={C.tomato} />
             <Stat label="Sent to goals" value={fmt(src.savedThisMonth)} color={C.marigold} sub={src.income > 0 ? `${Math.round(src.savingsRate * 100)}% savings rate` : null} />
@@ -61,7 +66,7 @@ export function Overview({ state, d, view, setIncome, goTo, goToDraws }: {
               <button className="mg-btn" onClick={goToDraws} title="See these entries in the Log"
                 style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 14, background: "transparent", border: "none", padding: 0, borderBottom: `1px dashed ${C.border}`, paddingBottom: 6, borderRadius: 0, cursor: "pointer", font: "inherit", textAlign: "left", width: "100%" }}>
                 <span style={{ fontSize: 13, color: C.inkSoft }}>🌸 Spent from goals</span>
-                <b className="mg-num" style={{ color: C.tomato, fontSize: 16 }}>−{fmt(src.drawn)} ›</b>
+                <b className="mg-num" style={{ color: C.tomato, fontSize: 16 }}>{fmt(src.drawn)} ›</b>
               </button>
             )}
             {src.drawn > 0 && (
