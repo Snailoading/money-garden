@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.1 — 2026-07-17 · *Rows that reach the fence* 📏
+
+### Fixed
+
+- On narrow screens the Overview's stat rows now stretch the full card width
+  once they wrap below the big number — no more empty right half.
+- The "🌸 Spent from goals" line dropped its minus sign, matching how the
+  Spent row reads (the label and the red already say "money out").
+
 ## 0.10.0 — 2026-07-17 · *The harvest keeps its own books* 🌸
 
 ### Fixed
