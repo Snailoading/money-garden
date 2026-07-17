@@ -3,9 +3,10 @@
  * month's ledger.
  */
 import { useRef, useState } from "react";
-import type { State, Transaction, TransactionType } from "../../engine/types";
+import type { State, Transaction } from "../../engine/types";
 import { CATEGORIES } from "../../engine/types";
 import type { Derived, MonthView } from "../../engine/stats";
+import { isDraw } from "../../engine/stats";
 import type { JournalFilter } from "../../engine/journal";
 import { isFilterActive, matchesFilter, SAVING_LABEL } from "../../engine/journal";
 import { fmt, monthLabel, todayISO } from "../../engine/format";
@@ -16,7 +17,34 @@ import { CardTitle, Empty, Field } from "../bits";
 /** Rows rendered per "page" of the ledger — more revealed via Show more. */
 const PAGE = 40;
 
-export function Log({ state, d, view, addTransaction, deleteTransaction, updateTransaction, markNoSpend }: {
+/**
+ * The Type dropdown's story-based kinds: the basic transaction types plus
+ * narrower slices distinguished by what the entry is LINKED to (a different
+ * axis from category — a draw has a category like any expense).
+ */
+type FilterKind = "all" | "expense" | "draw" | "income" | "saving" | "goalSaving" | "investment";
+const KIND_FILTER: Record<FilterKind, Pick<JournalFilter, "type" | "link">> = {
+  all: {},
+  expense: { type: "expense" },
+  draw: { type: "expense", link: "goal" },
+  income: { type: "income" },
+  saving: { type: "saving" },
+  goalSaving: { type: "saving", link: "goal" },
+  investment: { type: "saving", link: "holding" },
+};
+const KIND_OPTIONS: [FilterKind, string][] = [
+  ["all", "All"],
+  ["expense", "🧾 Expenses"],
+  ["draw", "🌸 Spent from goals"],
+  ["income", "💵 Income"],
+  ["saving", "🪴 Savings"],
+  ["goalSaving", "💧 Sent to goals"],
+  ["investment", "🌳 Orchard investments"],
+];
+/** Kinds whose entries carry a meaningful category (draws do — they're expenses). */
+const CATEGORY_KINDS: FilterKind[] = ["all", "expense", "draw"];
+
+export function Log({ state, d, view, addTransaction, deleteTransaction, updateTransaction, markNoSpend, initialFilter }: {
   state: State;
   d: Derived;
   /** A browsed past month; null/undefined = today. */
@@ -26,6 +54,8 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
   updateTransaction: (id: string, patch: Partial<Omit<Transaction, "id">>) => void;
   /** Bumps the streak without a journal entry — no-spend days count as tending. */
   markNoSpend: () => void;
+  /** One-shot preset from the Overview's "Spent from goals" line: mount with search open + this kind selected. */
+  initialFilter?: "draw" | null;
 }) {
   const [type, setType] = useState<"expense" | "income">("expense");
   const [amount, setAmount] = useState("");
@@ -43,10 +73,12 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
 
   // Search & filters — the 🔍 morphs into a search pill; everything clears
   // when it collapses, so a narrowed list can never be an invisible mystery.
-  const [searchOpen, setSearchOpen] = useState(false);
+  // An initialFilter preset mounts with the pill and panel already open, so
+  // the active filter is always visible.
+  const [searchOpen, setSearchOpen] = useState(Boolean(initialFilter));
   const [query, setQuery] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
-  const [fType, setFType] = useState<"all" | TransactionType>("all");
+  const [showFilters, setShowFilters] = useState(Boolean(initialFilter));
+  const [fType, setFType] = useState<FilterKind>(initialFilter ?? "all");
   const [fCategory, setFCategory] = useState("all");
   const [fFrom, setFFrom] = useState("");
   const [fTo, setFTo] = useState("");
@@ -130,7 +162,7 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
 
   const jf: JournalFilter = {
     text: query,
-    type: fType === "all" ? undefined : fType,
+    ...KIND_FILTER[fType],
     category: fCategory === "all" ? undefined : fCategory,
     from: fFrom || undefined,
     to: fTo || undefined,
@@ -246,19 +278,16 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
                   <Field label="Type">
                     <select value={fType} style={inputStyle}
                       onChange={(e) => {
-                        const v = e.target.value as "all" | TransactionType;
+                        const v = e.target.value as FilterKind;
                         setFType(v);
-                        // income/saving rows all store category "other" — a leftover
-                        // category filter would invisibly empty the results.
-                        if (v === "income" || v === "saving") setFCategory("all");
+                        // income/saving-kind rows all store category "other" — a
+                        // leftover category filter would invisibly empty the results.
+                        if (!CATEGORY_KINDS.includes(v)) setFCategory("all");
                       }}>
-                      <option value="all">All</option>
-                      <option value="expense">🧾 Expenses</option>
-                      <option value="income">💵 Income</option>
-                      <option value="saving">🪴 Savings</option>
+                      {KIND_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
                     </select>
                   </Field>
-                  {(fType === "all" || fType === "expense") && (
+                  {CATEGORY_KINDS.includes(fType) && (
                     <Field label="Category">
                       <select value={fCategory} onChange={(e) => setFCategory(e.target.value)} style={inputStyle}>
                         <option value="all">All</option>
@@ -374,6 +403,8 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
                     <div style={{ fontSize: 11.5, color: C.inkSoft }}>
                       {new Date(t.date + "T12:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                       {t.type === "expense" && cat ? ` · ${cat.label}` : ""}
+                      {/* Draws say where the money came from — a custom note can hide it otherwise. */}
+                      {isDraw(t) ? ` · 🌸 from ${state.goals.find((g) => g.id === t.goalId)?.name ?? "a departed goal"}` : ""}
                     </div>
                   </span>
                   <span style={{ display: "flex", alignItems: "center", gap: 10, flex: "0 0 auto", marginLeft: "auto" }}>

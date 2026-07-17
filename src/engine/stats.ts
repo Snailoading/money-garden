@@ -12,11 +12,23 @@ import { deriveCommitments, type CommitmentsDerived } from "./commitments";
 
 export interface DailyPoint {
   day: number;
-  /** Cumulative spend through this day, rounded. */
+  /** Cumulative BUDGET-BASIS spend through this day, rounded (draws excluded). */
   spent: number;
   /** The even-pace line: totalBudget spread evenly across the month. */
   pace: number;
+  /** Total drawn from goals on this day — the 🌸 annotation, never in the line. */
+  drawn?: number;
+  /** Names of the goals drawn from that day (deleted goals already filtered). */
+  drawNames?: string[];
 }
+
+/**
+ * A "draw": spending funded by a goal's pool rather than this month's income.
+ * drawFromGoal is the only creator of goal-linked expenses, so this predicate
+ * is a reliable marker. Draws are excluded from every budget-basis number
+ * (spent/byCat/pace/health/typical spending) and told as their own story.
+ */
+export const isDraw = (t: Transaction): boolean => t.type === "expense" && Boolean(t.goalId);
 
 export interface Weather {
   icon: string;
@@ -26,7 +38,10 @@ export interface Weather {
 
 export interface Derived {
   monthTx: Transaction[];
+  /** Budget-basis spending (goal draws excluded — see isDraw). */
   spent: number;
+  /** Total drawn from goals this month — the harvest story, outside the budget math. */
+  drawn: number;
   earned: number;
   income: number;
   savedThisMonth: number;
@@ -62,18 +77,23 @@ export function weatherFor(score: number): Weather {
  */
 export function monthAggregates(state: State, ym: string) {
   const monthTx = state.transactions.filter((t) => t.date.startsWith(ym));
-  const spent = monthTx.filter((t) => t.type === "expense").reduce((a, t) => a + t.amount, 0);
+  // Budget basis: draws spend the goal's pool, not this month's income — they
+  // must reconcile out of every budget number (spent = Σ byCat = donut total),
+  // or "left = income − spent − saved" double-charges the money (once when
+  // saved, again when drawn). Draws are surfaced separately as `drawn`.
+  const spent = monthTx.filter((t) => t.type === "expense" && !isDraw(t)).reduce((a, t) => a + t.amount, 0);
+  const drawn = monthTx.filter(isDraw).reduce((a, t) => a + t.amount, 0);
   const earned = monthTx.filter((t) => t.type === "income").reduce((a, t) => a + t.amount, 0);
   const savedThisMonth = monthTx.filter((t) => t.type === "saving").reduce((a, t) => a + t.amount, 0);
 
   const byCat: Record<string, number> = {};
   for (const c of CATEGORIES) byCat[c.id] = 0;
-  for (const t of monthTx) if (t.type === "expense") byCat[t.category] = (byCat[t.category] || 0) + t.amount;
+  for (const t of monthTx) if (t.type === "expense" && !isDraw(t)) byCat[t.category] = (byCat[t.category] || 0) + t.amount;
 
   const needs = CATEGORIES.filter((c) => c.kind === "need").reduce((a, c) => a + byCat[c.id], 0);
   const wants = CATEGORIES.filter((c) => c.kind === "want").reduce((a, c) => a + byCat[c.id], 0);
 
-  return { monthTx, spent, earned, savedThisMonth, byCat, needs, wants };
+  return { monthTx, spent, drawn, earned, savedThisMonth, byCat, needs, wants };
 }
 
 /** Budget-dependent pieces shared by derive() and deriveMonthView(). */
@@ -85,14 +105,26 @@ function budgetStats(state: State, byCat: Record<string, number>) {
   return { totalBudget, overruns };
 }
 
-/** Cumulative daily spend vs the even-pace line, for days 1..lastDay of ym. */
-function dailySeries(monthTx: Transaction[], ym: string, lastDay: number, daysInMonth: number, totalBudget: number): DailyPoint[] {
+/**
+ * Cumulative daily BUDGET-BASIS spend vs the even-pace line, for days
+ * 1..lastDay of ym. Draws never join the cumulative line (basis rule) — they
+ * ride along as per-day annotations (`drawn` + goal names) for the 🌸 marker.
+ */
+function dailySeries(monthTx: Transaction[], ym: string, lastDay: number, daysInMonth: number, totalBudget: number, goals: State["goals"]): DailyPoint[] {
   const daily: DailyPoint[] = [];
   let run = 0;
   for (let day = 1; day <= lastDay; day++) {
     const dstr = `${ym}-${String(day).padStart(2, "0")}`;
-    run += monthTx.filter((t) => t.type === "expense" && t.date === dstr).reduce((a, t) => a + t.amount, 0);
-    daily.push({ day, spent: Math.round(run), pace: Math.round((totalBudget / daysInMonth) * day) });
+    const dayTx = monthTx.filter((t) => t.date === dstr);
+    run += dayTx.filter((t) => t.type === "expense" && !isDraw(t)).reduce((a, t) => a + t.amount, 0);
+    const point: DailyPoint = { day, spent: Math.round(run), pace: Math.round((totalBudget / daysInMonth) * day) };
+    const draws = dayTx.filter(isDraw);
+    if (draws.length > 0) {
+      point.drawn = draws.reduce((a, t) => a + t.amount, 0);
+      // Deleted goals simply drop out of the name list; the amount still shows.
+      point.drawNames = [...new Set(draws.map((t) => goals.find((g) => g.id === t.goalId)?.name).filter((n): n is string => Boolean(n)))];
+    }
+    daily.push(point);
   }
   return daily;
 }
@@ -103,7 +135,7 @@ function dailySeries(monthTx: Transaction[], ym: string, lastDay: number, daysIn
  */
 export function derive(state: State, now: Date = new Date()): Derived {
   const mk = monthKey(now);
-  const { monthTx, spent, earned, savedThisMonth, byCat, needs, wants } = monthAggregates(state, mk);
+  const { monthTx, spent, drawn, earned, savedThisMonth, byCat, needs, wants } = monthAggregates(state, mk);
   // Any logged income this month REPLACES the stated income entirely (it does
   // not top it up) — reference behavior (line 309), preserved and flagged.
   const income = earned || state.income || 0;
@@ -127,7 +159,7 @@ export function derive(state: State, now: Date = new Date()): Derived {
   const health = Math.round(adherence * 55 + saveScore * 30 + streakScore * 15);
 
   // Daily cumulative spend for the pace chart — up to today only.
-  const daily = dailySeries(monthTx, mk, now.getDate(), daysInMonth, totalBudget);
+  const daily = dailySeries(monthTx, mk, now.getDate(), daysInMonth, totalBudget, state.goals);
 
   const emergency = state.goals.find((g) => g.isEmergency);
   // Typical monthly spending (feeds emergency coverage and FIRE sizing when
@@ -141,7 +173,10 @@ export function derive(state: State, now: Date = new Date()): Derived {
   for (let k = 1; k <= 3; k++) {
     const key = monthKey(new Date(now.getFullYear(), now.getMonth() - k, 1));
     const total = state.transactions
-      .filter((t) => t.type === "expense" && t.date.startsWith(key))
+      // Budget basis here too: a one-off harvest (laptop drawn from a goal)
+      // must not inflate "a typical month of my life costs X", which sizes
+      // the FIRE number and emergency-fund coverage.
+      .filter((t) => t.type === "expense" && !isDraw(t) && t.date.startsWith(key))
       .reduce((a, t) => a + t.amount, 0);
     if (total > 0) priorMonthTotals.push(total);
   }
@@ -159,7 +194,7 @@ export function derive(state: State, now: Date = new Date()): Derived {
   const commit = deriveCommitments(state.commitments || [], now, state.transactions);
 
   return {
-    monthTx, spent, earned, income, savedThisMonth, left, savingsRate, byCat,
+    monthTx, spent, drawn, earned, income, savedThisMonth, left, savingsRate, byCat,
     totalBudget, overruns, needs, wants, health, daily, daysInMonth, monthFrac,
     emergency, emergencyMonths, monthlyExpenses, fire, commit,
   };
@@ -174,7 +209,9 @@ export function derive(state: State, now: Date = new Date()): Derived {
 export interface MonthView {
   ym: string;
   monthTx: Transaction[];
+  /** Budget-basis spending (goal draws excluded), mirroring Derived. */
   spent: number;
+  drawn: number;
   earned: number;
   income: number;
   savedThisMonth: number;
@@ -190,7 +227,7 @@ export interface MonthView {
 }
 
 export function deriveMonthView(state: State, ym: string): MonthView {
-  const { monthTx, spent, earned, savedThisMonth, byCat, needs, wants } = monthAggregates(state, ym);
+  const { monthTx, spent, drawn, earned, savedThisMonth, byCat, needs, wants } = monthAggregates(state, ym);
   // Same earned-replaces-stated-income convention as derive(): the stated
   // income is a monthly recurring figure, so it stands in for months where
   // no paycheck was logged.
@@ -201,9 +238,9 @@ export function deriveMonthView(state: State, ym: string): MonthView {
   const [y, m] = ym.split("-").map(Number);
   const daysInMonth = new Date(y, m, 0).getDate(); // m is 1-based → day 0 of next month
   // A browsed month renders complete: the daily series runs to its last day.
-  const daily = dailySeries(monthTx, ym, daysInMonth, daysInMonth, totalBudget);
+  const daily = dailySeries(monthTx, ym, daysInMonth, daysInMonth, totalBudget, state.goals);
   return {
-    ym, monthTx, spent, earned, income, savedThisMonth, left, savingsRate,
+    ym, monthTx, spent, drawn, earned, income, savedThisMonth, left, savingsRate,
     byCat, totalBudget, overruns, needs, wants, daily, daysInMonth,
   };
 }
