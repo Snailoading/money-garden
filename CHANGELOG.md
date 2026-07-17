@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.10.2 — 2026-07-18 · *Night colors and fresh signage* 🎨
+
+### Fixed
+
+- **The "Where it went" donut now dresses for the night garden.** Its ten
+  slice colors were the last hardcoded hexes in the app; they now live as
+  theme variables with a brightened night set, so the donut and its legend
+  match the midnight card instead of glowing in daylight colors.
+
+### Changed
+
+- The deploy workflow's actions were bumped to their latest Node 24 majors
+  (checkout v7, setup-node v7, upload-pages-artifact v5, deploy-pages v5) —
+  clearing the runtime deprecation warnings.
+- GUIDE.md caught up with the garden: ledger search and story filters,
+  the harvest story, and a plain-words section on the budget-basis promise
+  ("money is only ever charged to Left to spend once").
+
 ## 0.10.1 — 2026-07-17 · *Rows that reach the fence* 📏
 
 ### Fixed

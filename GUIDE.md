@@ -15,13 +15,19 @@ New garden looking empty? Tap **🌼 Plant sample data** to wander around with r
 
 ## Finding your way around
 
-- **🌤️ Overview** — your month at a glance: what's left to spend, what came in, what went out, and two little charts showing your pace and where the money went. The weather card up top is your garden's health — sunny skies mean your money is thriving.
-- **✏️ Log** — the daily habit. Jot down expenses, income, and savings in seconds. Made a typo? Tap an entry's ✏️ to fix it right there (fixing a goal contribution updates the flower too). Logging on consecutive days grows a 🔥 streak — and spent nothing today? Tap **🌵 Mark a no-spend day**; that counts double in spirit.
+- **🌤️ Overview** — your month at a glance: what's left to spend, what came in, what went out, and two little charts showing your pace and where the money went. The weather card up top is your garden's health — sunny skies mean your money is thriving. In months where you've spent from a goal, a **🌸 Spent from goals** line appears — tap it to see exactly which entries those were.
+- **✏️ Log** — the daily habit. Jot down expenses, income, and savings in seconds. Made a typo? Tap an entry's ✏️ to fix it right there (fixing a goal contribution updates the flower too). Looking for something? Tap the **🔍** on the ledger to search by words, and open **Filters** to narrow by type, category, or dates — the Type menu knows the garden's stories too: 🌸 spent from goals, 💧 sent to goals, and 🌳 orchard investments, alongside plain expenses, income, and savings. Logging on consecutive days grows a 🔥 streak — and spent nothing today? Tap **🌵 Mark a no-spend day**; that counts double in spirit.
 - **🧺 Budgets** — give each spending category a plot with a limit. Green = room to grow, amber = nearly full, red = overgrown. Below that, track your subscriptions (🌿 vines) and installment plans (🪜 the trellis) — the app warns you a couple of weeks before anything bills, and **💸 Log payment** records it in one tap.
-- **🌷 Garden** — plant a savings goal, pick its flower, and 💧 water it whenever you put money aside. It grows from seed to full bloom as you go. Need the money? 🪣 **Draw** from the goal — it's logged as a real expense and the flower's balance follows. Tick one goal as your **emergency fund** 🛟 — the app tracks it against the "3–6 months of expenses" safety net (one lifebuoy at a time; moving it asks first).
+- **🌷 Garden** — plant a savings goal, pick its flower, and 💧 water it whenever you put money aside. It grows from seed to full bloom as you go. Need the money? 🪣 **Draw** from the goal — it lands in your ledger and the flower's balance follows, but it won't dent this month's budget (more on that below). Tick one goal as your **emergency fund** 🛟 — the app tracks it against the "3–6 months of expenses" safety net (one lifebuoy at a time; moving it asks first).
 - **🍂 Seasons** — your almanac: up to a year of months side by side — what came in, what went out, what you kept. Tap any month to step into it, or use the little ‹ › arrows by the date up top to wander through your history (the **↩ today** button brings you home).
 - **🌳 Orchard** — the long game. Add your investments, set a monthly amount, and watch your freedom tree grow toward the point where your savings could support you. The chart shows a *range* of futures, because markets wobble — honest windows, not promises.
 - **🪴 Advice** — friendly, plain-spoken notes based on your real numbers, sorted into **Do first / Worth doing / Going well**. Classic money wisdom, no jargon, no judgement.
+
+## When you spend from a goal 🌸
+
+Here's a promise the garden keeps: **money is only ever charged to "Left to spend" once — in the month you saved it.** When you finally harvest a goal (draw from it to buy the thing you grew it for), that purchase doesn't reduce this month's Left to spend, doesn't fill your budget plots, and can't storm your weather — you already paid for it, bit by bit, in the months you watered the flower.
+
+The harvest is still fully visible: the Overview shows a **🌸 Spent from goals** line (tap it to see the entries) and a quiet "total money out" figure beneath the stats, the pace chart marks harvest days with a 🌸, and each entry in the ledger says which goal it came from. One honest detail: the ledger's **🧾 Expenses** filter shows *all* your expenses including harvests — so its total can be bigger than the Overview's "Spent", which counts only budget spending. Both are true; they're answering different questions.
 
 ## Three small habits that make it sing
 
