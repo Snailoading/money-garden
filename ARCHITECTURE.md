@@ -34,6 +34,8 @@ leaves on that trunk; the engine could be transplanted into another frontend
 │   stats.ts    derive(state, now)          → Derived   (the big one)    │
 │               deriveMonthView(state, ym)  → MonthView (browse history) │
 │               monthAggregates(state, ym)  → shared month core          │
+│               (budget basis: goal draws — isDraw — excluded from every │
+│               budget number; surfaced separately as `drawn`)           │
 │      ├── fire.ts         deriveFire()     → FIRE/Coast/projections     │
 │      └── commitments.ts  deriveCommitments(), nextDueDate(), …         │
 │   trends.ts   monthRange(), monthlyTrends() → Seasons + nav bounds     │

@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.10.0 — 2026-07-17 · *The harvest keeps its own books* 🌸
+
+### Fixed
+
+- **"Left to spend this month" no longer double-counts goal draws.** Money
+  you draw from a goal was subtracted twice — once when you saved it, again
+  when you spent it. Now every budget number (the Spending headline, category
+  plots, the donut, the pace line, the weather, and the typical-monthly-
+  spending that sizes your Freedom Tree and rain barrel) is on a strict
+  budget basis: goal-funded spending is excluded, and everything reconciles —
+  the Spending headline always equals the plots and the donut. Save $2,000,
+  buy the $2,000 laptop from the goal, and Left to spend is only ever charged
+  once, in the month(s) you saved.
+
+### Added
+
+- **The harvest story.** Goal-funded spending is still spending, so it gets
+  its own telling instead of blending into the budget: a summed
+  "🌸 Spent from goals −$X" line in the Overview's goal cluster — tap it to
+  open the Log pre-filtered to those entries — plus a muted "Total money out
+  this month" footer, a 🌸 day-marker on the pace chart with its own tooltip
+  row, a "🌸 + $X spent from goals" note beside the donut, and
+  "· 🌸 from {goal}" on draw rows in the ledger. Months without draws look
+  exactly as before.
+- **Story filters in the ledger search.** The Type filter grew from four
+  options to seven: All, 🧾 Expenses, 🌸 Spent from goals, 💵 Income,
+  🪴 Savings, 💧 Sent to goals, and 🌳 Orchard investments — the new three
+  slice by what an entry is linked to, not its category.
+- The rule, for the record: charts inherit the basis of the number they sit
+  beside; cross-basis information is annotation, never merged data.
+
 ## 0.9.3 — 2026-07-17 · *A bloom for every shape of pot* 🌻
 
 ### Fixed
