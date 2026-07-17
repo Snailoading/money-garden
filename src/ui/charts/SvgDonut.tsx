@@ -2,7 +2,8 @@
  * Category donut: arcs built by hand with SVG arc commands, per-slice hover
  * (dim the rest, scale the hovered slice) and a scale/rotate entry animation.
  * Colors via style props so the palette's var() references resolve. The
- * categorical slice palette itself is data (literal hexes), not chrome.
+ * slice palette is theme-aware (CHART_PALETTE in theme.ts — ten --cat-N
+ * variables with day and night values in global.css).
  */
 import { useState } from "react";
 import { fmt } from "../../engine/format";
@@ -15,7 +16,7 @@ export interface DonutDatum {
   value: number;
 }
 
-export function SvgDonut({ data, palette }: { data: DonutDatum[]; palette: string[] }) {
+export function SvgDonut({ data, palette }: { data: DonutDatum[]; palette: readonly string[] }) {
   const on = useReveal();
   const [hi, setHi] = useState<number | null>(null);
   const total = data.reduce((a, x) => a + x.value, 0) || 1;

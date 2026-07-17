@@ -6,7 +6,7 @@ import type { State } from "../../engine/types";
 import { CATEGORIES, PLANT_KINDS } from "../../engine/types";
 import type { Derived, MonthView } from "../../engine/stats";
 import { fmt, monthLabel } from "../../engine/format";
-import { C } from "../theme";
+import { C, CHART_PALETTE } from "../theme";
 import { CardTitle, Empty, PlantMini, Stat } from "../bits";
 import { SvgPace } from "../charts/SvgPace";
 import { SvgDonut } from "../charts/SvgDonut";
@@ -26,7 +26,6 @@ export function Overview({ state, d, view, setIncome, goTo, goToDraws }: {
   const donut = CATEGORIES.map((c) => ({ name: c.label, emoji: c.emoji, value: Math.round(src.byCat[c.id]) }))
     .filter((x) => x.value > 0)
     .sort((a, b) => b.value - a.value);
-  const palette = ["#3E9B5F", "#F0B429", "#5B7FD4", "#DE5D42", "#9A7BD0", "#E56A9A", "#2C7546", "#8A6F52", "#6BB98A", "#C9A36B"];
   const leftPerDay = src.left / Math.max(1, src.daysInMonth - new Date().getDate() + 1);
 
   return (
@@ -121,12 +120,12 @@ export function Overview({ state, d, view, setIncome, goTo, goToDraws }: {
           ) : (
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <div style={{ width: 170, height: 170 }}>
-                <SvgDonut data={donut} palette={palette} />
+                <SvgDonut data={donut} palette={CHART_PALETTE} />
               </div>
               <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 13, display: "grid", gap: 5, flex: 1, minWidth: 150 }}>
                 {donut.slice(0, 5).map((x, i) => (
                   <li key={x.name} style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                    <span><span style={{ display: "inline-block", width: 9, height: 9, borderRadius: 3, background: palette[i % palette.length], marginRight: 7 }} />{x.emoji} {x.name}</span>
+                    <span><span style={{ display: "inline-block", width: 9, height: 9, borderRadius: 3, background: CHART_PALETTE[i % CHART_PALETTE.length], marginRight: 7 }} />{x.emoji} {x.name}</span>
                     <b className="mg-num">{fmt(x.value)}</b>
                   </li>
                 ))}

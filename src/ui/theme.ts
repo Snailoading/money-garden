@@ -42,6 +42,14 @@ export const C = {
   shadow: "var(--shadow)",
 } as const;
 
+/**
+ * Categorical chart palette (donut slices, legend swatches) — ten hues that
+ * adapt to the theme like every other color. Consumed positionally, so it
+ * lives beside C rather than inside it.
+ */
+export const CHART_PALETTE: readonly string[] =
+  Array.from({ length: 10 }, (_, i) => `var(--cat-${i + 1})`);
+
 /** Theme mode: fixed day, fixed night, or follow the clock. */
 export type ThemeMode = "day" | "night" | "auto";
 /** Auto mode's night window: night from 19:00 through 06:59 local. */
