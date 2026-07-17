@@ -21,6 +21,12 @@ export interface JournalFilter {
   /** Case-insensitive substring over note + category label; whitespace-only = off. */
   text?: string;
   type?: TransactionType;
+  /**
+   * What the entry is linked to — a different axis from type. "goal" narrows
+   * expenses to draws (🌸 spent from goals) and savings to goal waterings
+   * (💧 sent to goals); "holding" narrows savings to orchard investments (🌳).
+   */
+  link?: "goal" | "holding";
   /** Category id, exact match. Only meaningful for expenses (income/saving store "other"). */
   category?: string;
   /** Inclusive YYYY-MM-DD lower bound — lexicographic compare is safe for ISO dates. */
@@ -41,11 +47,13 @@ const SAVING_LABEL_LOWER = SAVING_LABEL.toLowerCase();
  * decide whether to show the result count and Clear affordance.
  */
 export const isFilterActive = (f: JournalFilter): boolean =>
-  Boolean((f.text ?? "").trim() || f.type || f.category || f.from || f.to);
+  Boolean((f.text ?? "").trim() || f.type || f.link || f.category || f.from || f.to);
 
 /** Does one transaction survive the filter? Exported so the UI can pin special rows. */
 export const matchesFilter = (t: Transaction, f: JournalFilter): boolean => {
   if (f.type && t.type !== f.type) return false;
+  if (f.link === "goal" && !t.goalId) return false;
+  if (f.link === "holding" && !t.holdingId) return false;
   if (f.category && t.category !== f.category) return false;
   if (f.from && t.date < f.from) return false;
   if (f.to && t.date > f.to) return false;

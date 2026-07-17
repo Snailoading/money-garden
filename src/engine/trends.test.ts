@@ -39,6 +39,15 @@ describe("monthlyTrends", () => {
     expect(points[0]).toMatchObject({ ym: currentYm, partial: true, spent: 0, earned: 0, saved: 0 });
   });
 
+  it("keeps trend spending on budget basis, with draws plumbed separately", () => {
+    const draw = { ...tx("2026-05", "expense", 800, "shopping"), goalId: "g1" };
+    const points = monthlyTrends(state([tx("2026-05", "expense", 200, "fun"), draw]), now);
+    const may = points.find((p) => p.ym === "2026-05")!;
+    expect(may.spent).toBe(200);
+    expect(may.drawn).toBe(800);
+    expect(points.find((p) => p.ym === currentYm)!.drawn).toBe(0);
+  });
+
   it("zero-fills gap months so the series stays continuous", () => {
     const points = monthlyTrends(state([tx("2026-02", "expense", 500), tx("2026-04", "expense", 300)]), now);
     expect(points.map((p) => p.ym)).toEqual(["2026-02", "2026-03", "2026-04", "2026-05", "2026-06"]);

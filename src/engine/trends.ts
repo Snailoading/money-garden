@@ -13,7 +13,10 @@ export interface TrendPoint {
   /** Short axis label: "Feb", with the year on the first point and each
    * January ("Feb ’26") so long ranges stay readable. */
   label: string;
+  /** Budget-basis spending (goal draws excluded). */
   spent: number;
+  /** Drawn from goals — plumbed for a future chart series, not charted yet. */
+  drawn: number;
   earned: number;
   saved: number;
   savingsRate: number;
@@ -57,7 +60,7 @@ export function monthlyTrends(state: State, now: Date = new Date(), maxMonths = 
   const end = Math.max(maxMonths, range.length - Math.max(0, offset));
   const window = range.slice(Math.max(0, end - maxMonths), end);
   return window.map((ym, i) => {
-    const { spent, earned, savedThisMonth, needs, wants } = monthAggregates(state, ym);
+    const { spent, drawn, earned, savedThisMonth, needs, wants } = monthAggregates(state, ym);
     const income = earned || state.income || 0;
     const [, m] = ym.split("-").map(Number);
     const monthName = MONTH_NAMES[m - 1];
@@ -66,6 +69,7 @@ export function monthlyTrends(state: State, now: Date = new Date(), maxMonths = 
       ym,
       label,
       spent,
+      drawn,
       earned,
       saved: savedThisMonth,
       savingsRate: income > 0 ? savedThisMonth / income : 0,

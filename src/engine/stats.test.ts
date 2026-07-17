@@ -46,6 +46,87 @@ describe("monthly totals", () => {
     expect(d.savingsRate).toBeCloseTo(0.15);
   });
 
+  it("budget basis, same-month: a draw never re-charges Left (the laptop case)", () => {
+    const goal = { id: "g1", name: "New laptop", plant: "bluebell", target: 2000, saved: 0, isEmergency: false };
+    const draw: Transaction = { ...tx("expense", 2000, "shopping", 12), goalId: "g1" };
+    const d = derive(
+      state({ goals: [goal], transactions: [tx("income", 4100, "other", 1), tx("saving", 2000, "other", 5), draw] }),
+      now,
+    );
+    expect(d.spent).toBe(0);           // the laptop is goal-funded, not budget spending
+    expect(d.drawn).toBe(2000);        // …but it's fully visible as the harvest
+    expect(d.savedThisMonth).toBe(2000);
+    expect(d.left).toBe(2100);         // 4100 − 0 − 2000: charged once, when saved
+  });
+
+  it("budget basis, cross-month: money saved in prior months buys without touching this month's Left", () => {
+    const prior = (k: number, day: number) => {
+      const m = new Date(now.getFullYear(), now.getMonth() - k, 1);
+      return `${monthKey(m)}-${String(day).padStart(2, "0")}`;
+    };
+    const goal = { id: "g1", name: "New laptop", plant: "bluebell", target: 2000, saved: 0, isEmergency: false };
+    const transactions: Transaction[] = [
+      { id: "s1", type: "saving", amount: 1000, category: "other", note: "", date: prior(2, 10), goalId: "g1" },
+      { id: "s2", type: "saving", amount: 1000, category: "other", note: "", date: prior(1, 10), goalId: "g1" },
+      { ...tx("income", 4100, "other", 1) },
+      { ...tx("expense", 2000, "shopping", 1), goalId: "g1" },
+    ];
+    const d = derive(state({ income: 4100, goals: [goal], transactions }), now);
+    expect(d.left).toBe(4100);         // May pays nothing for a March+April laptop
+    expect(d.spent).toBe(0);
+    expect(d.drawn).toBe(2000);
+    // The prior months carried the deduction, each in its own Left.
+    const mar = deriveMonthView(state({ income: 4100, transactions }), prior(2, 10).slice(0, 7));
+    expect(mar.left).toBe(3100);       // 4100 − 0 − 1000
+  });
+
+  it("draws stay out of byCat/needs/wants; plain expenses still count", () => {
+    const draw: Transaction = { ...tx("expense", 800, "groceries", 8), goalId: "g1" };
+    const d = derive(state({ transactions: [draw, tx("expense", 100, "groceries", 9)] }), now);
+    expect(d.byCat.groceries).toBe(100);
+    expect(d.needs).toBe(100);
+    expect(d.drawn).toBe(800);
+  });
+
+  it("the daily pace line ignores draws; the 🌸 annotation lands on the right day", () => {
+    const goal = { id: "g1", name: "Rain barrel", plant: "sunflower", target: 5000, saved: 3000, isEmergency: true };
+    const draw: Transaction = { ...tx("expense", 500, "housing", 8), goalId: "g1" };
+    const d = derive(state({ goals: [goal], transactions: [tx("expense", 100, "fun", 3), draw] }), now);
+    const day8 = d.daily.find((p) => p.day === 8)!;
+    expect(day8.spent).toBe(100);            // cumulative line: budget basis only
+    expect(day8.drawn).toBe(500);
+    expect(day8.drawNames).toEqual(["Rain barrel"]);
+    expect(d.daily.find((p) => p.day === 3)!.drawn).toBeUndefined();
+  });
+
+  it("a dangling goalId still annotates the amount, with no name and no crash", () => {
+    const draw: Transaction = { ...tx("expense", 500, "housing", 8), goalId: "gone" };
+    const d = derive(state({ transactions: [draw] }), now);
+    expect(d.daily.find((p) => p.day === 8)!.drawn).toBe(500);
+    expect(d.daily.find((p) => p.day === 8)!.drawNames).toEqual([]);
+  });
+
+  it("typical monthly spending (FIRE/emergency sizing) excludes prior-month draws", () => {
+    const prior = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+    const transactions: Transaction[] = [
+      { id: "p1", type: "expense", amount: 900, category: "groceries", note: "", date: `${prior}-10` },
+      { id: "p2", type: "expense", amount: 2000, category: "shopping", note: "", date: `${prior}-12`, goalId: "g1" },
+    ];
+    const d = derive(state({ transactions }), now);
+    expect(d.monthlyExpenses).toBe(900);     // the harvest didn't inflate the average
+  });
+
+  it("the weather is draw-blind: identical health with and without a big draw", () => {
+    const base = state({
+      budgets: { groceries: 400 },
+      transactions: [tx("income", 4000, "other", 1), tx("expense", 150, "groceries", 5), tx("saving", 400, "other", 6)],
+      streak: { count: 3, lastDate: `${mk}-15` },
+    });
+    const withDraw = { ...base, transactions: [...base.transactions, { ...tx("expense", 2000, "shopping", 10), goalId: "g1" }] };
+    expect(derive(withDraw, now).health).toBe(derive(base, now).health);
+    expect(derive(withDraw, now).savingsRate).toBe(derive(base, now).savingsRate);
+  });
+
   it("lets logged income REPLACE stated income, not add to it (reference behavior, flagged)", () => {
     const d = derive(state({ income: 5000, transactions: [tx("income", 1000)] }), now);
     expect(d.income).toBe(1000); // the 5000 is ignored entirely this month
