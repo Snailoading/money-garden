@@ -16,12 +16,17 @@ const WINDOW = 12;
 /** "Aug ’25" for a YYYY-MM key. */
 const shortYm = (ym: string) => `${MONTH_NAMES[Number(ym.slice(5, 7)) - 1]} ’${ym.slice(2, 4)}`;
 
-function Legend({ items }: { items: [string, string][] }) {
+// Named tuple members are documentation only (like Python's NamedTuple);
+// kind "emoji" renders the swatch literally (the 🌸 chip) instead of a square.
+function Legend({ items }: { items: [label: string, swatch: string, kind?: "emoji"][] }) {
   return (
     <span style={{ display: "inline-flex", gap: 12, flexWrap: "wrap" }}>
-      {items.map(([label, color]) => (
+      {items.map(([label, swatch, kind]) => (
         <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-          <span style={{ width: 9, height: 9, borderRadius: 3, background: color, display: "inline-block" }} />{label}
+          {kind === "emoji"
+            ? <span style={{ fontSize: 11, lineHeight: 1 }}>{swatch}</span>
+            : <span style={{ width: 9, height: 9, borderRadius: 3, background: swatch, display: "inline-block" }} />}
+          {label}
         </span>
       ))}
     </span>
@@ -73,7 +78,13 @@ export function Seasons({ state, goToMonth }: {
         <CardTitle>The harvest ledger</CardTitle>
         <p style={{ margin: "0 0 8px", fontSize: 13, color: C.inkSoft, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
           <span>What came in and went out, month by month. Tap a month to wander through it.</span>
-          <Legend items={[["earned", C.leafDark], ["spent", C.tomato], ["sent to goals", C.marigold]]} />
+          <Legend items={[
+            ["earned", C.leafDark], ["spent", C.tomato], ["sent to goals", C.marigold],
+            // The harvest chip only appears when the window actually has draws.
+            ...(trends.some((p) => p.drawn > 0)
+              ? [["spent from goals", "🌸", "emoji"] as [string, string, "emoji"]]
+              : []),
+          ]} />
         </p>
         <div style={{ height: 220 }}>
           <SeasonsBars trends={trends} onPick={goToMonth} />

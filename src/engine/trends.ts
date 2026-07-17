@@ -15,7 +15,8 @@ export interface TrendPoint {
   label: string;
   /** Budget-basis spending (goal draws excluded). */
   spent: number;
-  /** Drawn from goals — plumbed for a future chart series, not charted yet. */
+  /** Drawn from goals — the 🌸 harvest annotation on the Seasons bars
+   * (marker + tooltip row, never a bar series: cross-basis data). */
   drawn: number;
   earned: number;
   saved: number;

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.11.0 — 2026-07-18 · *The almanac remembers the harvest* 🌸
+
+### Added
+
+- **Harvest months now bloom in the Seasons ledger.** Months where you spent
+  from a goal wear a 🌸 at their foot in "The harvest ledger" chart, the
+  tooltip gains a "🌸 Drawn" row, and a "spent from goals" chip joins the
+  legend (only when the window actually has draws). Same promise as the
+  Overview pace chart: the harvest is an annotation beside the budget bars,
+  never a bar of its own — a big harvest month can't rescale everyone
+  else's season. Screen readers hear the harvest months too.
+
 ## 0.10.2 — 2026-07-18 · *Night colors and fresh signage* 🎨
 
 ### Fixed
