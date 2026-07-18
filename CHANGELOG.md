@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.13.0 — 2026-07-18 · *The gardener reads the harvest ledger* 🪣
+
+### Added
+
+- **The advisor now notices when goals drain faster than they fill.** If,
+  over the last three completed months, more flowed out of goals than in
+  AND the same goal was tapped in two different months, a "Worth doing"
+  note appears — planned one-off harvests (saving for a phone, then buying
+  it) never trigger it; returning to the same pool does.
+- **Repeated emergency draws escalate.** The rain barrel tapped in two
+  consecutive months (the current month counts) becomes a "Do first" note —
+  back-to-back emergencies usually mean a leak to find, not just a barrel
+  to refill.
+- **A single emergency draw gets sympathy, not scolding.** After one recent
+  draw, the coverage tip opens with "The barrel did its job — that's
+  exactly what it's for" and pivots to refilling.
+
 ## 0.12.2 — 2026-07-18 · *The seed count matches the packet* 🌰
 
 ### Fixed

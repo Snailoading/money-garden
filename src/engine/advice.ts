@@ -11,7 +11,7 @@
 
 import type { State } from "./types";
 import type { Derived } from "./stats";
-import { fmt, shortDate } from "./format";
+import { fmt, monthKey, shortDate } from "./format";
 import { daysUntil, nextDueWithPayments } from "./commitments";
 
 export type Priority = 1 | 2 | 3;
@@ -34,6 +34,44 @@ export function buildAdvice(state: State, d: Derived, now: Date = new Date()): T
   const push = (priority: Priority, icon: string, title: string, body: string) =>
     out.push({ priority, icon, title, body });
 
+  // The harvest ledger, read for advice (v0.13.0): linked goal draws
+  // (expense+goalId) vs linked waterings (saving+goalId) over the last 3
+  // COMPLETED months — the current month is too young to judge a trend.
+  // The emergency check alone also watches the current month: a barrel
+  // tapped last month and again today shouldn't wait for month-end.
+  const completedMonths: string[] = []; // oldest → newest
+  for (let k = 3; k >= 1; k--) completedMonths.push(monthKey(new Date(now.getFullYear(), now.getMonth() - k, 1)));
+  const currentMonth = monthKey(now);
+  const harvestWindow = [...completedMonths, currentMonth];
+  let drawnTotal = 0, wateredTotal = 0;
+  // goalId → set of completed months it was drawn in (a dict of sets).
+  const drawMonthsByGoal = new Map<string, Set<string>>();
+  const emergencyDrawMonths = new Set<string>();
+  for (const t of state.transactions) {
+    if (!t.goalId) continue;
+    const ym = t.date.slice(0, 7);
+    if (t.type === "expense") {
+      if (completedMonths.includes(ym)) {
+        drawnTotal += t.amount;
+        const months = drawMonthsByGoal.get(t.goalId) ?? new Set<string>();
+        months.add(ym);
+        drawMonthsByGoal.set(t.goalId, months);
+      }
+      if (t.goalId === d.emergency?.id && harvestWindow.includes(ym)) emergencyDrawMonths.add(ym);
+    } else if (t.type === "saving" && completedMonths.includes(ym)) {
+      wateredTotal += t.amount;
+    }
+  }
+  // Planned harvests (different goals, one draw each) never trip this —
+  // the warning sign is returning to the SAME pool in separate months.
+  const repeatTapped = [...drawMonthsByGoal.entries()].filter(([, m]) => m.size >= 2);
+  const emergencyConsecutive = harvestWindow.some((ym, i) =>
+    i > 0 && emergencyDrawMonths.has(harvestWindow[i - 1]) && emergencyDrawMonths.has(ym));
+  // "The barrel did its job": an emergency draw this month or last, without
+  // the repeat pattern — sympathy, not scolding, in the coverage tip below.
+  const recentEmergencyDraw =
+    emergencyDrawMonths.has(currentMonth) || emergencyDrawMonths.has(completedMonths[completedMonths.length - 1]);
+
   // 1. Emergency fund — sized from d.monthlyExpenses (trailing-average based,
   // see stats.ts), the same estimate behind the coverage figure in the title,
   // so the months shown and the dollar amounts always agree. The barrel
@@ -47,7 +85,10 @@ export function buildAdvice(state: State, d: Derived, now: Date = new Date()): T
       `Before anything else, most advisors suggest a cushion of 3–6 months of essential expenses. Based on your ${d.expensesBasis === "budget" ? "budgets" : "pace"}, that's roughly ${fmt(d.monthlyExpenses * 3)}–${fmt(d.monthlyExpenses * 6)}. Your rain barrel is waiting in the Garden tab — give it a target.`);
   } else if (d.emergencyMonths < 3) {
     push(1, "🛟", `Emergency fund covers about ${d.emergencyMonths.toFixed(1)} months`,
-      `The common target is 3–6 months of expenses. You're ${fmt(Math.max(0, d.monthlyExpenses * 3 - d.emergency.saved))} away from the 3-month mark — even ${fmt(50)} a paycheck steadily waters it.`);
+      recentEmergencyDraw && !emergencyConsecutive
+        // One recent emergency draw = the barrel doing its job, not a lapse.
+        ? `The barrel did its job — that's exactly what it's for. Refilling it comes before other goals in most planners' ordering: you're ${fmt(Math.max(0, d.monthlyExpenses * 3 - d.emergency.saved))} from the 3-month mark, and even ${fmt(50)} a paycheck steadily waters it back.`
+        : `The common target is 3–6 months of expenses. You're ${fmt(Math.max(0, d.monthlyExpenses * 3 - d.emergency.saved))} away from the 3-month mark — even ${fmt(50)} a paycheck steadily waters it.`);
   } else {
     push(3, "🛟", "Your emergency fund is healthy",
       `It covers roughly ${d.emergencyMonths.toFixed(1)} months of expenses — inside the 3–6 month range many planners recommend. Extra cash beyond 6 months could work harder toward other goals.`);
@@ -113,6 +154,20 @@ export function buildAdvice(state: State, d: Derived, now: Date = new Date()): T
       push(3, "🌷", `"${g.name}" needs ${fmt(remaining)} more`,
         `Watering it ${fmt(sixMonthPace)}/month gets it blooming in about six months. Tie the transfer to payday so the plant never goes thirsty.`);
     }
+  }
+
+  // 6b. The harvest watch — goals draining faster than they fill.
+  if (emergencyConsecutive) {
+    // Repeated barrel taps outrank the general drain story; tell one story.
+    push(1, "🪣", "The rain barrel has been tapped two months running",
+      `One rough patch is what the barrel is for — a repeating one often points at something structural: a bill that outgrew its budget, or income that slipped. Many budgeters treat back-to-back emergency draws as a sign to find the leak, not just refill the barrel.`);
+  } else if (drawnTotal > wateredTotal && repeatTapped.length > 0) {
+    // Most-tapped pool, for the copy; a since-deleted goal just goes unnamed.
+    // Spread first: sort() mutates in place (unlike Python's sorted()).
+    const [topId, topMonths] = [...repeatTapped].sort((a, b) => b[1].size - a[1].size)[0];
+    const topName = state.goals.find((g) => g.id === topId)?.name;
+    push(2, "🪣", "Your goals are draining faster than they fill",
+      `Over the last three months, ${fmt(drawnTotal)} flowed out of goals while ${fmt(wateredTotal)} flowed in${topName ? `, and "${topName}" was tapped in ${topMonths.size} of them` : ""}. A planned harvest is what goals are for — but when the same pool keeps getting tapped, many budgeters read it as a monthly budget that needs widening somewhere.`);
   }
 
   // 7. Pace warning — note this paceRatio has a 0.05 monthFrac floor, unlike

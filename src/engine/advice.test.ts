@@ -91,6 +91,99 @@ describe("rule 1 — emergency fund", () => {
   });
 });
 
+describe("rule 6b — the harvest watch (goal draining)", () => {
+  // Fixed clock June 15, 2026 → completed window = Mar/Apr/May, current = Jun.
+  const barrel = { id: "e", name: "Emergency fund", plant: "sunflower", target: 9000, saved: 500, isEmergency: true };
+  const japan = { id: "j", name: "Japan trip", plant: "tulip", target: 2800, saved: 100, isEmergency: false };
+  const draw = (goalId: string, amount: number, date: string): Transaction =>
+    ({ id: `d${seq++}`, type: "expense", amount, category: "other", note: "", date, goalId });
+  const water = (goalId: string, amount: number, date: string): Transaction =>
+    ({ id: `w${seq++}`, type: "saving", amount, category: "other", note: "", date, goalId });
+
+  it("triggers at tier 2 when the same goal is tapped in 2 of 3 completed months, net-draining", () => {
+    const s = state({
+      goals: [barrel, japan],
+      transactions: [draw("j", 500, "2026-03-10"), draw("j", 500, "2026-04-12"), water("j", 200, "2026-04-25")],
+    });
+    const tip = find(tipsFor(s), "draining faster than they fill");
+    expect(tip).toBeDefined();
+    expect(tip!.priority).toBe(2);
+    expect(tip!.body).toContain('"Japan trip" was tapped in 2');
+    expect(tip!.body).toContain("$1,000"); // drawn total
+  });
+
+  it("never triggers on planned one-off harvests across different goals (the laptop months)", () => {
+    const phone = { ...japan, id: "p", name: "New phone" };
+    const laptop = { ...japan, id: "l", name: "New laptop" };
+    const s = state({
+      goals: [barrel, phone, laptop, japan],
+      // Three months, three goals, one harvest each — heavy net drain, no repeat.
+      transactions: [draw("p", 800, "2026-03-08"), draw("l", 1500, "2026-04-15"), draw("j", 2000, "2026-05-20")],
+    });
+    expect(find(tipsFor(s), "draining faster than they fill")).toBeUndefined();
+  });
+
+  it("never triggers while goals net-fill, even with a repeat tap", () => {
+    const s = state({
+      goals: [barrel, japan],
+      transactions: [draw("j", 100, "2026-03-10"), draw("j", 100, "2026-05-12"), water("j", 1000, "2026-04-25")],
+    });
+    expect(find(tipsFor(s), "draining faster than they fill")).toBeUndefined();
+  });
+
+  it("escalates to act-now when the barrel is tapped in consecutive months (current month counts)", () => {
+    const s = state({
+      goals: [barrel],
+      transactions: [draw("e", 300, "2026-05-10"), draw("e", 250, "2026-06-05")],
+    });
+    const tip = find(tipsFor(s), "tapped two months running");
+    expect(tip).toBeDefined();
+    expect(tip!.priority).toBe(1);
+    // The escalation replaces the general drain tip — one story at a time.
+    expect(find(tipsFor(s), "draining faster than they fill")).toBeUndefined();
+  });
+
+  it("does not escalate on non-consecutive barrel taps; the general rule covers them", () => {
+    const s = state({
+      goals: [barrel],
+      transactions: [draw("e", 300, "2026-03-10"), draw("e", 250, "2026-05-12")],
+    });
+    expect(find(tipsFor(s), "tapped two months running")).toBeUndefined();
+    expect(find(tipsFor(s), "draining faster than they fill")).toBeDefined();
+  });
+
+  it("computes the window correctly across a year boundary (January clock)", () => {
+    // Jan 15, 2027 → completed window = Oct/Nov/Dec 2026, current = Jan 2027.
+    const jan = new Date(2027, 0, 15, 12);
+    const s = state({
+      goals: [barrel, japan],
+      transactions: [draw("j", 500, "2026-10-10"), draw("j", 500, "2026-12-12")],
+    });
+    const tips = buildAdvice(s, derive(s, jan), jan);
+    expect(find(tips, "draining faster than they fill")).toBeDefined();
+    // Dec 2026 + Jan 2027 barrel draws are consecutive across the boundary.
+    const s2 = state({
+      goals: [barrel],
+      transactions: [draw("e", 300, "2026-12-20"), draw("e", 250, "2027-01-08")],
+    });
+    expect(find(buildAdvice(s2, derive(s2, jan), jan), "tapped two months running")).toBeDefined();
+  });
+
+  it("softens the coverage tip after a single recent emergency draw (the barrel did its job)", () => {
+    const s = state({
+      goals: [barrel],
+      transactions: [draw("e", 400, "2026-06-03")],
+    });
+    const tip = find(tipsFor(s), "Emergency fund covers about");
+    expect(tip).toBeDefined();
+    expect(tip!.body).toContain("The barrel did its job");
+    // And without a recent draw, the standard nudge copy stays.
+    const calm = find(tipsFor(state({ goals: [barrel] })), "Emergency fund covers about");
+    expect(calm!.body).not.toContain("did its job");
+    expect(calm!.body).toContain("The common target is 3–6 months");
+  });
+});
+
 describe("rule 2 — savings rate", () => {
   const withSaving = (saving: number) =>
     state({ transactions: [tx("income", 2000), tx("saving", saving)] });
