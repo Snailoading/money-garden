@@ -59,6 +59,9 @@ export interface Derived {
   emergency: State["goals"][number] | undefined;
   emergencyMonths: number;
   monthlyExpenses: number;
+  /** Where monthlyExpenses came from: completed-month history, a projection
+   * of this month's real spending, or (no spending at all) the budgets. */
+  expensesBasis: "history" | "projection" | "budget";
   fire: FireDerived;
   commit: CommitmentsDerived;
 }
@@ -180,14 +183,17 @@ export function derive(state: State, now: Date = new Date()): Derived {
       .reduce((a, t) => a + t.amount, 0);
     if (total > 0) priorMonthTotals.push(total);
   }
-  const monthlyExpenses =
+  // Tuple + destructuring ≈ Python's `a, b = ...` — the estimate travels
+  // with its provenance so copy can say "your pace" vs "your budgets"
+  // honestly (a fresh garden's estimate is just the seeded budgets).
+  const [monthlyExpenses, expensesBasis]: [number, Derived["expensesBasis"]] =
     priorMonthTotals.length > 0
-      ? priorMonthTotals.reduce((a, b) => a + b, 0) / priorMonthTotals.length
+      ? [priorMonthTotals.reduce((a, b) => a + b, 0) / priorMonthTotals.length, "history"]
       : spent > 0 && totalBudget > 0
-        ? spent + (1 - monthFrac) * totalBudget
+        ? [spent + (1 - monthFrac) * totalBudget, "projection"]
         : spent > 0
-          ? spent / Math.max(monthFrac, 0.05)
-          : totalBudget || 1;
+          ? [spent / Math.max(monthFrac, 0.05), "projection"]
+          : [totalBudget || 1, "budget"];
   const emergencyMonths = emergency ? emergency.saved / (monthlyExpenses || 1) : 0;
 
   const fire = deriveFire(state.invest, monthlyExpenses);
@@ -196,7 +202,7 @@ export function derive(state: State, now: Date = new Date()): Derived {
   return {
     monthTx, spent, drawn, earned, income, savedThisMonth, left, savingsRate, byCat,
     totalBudget, overruns, needs, wants, health, daily, daysInMonth, monthFrac,
-    emergency, emergencyMonths, monthlyExpenses, fire, commit,
+    emergency, emergencyMonths, monthlyExpenses, expensesBasis, fire, commit,
   };
 }
 

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.12.1 — 2026-07-18 · *Sturdier hoops, honest signage* 🪣
+
+### Fixed
+
+- **"Replant sample data" now asks twice**, like Start fresh — it replaces
+  your whole garden, so it gets the same tomato "Really?" second step.
+- **The setup card and advisor no longer overstate their sources.** When
+  nothing has been logged yet, the suggested emergency-fund range comes from
+  your budgets, and the copy now says "based on your budgets" instead of
+  claiming a pace it hasn't seen. Once real spending exists, it says
+  "based on your pace" as before.
+- The rain barrel injected into a pre-0.12 save now keeps a stable identity
+  across app loads even before anything is saved (fixed id instead of a
+  fresh random one per load).
+
 ## 0.12.0 — 2026-07-18 · *The rain barrel is part of the garden* 🛟
 
 ### Changed

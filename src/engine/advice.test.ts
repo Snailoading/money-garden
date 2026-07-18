@@ -25,6 +25,14 @@ describe("rule 1 — emergency fund", () => {
     expect(tip).toBeDefined();
     expect(tip!.priority).toBe(1);
     expect(tip!.body).toContain("3–6 months");
+    // Nothing logged → the range comes from seeded budgets; say so honestly.
+    expect(tip!.body).toContain("Based on your budgets");
+  });
+
+  it("says 'your pace' once real spending backs the estimate", () => {
+    const s = state({ budgets: {}, transactions: [tx("expense", 600, "groceries")] });
+    const tip = find(tipsFor(s), "Set up your rain barrel");
+    expect(tip!.body).toContain("Based on your pace");
   });
 
   it("switches from the setup tip to coverage once the barrel has a target", () => {

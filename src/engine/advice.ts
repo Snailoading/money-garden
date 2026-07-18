@@ -41,8 +41,10 @@ export function buildAdvice(state: State, d: Derived, now: Date = new Date()): T
   // narrowing (and un-migrated states in tests), with target 0 meaning
   // "not set up yet".
   if (!d.emergency || d.emergency.target === 0) {
+    // "your pace" only when real spending backs the number; a fresh garden's
+    // estimate is just the seeded budgets, and the copy should say so.
     push(1, "🛟", "Set up your rain barrel",
-      `Before anything else, most advisors suggest a cushion of 3–6 months of essential expenses. Based on your pace, that's roughly ${fmt(d.monthlyExpenses * 3)}–${fmt(d.monthlyExpenses * 6)}. Your rain barrel is waiting in the Garden tab — give it a target.`);
+      `Before anything else, most advisors suggest a cushion of 3–6 months of essential expenses. Based on your ${d.expensesBasis === "budget" ? "budgets" : "pace"}, that's roughly ${fmt(d.monthlyExpenses * 3)}–${fmt(d.monthlyExpenses * 6)}. Your rain barrel is waiting in the Garden tab — give it a target.`);
   } else if (d.emergencyMonths < 3) {
     push(1, "🛟", `Emergency fund covers about ${d.emergencyMonths.toFixed(1)} months`,
       `The common target is 3–6 months of expenses. You're ${fmt(Math.max(0, d.monthlyExpenses * 3 - d.emergency.saved))} away from the 3-month mark — even ${fmt(50)} a paycheck steadily waters it.`);
