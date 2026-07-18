@@ -10,10 +10,12 @@ import { C, inputStyle } from "../theme";
 import { CardTitle, Empty, Field } from "../bits";
 import { Plant } from "../art/Plant";
 
-export function Garden({ state, monthlyExpenses, addGoal, waterGoal, deleteGoal, updateGoal, drawFromGoal, setupEmergencyFund }: {
+export function Garden({ state, monthlyExpenses, expensesBasis, addGoal, waterGoal, deleteGoal, updateGoal, drawFromGoal, setupEmergencyFund }: {
   state: State;
   /** Typical monthly spending — the basis for emergency-fund coverage (from derive). */
   monthlyExpenses: number;
+  /** Provenance of that estimate — "budget" means no real spending backs it yet. */
+  expensesBasis: "history" | "projection" | "budget";
   addGoal: (g: Omit<Goal, "id" | "isEmergency">) => void;
   waterGoal: (id: string, amount: number) => void;
   deleteGoal: (id: string) => void;
@@ -191,7 +193,7 @@ export function Garden({ state, monthlyExpenses, addGoal, waterGoal, deleteGoal,
       </div>
       <div style={{ fontSize: 12.5, color: C.inkSoft }}>
         {paceKnown
-          ? <>Many planners suggest keeping 3–6 months of expenses within easy reach — based on your pace, that's roughly <b className="mg-num" style={{ color: C.ink }}>{fmt(monthlyExpenses * 3)}–{fmt(monthlyExpenses * 6)}</b>.</>
+          ? <>Many planners suggest keeping 3–6 months of expenses within easy reach — based on your {expensesBasis === "budget" ? "budgets" : "pace"}, that's roughly <b className="mg-num" style={{ color: C.ink }}>{fmt(monthlyExpenses * 3)}–{fmt(monthlyExpenses * 6)}</b>.</>
           : <>Many planners suggest keeping 3–6 months of what a typical month costs you within easy reach.</>}
         {" "}A rule of thumb, not personalized financial advice — set what feels safe.
       </div>

@@ -115,6 +115,18 @@ describe("monthly totals", () => {
     ];
     const d = derive(state({ transactions }), now);
     expect(d.monthlyExpenses).toBe(900);     // the harvest didn't inflate the average
+    expect(d.expensesBasis).toBe("history"); // a completed month backs it
+  });
+
+  it("labels the monthlyExpenses provenance: history / projection / budget", () => {
+    // Fresh garden, nothing logged → the estimate is just the seeded budgets.
+    expect(derive(state(), now).expensesBasis).toBe("budget");
+    // Spending this month but no completed month → a projection of real pace.
+    const d = derive(state({ transactions: [tx("expense", 300, "groceries")] }), now);
+    expect(d.expensesBasis).toBe("projection");
+    // With zeroed budgets the projection branch still counts as pace.
+    const zeroed = derive(state({ budgets: {}, transactions: [tx("expense", 300, "groceries")] }), now);
+    expect(zeroed.expensesBasis).toBe("projection");
   });
 
   it("the weather is draw-blind: identical health with and without a big draw", () => {
