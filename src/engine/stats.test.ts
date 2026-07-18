@@ -23,7 +23,8 @@ describe("monthly totals", () => {
     expect(d.income).toBe(0);
     expect(d.savingsRate).toBe(0);
     expect(d.left).toBe(0);
-    expect(d.emergency).toBeUndefined();
+    // The barrel always exists (v0.12.0) — unfunded and un-set-up here.
+    expect(d.emergency).toMatchObject({ isEmergency: true, target: 0, saved: 0 });
     expect(d.emergencyMonths).toBe(0);
   });
 

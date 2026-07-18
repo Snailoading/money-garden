@@ -36,10 +36,13 @@ export function buildAdvice(state: State, d: Derived, now: Date = new Date()): T
 
   // 1. Emergency fund — sized from d.monthlyExpenses (trailing-average based,
   // see stats.ts), the same estimate behind the coverage figure in the title,
-  // so the months shown and the dollar amounts always agree.
-  if (!d.emergency) {
-    push(1, "🛟", "Plant an emergency fund first",
-      `Before anything else, most advisors suggest building a cushion of 3–6 months of essential expenses. Based on your pace, that's roughly ${fmt(d.monthlyExpenses * 3)}–${fmt(d.monthlyExpenses * 6)}. Plant a goal in the Garden tab and tick the emergency-fund box.`);
+  // so the months shown and the dollar amounts always agree. The barrel
+  // always exists since v0.12.0; the !d.emergency guard stays for TS
+  // narrowing (and un-migrated states in tests), with target 0 meaning
+  // "not set up yet".
+  if (!d.emergency || d.emergency.target === 0) {
+    push(1, "🛟", "Set up your rain barrel",
+      `Before anything else, most advisors suggest a cushion of 3–6 months of essential expenses. Based on your pace, that's roughly ${fmt(d.monthlyExpenses * 3)}–${fmt(d.monthlyExpenses * 6)}. Your rain barrel is waiting in the Garden tab — give it a target.`);
   } else if (d.emergencyMonths < 3) {
     push(1, "🛟", `Emergency fund covers about ${d.emergencyMonths.toFixed(1)} months`,
       `The common target is 3–6 months of expenses. You're ${fmt(Math.max(0, d.monthlyExpenses * 3 - d.emergency.saved))} away from the 3-month mark — even ${fmt(50)} a paycheck steadily waters it.`);
@@ -100,6 +103,7 @@ export function buildAdvice(state: State, d: Derived, now: Date = new Date()): T
 
   // 6. Goal pacing
   for (const g of state.goals) {
+    // An un-set-up barrel (target 0) lands in this `continue` too: 0 >= 0.
     if (g.saved >= g.target) continue;
     const remaining = g.target - g.saved;
     const sixMonthPace = remaining / 6;
