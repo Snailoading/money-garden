@@ -20,8 +20,13 @@ import { toLocalISO, todayISO, uid } from "./format";
 export function ensureEmergencyGoal(goals: Goal[]): Goal[] {
   const idx = goals.findIndex((g) => g.isEmergency);
   if (idx === -1) {
+    // A fixed id keeps the injection deterministic: a pre-0.12 save re-runs
+    // this on every load until something persists, and the barrel must not
+    // change identity between loads. uid() only as a collision escape hatch
+    // (an imported goal could theoretically already use the sentinel).
+    const id = goals.some((g) => g.id === "the-rain-barrel") ? uid() : "the-rain-barrel";
     return [
-      { id: uid(), name: "Emergency fund", plant: "sunflower", target: 0, saved: 0, isEmergency: true },
+      { id, name: "Emergency fund", plant: "sunflower", target: 0, saved: 0, isEmergency: true },
       ...goals,
     ];
   }

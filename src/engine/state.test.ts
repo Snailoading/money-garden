@@ -47,6 +47,20 @@ describe("ensureEmergencyGoal (the rain-barrel invariant)", () => {
     const canonical = [g("e", true), g("a")];
     expect(ensureEmergencyGoal(canonical)).toBe(canonical);
   });
+
+  it("injects with a stable id, so repeated loads of an unsaved old state agree", () => {
+    const raw = JSON.stringify({ income: 100, goals: [] });
+    expect(deserialize(raw)).toEqual(deserialize(raw)); // ids included
+    expect(deserialize(raw).goals[0].id).toBe("the-rain-barrel");
+  });
+
+  it("falls back to a random id if the sentinel id is already taken", () => {
+    const squatter = { id: "the-rain-barrel", name: "Odd import", plant: "tulip", target: 100, saved: 0, isEmergency: false };
+    const goals = ensureEmergencyGoal([squatter]);
+    expect(goals[0].isEmergency).toBe(true);
+    expect(goals[0].id).not.toBe("the-rain-barrel");
+    expect(new Set(goals.map((x) => x.id)).size).toBe(2);
+  });
 });
 
 describe("sampleState", () => {
