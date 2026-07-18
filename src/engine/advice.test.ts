@@ -19,11 +19,21 @@ const find = (tips: Tip[], fragment: string): Tip | undefined =>
   tips.find((t) => t.title.includes(fragment));
 
 describe("rule 1 — emergency fund", () => {
-  it("leads with planting an emergency fund when none exists", () => {
-    const tip = find(tipsFor(state()), "Plant an emergency fund first");
+  it("leads with setting up the rain barrel while its target is unset", () => {
+    // A fresh state carries the permanent barrel at target 0 (v0.12.0).
+    const tip = find(tipsFor(state()), "Set up your rain barrel");
     expect(tip).toBeDefined();
     expect(tip!.priority).toBe(1);
     expect(tip!.body).toContain("3–6 months");
+  });
+
+  it("switches from the setup tip to coverage once the barrel has a target", () => {
+    const s = state({
+      goals: [{ id: "g", name: "Emergency fund", plant: "sunflower", target: 9000, saved: 0, isEmergency: true }],
+    });
+    const tips = tipsFor(s);
+    expect(find(tips, "Set up your rain barrel")).toBeUndefined();
+    expect(find(tips, "Emergency fund covers about 0.0 months")).toBeDefined();
   });
 
   it("reports partial coverage under 3 months at priority 1", () => {
@@ -56,7 +66,7 @@ describe("rule 1 — emergency fund", () => {
     const earlyJune = new Date(2026, 5, 1, 12);
     const s = state({ budgets: {}, transactions: [tx("expense", 100, "groceries")] });
     const tips = buildAdvice(s, derive(s, earlyJune), earlyJune);
-    const tip = find(tips, "Plant an emergency fund first");
+    const tip = find(tips, "Set up your rain barrel");
     expect(tip).toBeDefined();
     expect(tip!.body).toContain("roughly $6,000–$12,000");
   });
@@ -316,7 +326,7 @@ describe("ordering and edge cases", () => {
   it("produces exactly the emergency + income tips for a fresh empty state", () => {
     const tips = tipsFor(state());
     expect(tips.map((t) => [t.priority, t.title])).toEqual([
-      [1, "Plant an emergency fund first"],
+      [1, "Set up your rain barrel"],
       [2, "Set your monthly income"],
     ]);
   });

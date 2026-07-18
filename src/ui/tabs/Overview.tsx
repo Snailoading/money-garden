@@ -87,7 +87,9 @@ export function Overview({ state, d, view, setIncome, goTo, goToDraws }: {
         <svg viewBox="0 0 980 70" preserveAspectRatio="none" style={{ display: "block", width: "calc(100% + 52px)", margin: "14px -26px 0", height: 58 }}>
           <path d="M0 45 Q 160 20 320 40 T 640 38 T 980 42 L 980 70 L 0 70 Z" opacity="0.22" style={{ fill: C.leaf }} />
           <path d="M0 55 Q 200 35 420 52 T 980 50 L 980 70 L 0 70 Z" opacity="0.3" style={{ fill: C.leafDark }} />
-          {state.goals.slice(0, 5).map((g, i) => (
+          {/* target > 0 skips the un-set-up barrel (it isn't a plant yet) and
+              keeps the saved/target division finite. */}
+          {state.goals.filter((g) => g.target > 0).slice(0, 5).map((g, i) => (
             <g key={g.id} transform={`translate(${90 + i * 190}, 8) scale(0.55)`}>
               <PlantMini progress={g.saved / g.target} bloom={PLANT_KINDS.find((p) => p.id === g.plant)?.bloom || C.marigold} />
             </g>

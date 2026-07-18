@@ -8,13 +8,38 @@ import type { Commitment, Goal, Invest, State, Streak, Transaction } from "./typ
 import { CATEGORIES, DEFAULT_INVEST } from "./types";
 import { toLocalISO, todayISO, uid } from "./format";
 
+/**
+ * The rain-barrel invariant (v0.12.0): exactly one emergency goal always
+ * exists, and it always sits first. `target: 0` is the "not set up yet"
+ * sentinel — normal goals require target > 0, so the Garden knows to show
+ * the setup card instead of a plant. Missing → inject an unfunded barrel;
+ * duplicates (a hand-edited or corrupt backup) → first wins, rest unflag.
+ * Already-canonical input returns the SAME array reference, so migrate is
+ * id-stable and round-trip tests stay exact.
+ */
+export function ensureEmergencyGoal(goals: Goal[]): Goal[] {
+  const idx = goals.findIndex((g) => g.isEmergency);
+  if (idx === -1) {
+    return [
+      { id: uid(), name: "Emergency fund", plant: "sunflower", target: 0, saved: 0, isEmergency: true },
+      ...goals,
+    ];
+  }
+  const hasDupes = goals.some((g, i) => g.isEmergency && i !== idx);
+  if (idx === 0 && !hasDupes) return goals;
+  const rest = goals
+    .filter((_, i) => i !== idx)
+    .map((g) => (g.isEmergency ? { ...g, isEmergency: false } : g));
+  return [goals[idx], ...rest];
+}
+
 export function emptyState(): State {
   return {
     income: 0,
     // Object.fromEntries over a map ≈ {c.id: c.budget for c in CATEGORIES}
     budgets: Object.fromEntries(CATEGORIES.map((c) => [c.id, c.budget])),
     transactions: [],
-    goals: [],
+    goals: ensureEmergencyGoal([]),
     invest: { ...DEFAULT_INVEST },
     commitments: [],
     streak: { count: 0, lastDate: null },
@@ -87,13 +112,16 @@ export function sampleState(now: Date = new Date()): State {
 
 /**
  * Normalize a parsed stored state — the reference's load-time migration:
- * fill any missing invest keys from defaults and default commitments to [].
+ * fill any missing invest keys from defaults, default commitments to [],
+ * and enforce the rain-barrel invariant (backup import routes through here
+ * too, so imported barrel-less backups gain the barrel the same way).
  * Spreads keep every unknown field intact (CLAUDE.md: never silently drop
  * unknown fields), so data written by future versions survives a round-trip.
  */
 export function migrate(parsed: Record<string, unknown>): State {
   return {
     ...(parsed as unknown as State),
+    goals: ensureEmergencyGoal((parsed.goals as Goal[]) || []),
     invest: { ...DEFAULT_INVEST, ...((parsed.invest as Partial<Invest>) || {}) },
     commitments: (parsed.commitments as Commitment[]) || [],
   };
@@ -141,34 +169,67 @@ function adjustLinkedHolding(state: State, holdingId: string | undefined, delta:
   };
 }
 
-/** Only one 🛟 at a time: flagging a goal unflags every other. */
-const withExclusiveEmergency = (goals: State["goals"], keptId: string): State["goals"] =>
-  goals.map((g) => (g.id === keptId ? g : g.isEmergency ? { ...g, isEmergency: false } : g));
-
 /**
  * Edit a goal in place (unknown id = no-op). The balance is deliberately
  * NOT editable here — it stays journal-driven via watering/draw entries so
- * every dollar remains traceable. Setting isEmergency moves the lifebuoy:
- * the flag is cleared from all other goals.
+ * every dollar remains traceable. `isEmergency` is structural (the barrel
+ * is permanent, v0.12.0); both it and `saved` are stripped even if a caller
+ * sneaks them past the types — like popping keys before a {**existing, **d}
+ * merge. The barrel also refuses a non-positive target: target 0 is the
+ * setup sentinel, and re-entering it would let setupEmergencyFund overwrite
+ * a journal-driven balance (breaking exact reversibility of linked entries).
  */
 export function updateGoal(
   state: State,
   id: string,
-  patch: Partial<Omit<Goal, "id" | "saved">>,
+  patch: Partial<Omit<Goal, "id" | "saved" | "isEmergency">>,
 ): State {
   const existing = state.goals.find((g) => g.id === id);
   if (!existing) return state;
-  let goals = state.goals.map((g) => (g.id === id ? { ...existing, ...patch, id } : g));
-  if (patch.isEmergency === true) goals = withExclusiveEmergency(goals, id);
+  const { isEmergency: _flag, saved: _saved, ...safe } = patch as Partial<Goal>;
+  if (existing.isEmergency && safe.target !== undefined && !(safe.target > 0)) delete safe.target;
+  const goals = state.goals.map((g) => (g.id === id ? { ...existing, ...safe, id } : g));
   return { ...state, goals };
 }
 
-/** Add a goal, honoring lifebuoy exclusivity when it arrives flagged. */
+/**
+ * Add a goal. Always a regular planting: the emergency flag is forced off
+ * (only ensureEmergencyGoal may mint a barrel — a flagged insert would mean
+ * two, or a deletable one). A provided `saved` is kept: it's the opening
+ * balance for money set aside before the goal existed here — a starting
+ * fact, not a monthly flow, so no journal entry accompanies it.
+ */
 export function insertGoal(state: State, goal: Goal): State {
-  const goals = goal.isEmergency
-    ? [...withExclusiveEmergency(state.goals, goal.id), goal]
-    : [...state.goals, goal];
-  return { ...state, goals };
+  return { ...state, goals: [...state.goals, { ...goal, isEmergency: false }] };
+}
+
+/**
+ * Delete a goal — except the rain barrel, which is permanent (same-reference
+ * no-op, like unknown ids). Linked journal entries survive deletion; their
+ * dangling goalIds are silent no-ops on reversal (the v0.8.0 contract).
+ */
+export function deleteGoal(state: State, id: string): State {
+  const goal = state.goals.find((g) => g.id === id);
+  if (!goal || goal.isEmergency) return state;
+  return { ...state, goals: state.goals.filter((g) => g.id !== id) };
+}
+
+/**
+ * One-time rain-barrel setup: give the barrel its target and, optionally,
+ * the money already set aside for it. Allowed only while target === 0 (the
+ * setup sentinel) — after that the balance is journal-driven like every
+ * other goal. Deliberately creates NO transaction: an opening balance is a
+ * starting fact, not one of this month's flows, so budgets, Left, and the
+ * savings rate never see it. Streak untouched (setup isn't logging).
+ */
+export function setupEmergencyFund(state: State, target: number, openingBalance = 0): State {
+  const barrel = state.goals.find((g) => g.isEmergency);
+  if (!barrel || barrel.target !== 0 || !(target > 0)) return state;
+  const saved = Math.max(0, Number(openingBalance) || 0);
+  return {
+    ...state,
+    goals: state.goals.map((g) => (g.isEmergency ? { ...g, target, saved } : g)),
+  };
 }
 
 /** Deleting a linked installment payment un-counts it (floored at 0). */

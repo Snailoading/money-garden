@@ -1,19 +1,51 @@
 import { describe, expect, it } from "vitest";
 import type { State, Transaction } from "./types";
 import { CATEGORIES, DEFAULT_INVEST } from "./types";
-import { bumpStreak, deserialize, emptyState, insertGoal, migrate, removeTransaction, sampleState, serialize, updateCommitment, updateGoal, updateTransaction } from "./state";
+import { bumpStreak, deleteGoal, deserialize, emptyState, ensureEmergencyGoal, insertGoal, migrate, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "./state";
 import { derive } from "./stats";
 import { todayISO } from "./format";
 
 describe("emptyState", () => {
-  it("seeds default budgets for every category and nothing else", () => {
+  it("seeds default budgets, the unfunded rain barrel, and nothing else", () => {
     const s = emptyState();
     expect(Object.keys(s.budgets)).toHaveLength(CATEGORIES.length);
     expect(s.budgets.housing).toBe(1400);
     expect(s.transactions).toEqual([]);
+    // v0.12.0: the barrel is permanent — even a fresh garden has it, in its
+    // target-0 "not set up yet" state.
+    expect(s.goals).toHaveLength(1);
+    expect(s.goals[0]).toMatchObject({ name: "Emergency fund", plant: "sunflower", target: 0, saved: 0, isEmergency: true });
     expect(s.invest).toEqual(DEFAULT_INVEST);
     expect(s.invest).not.toBe(DEFAULT_INVEST); // must be a copy, not the shared object
     expect(s.streak).toEqual({ count: 0, lastDate: null });
+  });
+});
+
+describe("ensureEmergencyGoal (the rain-barrel invariant)", () => {
+  const g = (id: string, isEmergency = false) => ({ id, name: `Goal ${id}`, plant: "tulip", target: 1000, saved: 100, isEmergency });
+
+  it("injects an unfunded barrel first when none exists", () => {
+    const goals = ensureEmergencyGoal([g("a"), g("b")]);
+    expect(goals).toHaveLength(3);
+    expect(goals[0]).toMatchObject({ name: "Emergency fund", target: 0, saved: 0, isEmergency: true });
+    expect(goals.slice(1).map((x) => x.id)).toEqual(["a", "b"]);
+  });
+
+  it("moves an existing barrel first, keeping the others' relative order and ids", () => {
+    const barrel = g("e", true);
+    const goals = ensureEmergencyGoal([g("a"), barrel, g("b")]);
+    expect(goals.map((x) => x.id)).toEqual(["e", "a", "b"]);
+    expect(goals[0]).toBe(barrel); // untouched, not cloned
+  });
+
+  it("resolves duplicates: first flagged wins, the rest unflag", () => {
+    const goals = ensureEmergencyGoal([g("a"), g("b", true), g("c", true)]);
+    expect(goals.map((x) => [x.id, x.isEmergency])).toEqual([["b", true], ["a", false], ["c", false]]);
+  });
+
+  it("returns the same reference for already-canonical input (id-stable migrate)", () => {
+    const canonical = [g("e", true), g("a")];
+    expect(ensureEmergencyGoal(canonical)).toBe(canonical);
   });
 });
 
@@ -51,6 +83,21 @@ describe("migrate", () => {
     const migrated = migrate({ income: 1, futureFeature: { a: 1 }, invest: { monthly: 5, futureKnob: true } });
     expect((migrated as unknown as Record<string, unknown>).futureFeature).toEqual({ a: 1 });
     expect((migrated.invest as unknown as Record<string, unknown>).futureKnob).toBe(true);
+  });
+
+  it("injects the rain barrel into a pre-0.12 save without one", () => {
+    const old = { income: 100, goals: [{ id: "j", name: "Japan trip", plant: "tulip", target: 2800, saved: 640, isEmergency: false }] };
+    const migrated = migrate(old);
+    expect(migrated.goals).toHaveLength(2);
+    expect(migrated.goals[0]).toMatchObject({ name: "Emergency fund", target: 0, isEmergency: true });
+    expect(migrated.goals[1].id).toBe("j");
+  });
+
+  it("keeps an existing emergency goal untouched and id-stable (via deserialize)", () => {
+    const s = { ...emptyState(), goals: [{ id: "mine", name: "Rainy day", plant: "poppy", target: 9000, saved: 1200, isEmergency: true }] };
+    const back = deserialize(serialize(s));
+    expect(back).toEqual(s);
+    expect(back.goals[0].id).toBe("mine");
   });
 });
 
@@ -196,7 +243,7 @@ describe("orchard waterings (holding-linked entries)", () => {
   });
 });
 
-describe("updateGoal / insertGoal", () => {
+describe("updateGoal / insertGoal / deleteGoal", () => {
   const g = (id: string, isEmergency = false) => ({ id, name: `Goal ${id}`, plant: "tulip", target: 1000, saved: 100, isEmergency });
   const base = (): State => ({ ...emptyState(), goals: [g("a", true), g("b"), g("c")] });
 
@@ -205,14 +252,26 @@ describe("updateGoal / insertGoal", () => {
     expect(s.goals[1]).toMatchObject({ id: "b", name: "Renamed", target: 2500, plant: "poppy", saved: 100 });
   });
 
-  it("moves the lifebuoy: flagging one goal unflags the others", () => {
-    const s = updateGoal(base(), "b", { isEmergency: true });
-    expect(s.goals.map((x) => x.isEmergency)).toEqual([false, true, false]);
+  it("strips isEmergency from patches — the flag is structural, not editable", () => {
+    // `as never` sneaks the field past the types, mimicking a stale caller.
+    const flagged = updateGoal(base(), "b", { isEmergency: true } as never);
+    expect(flagged.goals.map((x) => x.isEmergency)).toEqual([true, false, false]);
+    const unflagged = updateGoal(base(), "a", { isEmergency: false } as never);
+    expect(unflagged.goals.map((x) => x.isEmergency)).toEqual([true, false, false]);
   });
 
-  it("unflagging does not touch other goals", () => {
-    const s = updateGoal(base(), "a", { isEmergency: false });
-    expect(s.goals.map((x) => x.isEmergency)).toEqual([false, false, false]);
+  it("strips saved from patches — balances stay journal-driven", () => {
+    const s = updateGoal(base(), "b", { name: "Renamed", saved: 999999 } as never);
+    expect(s.goals[1]).toMatchObject({ name: "Renamed", saved: 100 });
+  });
+
+  it("refuses a non-positive target on the barrel (setup-state re-entry)", () => {
+    // Re-entering target 0 would let setupEmergencyFund clobber a
+    // journal-driven balance; other patch fields still apply.
+    const s = updateGoal(base(), "a", { name: "Barrel", target: 0 });
+    expect(s.goals[0]).toMatchObject({ name: "Barrel", target: 1000 });
+    // Normal goals aren't guarded by this rule (UI requires > 0 anyway).
+    expect(updateGoal(base(), "b", { target: 0 }).goals[1].target).toBe(0);
   });
 
   it("is a no-op for unknown ids", () => {
@@ -220,11 +279,64 @@ describe("updateGoal / insertGoal", () => {
     expect(updateGoal(before, "nope", { name: "x" })).toBe(before);
   });
 
-  it("insertGoal honors exclusivity for a flagged newcomer, not otherwise", () => {
-    const flagged = insertGoal(base(), { ...g("d", true) });
-    expect(flagged.goals.map((x) => x.isEmergency)).toEqual([false, false, false, true]);
-    const plain = insertGoal(base(), { ...g("e") });
-    expect(plain.goals.map((x) => x.isEmergency)).toEqual([true, false, false, false]);
+  it("insertGoal forces isEmergency off and keeps a provided opening balance", () => {
+    const s = insertGoal(base(), { ...g("d", true), saved: 250 });
+    expect(s.goals.map((x) => x.isEmergency)).toEqual([true, false, false, false]);
+    expect(s.goals[3]).toMatchObject({ id: "d", saved: 250 });
+  });
+
+  it("deleteGoal removes a normal goal but never the barrel", () => {
+    const s = deleteGoal(base(), "b");
+    expect(s.goals.map((x) => x.id)).toEqual(["a", "c"]);
+    const before = base();
+    expect(deleteGoal(before, "a")).toBe(before); // the barrel is permanent
+    expect(deleteGoal(before, "nope")).toBe(before);
+  });
+});
+
+describe("setupEmergencyFund", () => {
+  const barrel = { id: "e", name: "Emergency fund", plant: "sunflower", target: 0, saved: 0, isEmergency: true };
+  const other = { id: "j", name: "Japan trip", plant: "tulip", target: 2800, saved: 640, isEmergency: false };
+  const base = (): State => ({ ...emptyState(), goals: [{ ...barrel }, { ...other }], streak: { count: 3, lastDate: "2026-07-01" } });
+
+  it("sets the target and an opening balance while in setup state", () => {
+    const s = setupEmergencyFund(base(), 9000, 1200);
+    expect(s.goals[0]).toMatchObject({ id: "e", target: 9000, saved: 1200 });
+    expect(s.goals[1]).toEqual(other);
+  });
+
+  it("defaults the opening balance to 0 and floors junk values", () => {
+    expect(setupEmergencyFund(base(), 9000).goals[0].saved).toBe(0);
+    expect(setupEmergencyFund(base(), 9000, -50).goals[0].saved).toBe(0);
+    expect(setupEmergencyFund(base(), 9000, NaN).goals[0].saved).toBe(0);
+  });
+
+  it("rejects a non-positive target and refuses to re-run once set up", () => {
+    const before = base();
+    expect(setupEmergencyFund(before, 0, 100)).toBe(before);
+    expect(setupEmergencyFund(before, -5)).toBe(before);
+    const done = setupEmergencyFund(before, 9000, 1200);
+    expect(setupEmergencyFund(done, 500, 999999)).toBe(done); // balance is journal-driven now
+  });
+
+  it("creates no transaction and never touches the streak (setup isn't logging)", () => {
+    const s = setupEmergencyFund(base(), 9000, 1200);
+    expect(s.transactions).toEqual([]);
+    expect(s.streak).toEqual({ count: 3, lastDate: "2026-07-01" });
+  });
+});
+
+describe("opening balances stay out of the monthly books (budget basis)", () => {
+  it("derive() sees no saving flow from setup or a planted opening balance", () => {
+    const now = new Date(2026, 6, 15, 12);
+    let s: State = { ...emptyState(), income: 4000 };
+    s = setupEmergencyFund(s, 9000, 2000);
+    s = insertGoal(s, { id: "j", name: "Japan trip", plant: "tulip", target: 2800, saved: 250, isEmergency: false });
+    const d = derive(s, now);
+    expect(d.savedThisMonth).toBe(0);
+    expect(d.savingsRate).toBe(0);
+    expect(d.left).toBe(4000); // income − 0 spent − 0 saved: opening money never charges Left
+    expect(d.emergencyMonths).toBeGreaterThan(0); // but coverage sees it immediately
   });
 });
 

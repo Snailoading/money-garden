@@ -9,7 +9,7 @@ import { DEFAULT_INVEST, STORAGE_KEY } from "../engine/types";
 import { fmt, monthKey, monthLabel, uid, todayISO } from "../engine/format";
 import { derive, deriveMonthView, weatherFor } from "../engine/stats";
 import { monthRange } from "../engine/trends";
-import { bumpStreak, deserialize, emptyState, insertGoal, removeTransaction, sampleState, serialize, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
+import { bumpStreak, deleteGoal as engineDeleteGoal, deserialize, emptyState, insertGoal, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
 import { buildBackup, parseBackup, type ImportPreview } from "../engine/backup";
 import { createStore } from "../engine/storage";
 import { C, INSTALL_HINT_KEY, isIOS, isStandalone, isTouchDevice, resolveTheme, THEME_COLOR, THEME_KEY, type ThemeMode } from "./theme";
@@ -209,23 +209,31 @@ export function MoneyGarden() {
     showToast(adjustedGoal ? `✏️ Entry updated — "${adjustedGoal.name}" adjusted too` : "✏️ Entry updated");
   };
 
-  const addGoal = (g: Omit<Goal, "id">) => {
-    const movingLifebuoy = g.isEmergency && state.goals.some((x) => x.isEmergency);
-    setStateSafe(insertGoal(state, { ...g, id: uid() }));
-    if (movingLifebuoy) showToast(`🛟 "${g.name}" is now your emergency fund`);
+  // Plantings are always regular goals (the barrel is permanent and minted
+  // by the engine); a provided `saved` is an opening balance, no journal entry.
+  const addGoal = (g: Omit<Goal, "id" | "isEmergency">) => {
+    setStateSafe(insertGoal(state, { ...g, id: uid(), isEmergency: false }));
   };
 
-  const editGoal = (id: string, patch: Partial<Omit<Goal, "id" | "saved">>) => {
-    const existing = state.goals.find((x) => x.id === id);
-    if (!existing) return;
-    const movingLifebuoy = patch.isEmergency === true && state.goals.some((x) => x.isEmergency && x.id !== id);
+  const editGoal = (id: string, patch: Partial<Omit<Goal, "id" | "saved" | "isEmergency">>) => {
+    if (!state.goals.some((x) => x.id === id)) return;
     setStateSafe(updateGoal(state, id, patch));
-    showToast(movingLifebuoy ? `🛟 "${patch.name ?? existing.name}" is now your emergency fund` : "✏️ Goal updated");
+    showToast("✏️ Goal updated");
   };
 
-  // Spend from a goal: one honest expense entry (it hits budgets and monthly
-  // spend like any other) that also drains the goal via its goalId. The UI
-  // caps the amount at the balance so the entry stays exactly reversible.
+  // One-time barrel setup — target plus the money already set aside for it.
+  // Deliberately no transaction: an opening balance is a starting fact, not
+  // one of this month's flows (see setupEmergencyFund in the engine).
+  const setupBarrel = (target: number, openingBalance: number) => {
+    setStateSafe(setupEmergencyFund(state, target, openingBalance));
+    showToast("🛟 Rain barrel set up — water it whenever you can");
+  };
+
+  // Spend from a goal: one journal expense entry that also drains the goal
+  // via its goalId. Draws are budget-basis EXCLUDED (isDraw in stats.ts) —
+  // they spend the goal's pool, not the month's income, surfacing as the
+  // 🌸 harvest story instead of inside Spent. The UI caps the amount at the
+  // balance so the entry stays exactly reversible.
   const drawFromGoal = (id: string, amount: number, category: string, note: string) => {
     const goal = state.goals.find((g) => g.id === id);
     if (!goal || !(amount > 0) || amount > goal.saved) return;
@@ -241,6 +249,7 @@ export function MoneyGarden() {
       // No target cap (v0.7.0): overflowing is truthful, and it keeps the
       // journal entry exactly reversible.
       const saved = g.saved + amount;
+      // Safe for a target-0 barrel too: `g.saved < g.target` is 0 < 0 → false.
       if (saved >= g.target && g.saved < g.target) showToast(`🌸 "${g.name}" is in full bloom — goal reached!`);
       return { ...g, saved };
     });
@@ -249,7 +258,8 @@ export function MoneyGarden() {
     setStateSafe({ ...state, goals, transactions: [tx, ...state.transactions], streak: bumpStreak(state.streak) });
   };
 
-  const deleteGoal = (id: string) => setStateSafe({ ...state, goals: state.goals.filter((g) => g.id !== id) });
+  // Engine-guarded: deleting the permanent barrel is a silent no-op there.
+  const deleteGoal = (id: string) => setStateSafe(engineDeleteGoal(state, id));
   const setBudget = (catId: string, v: string) => setStateSafe({ ...state, budgets: { ...state.budgets, [catId]: Number(v) || 0 } });
   const setIncome = (v: string) => setStateSafe({ ...state, income: Number(v) || 0 });
 
@@ -348,7 +358,10 @@ export function MoneyGarden() {
   const canNext = viewYm !== null;
   const goToMonth = (ym: string) => setViewYm(ym === currentYm ? null : ym);
 
-  const isEmpty = state.transactions.length === 0 && state.goals.length === 0;
+  // "Fresh soil" = nothing logged and nothing but the untouched barrel-in-setup
+  // (the barrel always exists since v0.12.0, so goals is never []).
+  const isEmpty = state.transactions.length === 0 &&
+    state.goals.every((g) => g.isEmergency && g.target === 0 && g.saved === 0);
   const weather = weatherFor(derived.health);
   const navBtnStyle = (enabled: boolean) => ({
     border: "none", background: "transparent", cursor: enabled ? "pointer" : "default",
@@ -433,7 +446,7 @@ export function MoneyGarden() {
         {tab === "overview" && <Overview state={state} d={derived} view={monthView} setIncome={setIncome} goTo={(t) => switchTab(t as TabId)} goToDraws={goToDraws} />}
         {tab === "log" && <Log state={state} d={derived} view={monthView} addTransaction={addTransaction} deleteTransaction={deleteTransaction} updateTransaction={editTransaction} markNoSpend={markNoSpendDay} initialFilter={logPreset} />}
         {tab === "budgets" && <Budgets state={state} d={derived} view={monthView} setBudget={setBudget} addCommitment={addCommitment} deleteCommitment={deleteCommitment} logCommitmentPayment={logCommitmentPayment} updateCommitment={editCommitment} />}
-        {tab === "garden" && <Garden state={state} monthlyExpenses={derived.monthlyExpenses} addGoal={addGoal} waterGoal={waterGoal} deleteGoal={deleteGoal} updateGoal={editGoal} drawFromGoal={drawFromGoal} />}
+        {tab === "garden" && <Garden state={state} monthlyExpenses={derived.monthlyExpenses} addGoal={addGoal} waterGoal={waterGoal} deleteGoal={deleteGoal} updateGoal={editGoal} drawFromGoal={drawFromGoal} setupEmergencyFund={setupBarrel} />}
         {tab === "orchard" && <Orchard state={state} d={derived} setInvest={setInvest} addHolding={addHolding} updateHolding={updateHolding} deleteHolding={deleteHolding} waterOrchard={waterOrchard} />}
         {tab === "seasons" && <Seasons state={state} goToMonth={(ym) => { goToMonth(ym); setTab("overview"); }} />}
         {tab === "advice" && <Advice state={state} d={derived} showInstallTip={installPref !== "muted"} onMuteInstallTip={muteInstallTip} />}

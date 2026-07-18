@@ -66,8 +66,8 @@ describe("parseBackup — round trip", () => {
     expect(result.preview.exportedAt).toBeNull();
   });
 
-  it("migrates old backups: fills missing invest keys and commitments", () => {
-    // A pre-commitments era dump: no commitments, partial invest.
+  it("migrates old backups: fills missing invest keys, commitments, and the barrel", () => {
+    // A pre-commitments era dump: no commitments, partial invest, no barrel.
     const old = { income: 100, budgets: { housing: 500 }, transactions: [], goals: [], invest: { monthly: 250 }, streak: { count: 0, lastDate: null } };
     const result = parseBackup(JSON.stringify(old));
     expect(result.ok).toBe(true);
@@ -75,6 +75,11 @@ describe("parseBackup — round trip", () => {
     expect(result.preview.state.commitments).toEqual([]);
     expect(result.preview.state.invest.monthly).toBe(250);
     expect(result.preview.state.invest.ret).toBe(7); // default filled in
+    // v0.12.0: barrel-less imports gain the unfunded barrel (counted in the
+    // preview — "1 goal" for this dump is truthful).
+    expect(result.preview.state.goals).toHaveLength(1);
+    expect(result.preview.state.goals[0]).toMatchObject({ name: "Emergency fund", target: 0, isEmergency: true });
+    expect(result.preview.counts.goals).toBe(1);
   });
 
   it("fills missing top-level fields so a partial dump can't crash the app", () => {
@@ -84,6 +89,22 @@ describe("parseBackup — round trip", () => {
     expect(result.preview.state.transactions).toEqual([]);
     expect(result.preview.state.streak).toEqual({ count: 0, lastDate: null });
     expect(result.preview.state.budgets.housing).toBe(500);
+    expect(result.preview.state.goals[0]).toMatchObject({ isEmergency: true, target: 0 });
+  });
+
+  it("resolves a corrupt backup with two flagged goals: first wins, barrel first", () => {
+    const twoFlags = {
+      budgets: {},
+      goals: [
+        { id: "x", name: "Cash", plant: "tulip", target: 100, saved: 0, isEmergency: false },
+        { id: "y", name: "Cushion", plant: "poppy", target: 5000, saved: 900, isEmergency: true },
+        { id: "z", name: "Backup cushion", plant: "bluebell", target: 2000, saved: 10, isEmergency: true },
+      ],
+    };
+    const result = parseBackup(JSON.stringify(twoFlags));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.preview.state.goals.map((g) => [g.id, g.isEmergency])).toEqual([["y", true], ["x", false], ["z", false]]);
   });
 });
 
