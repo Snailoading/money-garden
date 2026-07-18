@@ -10,30 +10,39 @@ import { C, inputStyle } from "../theme";
 import { CardTitle, Empty, Field } from "../bits";
 import { Plant } from "../art/Plant";
 
-export function Garden({ state, monthlyExpenses, addGoal, waterGoal, deleteGoal, updateGoal, drawFromGoal }: {
+export function Garden({ state, monthlyExpenses, addGoal, waterGoal, deleteGoal, updateGoal, drawFromGoal, setupEmergencyFund }: {
   state: State;
   /** Typical monthly spending — the basis for emergency-fund coverage (from derive). */
   monthlyExpenses: number;
-  addGoal: (g: Omit<Goal, "id">) => void;
+  addGoal: (g: Omit<Goal, "id" | "isEmergency">) => void;
   waterGoal: (id: string, amount: number) => void;
   deleteGoal: (id: string) => void;
-  updateGoal: (id: string, patch: Partial<Omit<Goal, "id" | "saved">>) => void;
+  updateGoal: (id: string, patch: Partial<Omit<Goal, "id" | "saved" | "isEmergency">>) => void;
   drawFromGoal: (id: string, amount: number, category: string, note: string) => void;
+  /** One-time barrel setup: target + money already set aside (no journal entry). */
+  setupEmergencyFund: (target: number, openingBalance: number) => void;
 }) {
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
   const [plant, setPlant] = useState("tulip");
-  const [isEmergency, setIsEmergency] = useState(false);
+  // Opening balance for a new planting — money set aside before the goal
+  // existed here. A starting fact, not a flow: no journal entry is created.
+  const [alreadySaved, setAlreadySaved] = useState("");
   const [waterAmounts, setWaterAmounts] = useState<Record<string, string>>({});
 
-  const currentLifebuoy = state.goals.find((g) => g.isEmergency);
+  // Rain-barrel setup form. monthlyExpenses comes from derive()'s fallback
+  // chain (trailing average → projection → total budget → bare 1), so > 1
+  // means there's at least a budget-based estimate to suggest; the bare
+  // sentinel 1 (every budget zeroed, nothing logged) means suggest nothing.
+  const paceKnown = monthlyExpenses > 1;
+  const [barrelTarget, setBarrelTarget] = useState(() => (paceKnown ? String(Math.round(monthlyExpenses * 3)) : ""));
+  const [barrelOpening, setBarrelOpening] = useState("");
 
   // Inline goal editing — one panel (edit or draw) open at a time.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [eName, setEName] = useState("");
   const [eTarget, setETarget] = useState("");
   const [ePlant, setEPlant] = useState("tulip");
-  const [eEmergency, setEEmergency] = useState(false);
 
   // Draw-from-goal form.
   const [drawingId, setDrawingId] = useState<string | null>(null);
@@ -57,12 +66,13 @@ export function Garden({ state, monthlyExpenses, addGoal, waterGoal, deleteGoal,
     setEName(g.name);
     setETarget(String(g.target));
     setEPlant(g.plant);
-    setEEmergency(g.isEmergency);
   };
+  // Requiring target > 0 also means an edit can never push the barrel back
+  // into its target-0 setup state.
   const canSaveEdit = Boolean(eName.trim() && parseFloat(eTarget) > 0);
   const saveEdit = (g: Goal) => {
     if (!canSaveEdit) return;
-    updateGoal(g.id, { name: eName.trim(), target: parseFloat(eTarget), plant: ePlant, isEmergency: eEmergency });
+    updateGoal(g.id, { name: eName.trim(), target: parseFloat(eTarget), plant: ePlant });
     setEditingId(null);
   };
 
@@ -84,17 +94,15 @@ export function Garden({ state, monthlyExpenses, addGoal, waterGoal, deleteGoal,
   const submit = () => {
     const t = parseFloat(target);
     if (!name.trim() || !t || t <= 0) return;
-    addGoal({ name: name.trim(), target: t, saved: 0, plant, isEmergency });
-    setName(""); setTarget(""); setIsEmergency(false);
+    addGoal({ name: name.trim(), target: t, saved: Math.max(0, parseFloat(alreadySaved) || 0), plant });
+    setName(""); setTarget(""); setAlreadySaved("");
   };
 
-  // The lifebuoy notice: shown wherever ticking the box would move the flag.
-  const lifebuoyNotice = (excludeId?: string) =>
-    currentLifebuoy && currentLifebuoy.id !== excludeId ? (
-      <div style={{ fontSize: 12.5, color: C.amber, fontWeight: 600 }}>
-        🛟 This moves the lifebuoy — "{currentLifebuoy.name}" will no longer be your emergency fund.
-      </div>
-    ) : null;
+  const doSetupBarrel = () => {
+    const t = parseFloat(barrelTarget);
+    if (!(t > 0)) return;
+    setupEmergencyFund(t, Math.max(0, parseFloat(barrelOpening) || 0));
+  };
 
   // Render functions, not components: they close over the form state, and a
   // component identity would change per keystroke and drop input focus.
@@ -113,11 +121,6 @@ export function Garden({ state, monthlyExpenses, addGoal, waterGoal, deleteGoal,
           {PLANT_KINDS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
         </select>
       </Field>
-      <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13, color: C.inkSoft, cursor: "pointer" }}>
-        <input type="checkbox" checked={eEmergency} onChange={(e) => setEEmergency(e.target.checked)} />
-        This is my emergency fund
-      </label>
-      {eEmergency && !g.isEmergency && lifebuoyNotice(g.id)}
       <div style={{ fontSize: 12, color: C.inkSoft }}>
         Balance ({fmt(g.saved)}) isn't edited here — water the goal or tend its journal entries, so every dollar stays traceable.
       </div>
@@ -143,7 +146,7 @@ export function Garden({ state, monthlyExpenses, addGoal, waterGoal, deleteGoal,
         onKeyDown={(e) => { if (e.key === "Enter") doDraw(g); if (e.key === "Escape") setDrawingId(null); }}>
         <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16 }}>Draw from "{g.name}" 🪣</div>
         <div style={{ fontSize: 12.5, color: C.inkSoft }}>
-          Logged as an expense (it counts in your budgets and monthly spend) and drained from the goal. The barrel holds <b className="mg-num" style={{ color: C.ink }}>{fmt(g.saved)}</b>.
+          Logged in your journal and drained from the goal — draws spend the goal's pool, not this month's budget, so it shows up beside your spending as 🌸 rather than inside it. The barrel holds <b className="mg-num" style={{ color: C.ink }}>{fmt(g.saved)}</b>.
         </div>
         <Field label={`Amount (up to ${fmt(g.saved)})`}>
           <input className="mg-num" type="number" min="1" placeholder="500" value={dAmount}
@@ -176,6 +179,40 @@ export function Garden({ state, monthlyExpenses, addGoal, waterGoal, deleteGoal,
     );
   };
 
+  // The rain-barrel setup card — the barrel's permanent slot doubles as its
+  // one-time setup form while target is 0 (the "not set up yet" sentinel).
+  const setupCard = (g: Goal) => (
+    <section key={g.id} className="mg-card" style={{ padding: 18, display: "grid", gap: 10, background: C.mist }}
+      onKeyDown={(e) => { if (e.key === "Enter") doSetupBarrel(); }}>
+      <div style={{ display: "grid", gap: 2 }}>
+        {/* Plain-words heading first, so the metaphor never obscures what this is. */}
+        <CardTitle style={{ margin: 0 }}>Emergency fund</CardTitle>
+        <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 16 }}>Set up your rain barrel 🛟</div>
+      </div>
+      <div style={{ fontSize: 12.5, color: C.inkSoft }}>
+        {paceKnown
+          ? <>Many planners suggest keeping 3–6 months of expenses within easy reach — based on your pace, that's roughly <b className="mg-num" style={{ color: C.ink }}>{fmt(monthlyExpenses * 3)}–{fmt(monthlyExpenses * 6)}</b>.</>
+          : <>Many planners suggest keeping 3–6 months of what a typical month costs you within easy reach.</>}
+        {" "}A rule of thumb, not personalized financial advice — set what feels safe.
+      </div>
+      <Field label="Target amount">
+        <input className="mg-num" type="number" min="1" value={barrelTarget} placeholder="6000"
+          onChange={(e) => setBarrelTarget(e.target.value)} style={inputStyle} />
+      </Field>
+      <Field label="Already set aside (optional)">
+        <input className="mg-num" type="number" min="0" value={barrelOpening} placeholder="0"
+          onChange={(e) => setBarrelOpening(e.target.value)} style={inputStyle} />
+      </Field>
+      <div style={{ fontSize: 12, color: C.inkSoft }}>
+        Money already in your cushion goes straight into the barrel — it never touches this month's budget or journal.
+      </div>
+      <button className="mg-btn" onClick={doSetupBarrel} disabled={!(parseFloat(barrelTarget) > 0)}
+        style={{ background: parseFloat(barrelTarget) > 0 ? C.leaf : C.border, color: C.inkContrast, border: "none", borderRadius: 10, padding: "8px 18px", fontWeight: 700, fontSize: 13, cursor: parseFloat(barrelTarget) > 0 ? "pointer" : "not-allowed", justifySelf: "start" }}>
+        🛟 Set up the barrel
+      </button>
+    </section>
+  );
+
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <section className="mg-card" style={{ padding: 20 }}>
@@ -192,30 +229,26 @@ export function Garden({ state, monthlyExpenses, addGoal, waterGoal, deleteGoal,
               {PLANT_KINDS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
             </select>
           </Field>
+          <Field label="Already saved (optional)">
+            <input className="mg-num" type="number" min="0" value={alreadySaved} placeholder="0"
+              onChange={(e) => setAlreadySaved(e.target.value)} style={inputStyle} />
+          </Field>
         </div>
-        <label style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, fontSize: 13.5, color: C.inkSoft, cursor: "pointer" }}>
-          <input type="checkbox" checked={isEmergency} onChange={(e) => {
-            const checked = e.target.checked;
-            setIsEmergency(checked);
-            // Prefill the name for an empty form; undo only our own prefill on
-            // uncheck so a user-typed name is never touched.
-            if (checked && !name.trim()) setName("Emergency fund");
-            else if (!checked && name === "Emergency fund") setName("");
-          }} />
-          This is my emergency fund (the advisor tracks it against 3–6 months of expenses)
-        </label>
-        {isEmergency && <div style={{ marginTop: 6 }}>{lifebuoyNotice()}</div>}
+        <div style={{ marginTop: 8, fontSize: 12.5, color: C.inkSoft }}>
+          "Already saved" is money you set aside before planting — it fills the goal without touching this month's budget or journal.
+        </div>
         <button className="mg-btn" onClick={submit} disabled={!name.trim() || !target}
           style={{ marginTop: 12, background: name.trim() && target ? C.leaf : C.border, color: C.inkContrast, border: "none", borderRadius: 12, padding: "11px 22px", fontWeight: 700, cursor: name.trim() && target ? "pointer" : "not-allowed" }}>
           🌱 Plant it
         </button>
       </section>
 
-      {state.goals.length === 0 ? (
-        <section className="mg-card"><Empty text="The garden bed is empty. Plant your first goal above — an emergency fund is a great first seed." /></section>
-      ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 16 }}>
+      {/* The barrel always exists (engine invariant), so the grid always renders. */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 16 }}>
           {state.goals.map((g) => {
+            // The un-set-up barrel shows its setup form instead of a plant —
+            // it has no edit/draw buttons, so those panels can't open on it.
+            if (g.isEmergency && g.target === 0) return setupCard(g);
             if (g.id === editingId) return editPanel(g);
             if (g.id === drawingId) return drawPanel(g);
             const progress = Math.min(1, g.saved / g.target);
@@ -233,7 +266,8 @@ export function Garden({ state, monthlyExpenses, addGoal, waterGoal, deleteGoal,
                 <div style={{ position: "absolute", top: 10, right: 12, display: "flex", gap: 2, alignItems: "center" }}>
                   <button className="mg-btn" onClick={() => openEdit(g)} title="Edit goal" aria-label={`Edit goal ${g.name}`}
                     style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 13, padding: 4 }}>✏️</button>
-                  {confirmDeleteId === g.id ? (
+                  {/* The barrel is permanent — no delete affordance at all. */}
+                  {!g.isEmergency && (confirmDeleteId === g.id ? (
                     <button className="mg-btn" onClick={() => { deleteGoal(g.id); setConfirmDeleteId(null); }}
                       title="Really delete this goal" aria-label={`Really delete goal ${g.name}`}
                       style={{ background: C.tomato, border: "none", borderRadius: 999, padding: "3px 9px", fontWeight: 700, fontSize: 11, color: C.inkContrast, cursor: "pointer", whiteSpace: "nowrap" }}>
@@ -242,7 +276,7 @@ export function Garden({ state, monthlyExpenses, addGoal, waterGoal, deleteGoal,
                   ) : (
                     <button className="mg-btn" onClick={() => armDelete(g.id)} title="Remove goal" aria-label={`Remove goal ${g.name}`}
                       style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 14, padding: 4 }}>✕</button>
-                  )}
+                  ))}
                 </div>
                 <Plant progress={progress} bloom={bloom} size={120} celebrate={progress >= 1} />
                 <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 18 }}>{g.name}{g.isEmergency ? " 🛟" : ""}</div>
@@ -287,7 +321,9 @@ export function Garden({ state, monthlyExpenses, addGoal, waterGoal, deleteGoal,
               </section>
             );
           })}
-        </div>
+      </div>
+      {state.goals.length === 1 && (
+        <section className="mg-card"><Empty text="The rest of the bed is empty — plant your first goal above. A trip, a cushion, a someday-thing: every flower starts as a seed." /></section>
       )}
     </div>
   );
