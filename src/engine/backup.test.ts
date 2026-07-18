@@ -75,11 +75,11 @@ describe("parseBackup — round trip", () => {
     expect(result.preview.state.commitments).toEqual([]);
     expect(result.preview.state.invest.monthly).toBe(250);
     expect(result.preview.state.invest.ret).toBe(7); // default filled in
-    // v0.12.0: barrel-less imports gain the unfunded barrel (counted in the
-    // preview — "1 goal" for this dump is truthful).
+    // v0.12.0: barrel-less imports gain the unfunded barrel — but the
+    // preview count reports the FILE's goals (0 here), not the injection.
     expect(result.preview.state.goals).toHaveLength(1);
     expect(result.preview.state.goals[0]).toMatchObject({ name: "Emergency fund", target: 0, isEmergency: true });
-    expect(result.preview.counts.goals).toBe(1);
+    expect(result.preview.counts.goals).toBe(0);
   });
 
   it("fills missing top-level fields so a partial dump can't crash the app", () => {
@@ -105,6 +105,22 @@ describe("parseBackup — round trip", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.preview.state.goals.map((g) => [g.id, g.isEmergency])).toEqual([["y", true], ["x", false], ["z", false]]);
+    expect(result.preview.counts.goals).toBe(3); // file count — no injection happened
+  });
+
+  it("previews the file's goal count, not the post-migration one", () => {
+    // One regular goal, no emergency fund: after import the barrel makes it
+    // two, but the preview answers "what does this file contain?" → 1.
+    const oneGoal = {
+      budgets: {},
+      goals: [{ id: "j", name: "Japan trip", plant: "tulip", target: 2800, saved: 640, isEmergency: false }],
+    };
+    const result = parseBackup(JSON.stringify(oneGoal));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.preview.counts.goals).toBe(1);
+    expect(result.preview.state.goals).toHaveLength(2); // barrel + Japan trip
+    expect(result.preview.state.goals[0]).toMatchObject({ isEmergency: true, target: 0 });
   });
 });
 
