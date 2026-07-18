@@ -45,7 +45,14 @@ leaves on that trunk; the engine could be transplanted into another frontend
 │   state.ts    emptyState, sampleState, migrate, serialize, bumpStreak  │
 │               (update/removeTransaction exactly reverse the goalId,    │
 │               holdingId, and commitmentId linkage side-effects)        │
+│               ensureEmergencyGoal enforces the rain-barrel invariant   │
+│               in migrate(): one isEmergency goal always exists, first  │
+│               in goals[], target 0 = "not set up yet"; deleteGoal      │
+│               refuses it, setupEmergencyFund gives it target+opening   │
+│               balance once (no transaction — not a monthly flow)       │
 │   backup.ts   buildBackup(), parseBackup() → seed-vault envelope       │
+│               (imports run through migrate, so barrel-less backups     │
+│               gain the barrel on import too)                           │
 │   storage.ts  createStore() → three-tier adapter (below)               │
 └───────────────┬────────────────────────────────────────────────────────┘
                 │  one JSON string, key "money-garden:state-v1"

@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.12.0 — 2026-07-18 · *The rain barrel is part of the garden* 🛟
+
+### Changed
+
+- **The emergency fund is now a permanent fixture.** Every garden has exactly
+  one rain barrel: it's there from the first visit, always sits first in the
+  bed, and can't be deleted. Old saves and imported backups gain it
+  automatically. Until you give it a target it shows a one-time setup card
+  with a hedged suggestion (3× your typical monthly spending, with the 3–6
+  month range many planners mention) — a rule of thumb, not personalized
+  financial advice.
+- The "this is my emergency fund" checkbox is gone from planting and editing,
+  and with it the lifebuoy-moving dance — the barrel is the barrel.
+- The advisor's first tip now says "Set up your rain barrel" while the
+  target is unset, instead of asking you to plant a fund that already exists.
+
+### Added
+
+- **Opening balances.** Setting up the barrel (and planting any goal) can
+  record money you'd already set aside — it fills the goal immediately
+  without touching this month's budget, journal, Left, or savings rate.
+  A starting fact, not a monthly flow; after that, balances stay
+  journal-driven as always.
+
 ## 0.11.0 — 2026-07-18 · *The almanac remembers the harvest* 🌸
 
 ### Added
