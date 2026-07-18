@@ -110,7 +110,11 @@ export function parseBackup(raw: string): ParseResult {
       state,
       counts: {
         transactions: state.transactions?.length ?? 0,
-        goals: state.goals?.length ?? 0,
+        // Goals are counted from the FILE, not the migrated state: migrate
+        // injects the permanent rain barrel into barrel-less backups, and
+        // the preview's job is "does this look like what I exported?" —
+        // a 0-goal backup must preview as 0, not as the barrel it'll gain.
+        goals: Array.isArray(candidate.goals) ? candidate.goals.length : 0,
         commitments: state.commitments?.length ?? 0,
         holdings: state.invest?.holdings?.length ?? 0,
       },

@@ -460,7 +460,9 @@ export function MoneyGarden() {
               This backup contains <b className="mg-num" style={{ color: C.ink }}>{pendingImport.counts.transactions}</b> transactions · <b className="mg-num" style={{ color: C.ink }}>{pendingImport.counts.goals}</b> goals · <b className="mg-num" style={{ color: C.ink }}>{pendingImport.counts.commitments}</b> commitments · <b className="mg-num" style={{ color: C.ink }}>{pendingImport.counts.holdings}</b> holdings{pendingImport.exportedAt ? <> · exported {pendingImport.exportedAt}</> : null}.
             </p>
             <p style={{ margin: "0 0 12px", fontSize: 13.5, color: C.tomato, fontWeight: 600 }}>
-              ⚠ Importing replaces your current garden ({state.transactions.length} transactions, {state.goals.length} goals).
+              {/* An untouched built-in barrel isn't something you'd lose —
+                  but a set-up or funded one is, so it counts. */}
+              ⚠ Importing replaces your current garden ({state.transactions.length} transactions, {state.goals.filter((g) => !(g.isEmergency && g.target === 0 && g.saved === 0)).length} goals).
             </p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button className="mg-btn" onClick={confirmImport}
