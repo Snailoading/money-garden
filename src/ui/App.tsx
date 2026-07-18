@@ -45,6 +45,7 @@ export function MoneyGarden() {
   const goToDraws = () => { setLogPreset("draw"); setTab("log"); };
   const [toast, setToast] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmReplant, setConfirmReplant] = useState(false);
   const [pendingImport, setPendingImport] = useState<ImportPreview | null>(null);
   /** YYYY-MM being browsed; null = today. Affects Overview, Log, Budget plots. */
   const [viewYm, setViewYm] = useState<string | null>(null);
@@ -446,7 +447,7 @@ export function MoneyGarden() {
         {tab === "overview" && <Overview state={state} d={derived} view={monthView} setIncome={setIncome} goTo={(t) => switchTab(t as TabId)} goToDraws={goToDraws} />}
         {tab === "log" && <Log state={state} d={derived} view={monthView} addTransaction={addTransaction} deleteTransaction={deleteTransaction} updateTransaction={editTransaction} markNoSpend={markNoSpendDay} initialFilter={logPreset} />}
         {tab === "budgets" && <Budgets state={state} d={derived} view={monthView} setBudget={setBudget} addCommitment={addCommitment} deleteCommitment={deleteCommitment} logCommitmentPayment={logCommitmentPayment} updateCommitment={editCommitment} />}
-        {tab === "garden" && <Garden state={state} monthlyExpenses={derived.monthlyExpenses} addGoal={addGoal} waterGoal={waterGoal} deleteGoal={deleteGoal} updateGoal={editGoal} drawFromGoal={drawFromGoal} setupEmergencyFund={setupBarrel} />}
+        {tab === "garden" && <Garden state={state} monthlyExpenses={derived.monthlyExpenses} expensesBasis={derived.expensesBasis} addGoal={addGoal} waterGoal={waterGoal} deleteGoal={deleteGoal} updateGoal={editGoal} drawFromGoal={drawFromGoal} setupEmergencyFund={setupBarrel} />}
         {tab === "orchard" && <Orchard state={state} d={derived} setInvest={setInvest} addHolding={addHolding} updateHolding={updateHolding} deleteHolding={deleteHolding} waterOrchard={waterOrchard} />}
         {tab === "seasons" && <Seasons state={state} goToMonth={(ym) => { goToMonth(ym); setTab("overview"); }} />}
         {tab === "advice" && <Advice state={state} d={derived} showInstallTip={installPref !== "muted"} onMuteInstallTip={muteInstallTip} />}
@@ -493,19 +494,26 @@ export function MoneyGarden() {
                 void onImportFile(e.target.files?.[0]);
                 e.target.value = ""; // allow re-picking the same file
               }} />
-            {!isEmpty && (
-              <button className="mg-btn" onClick={() => { setStateSafe(sampleState()); setConfirmReset(false); setViewYm(null); showToast("🌼 Sample garden replanted"); }}
-                style={{ background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "7px 14px", fontWeight: 600, fontSize: 13, color: C.inkSoft, cursor: "pointer" }}>
-                Replant sample data
+            {/* Replanting overwrites the whole garden, so it two-steps like
+                Start fresh (arm → 4s window → tomato confirm). */}
+            {!isEmpty && (confirmReplant ? (
+              <button className="mg-btn" onClick={() => { setStateSafe(sampleState()); setConfirmReplant(false); setConfirmReset(false); setViewYm(null); showToast("🌼 Sample garden replanted"); }}
+                style={{ background: C.tomato, border: `1.5px solid ${C.tomato}`, borderRadius: 10, padding: "7px 14px", fontWeight: 700, fontSize: 13, color: C.inkContrast, cursor: "pointer" }}>
+                Really replace everything with sample data?
               </button>
-            )}
+            ) : (
+              <button className="mg-btn" onClick={() => { setConfirmReplant(true); setConfirmReset(false); setTimeout(() => setConfirmReplant(false), 4000); }}
+                style={{ background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "7px 14px", fontWeight: 600, fontSize: 13, color: C.inkSoft, cursor: "pointer" }}>
+                Replant sample data…
+              </button>
+            ))}
             {confirmReset ? (
               <button className="mg-btn" onClick={() => { setStateSafe(emptyState()); setConfirmReset(false); setViewYm(null); setTab("overview"); showToast("🍂 Fresh soil — everything cleared"); }}
                 style={{ background: C.tomato, border: `1.5px solid ${C.tomato}`, borderRadius: 10, padding: "7px 14px", fontWeight: 700, fontSize: 13, color: C.inkContrast, cursor: "pointer" }}>
                 Really erase everything?
               </button>
             ) : (
-              <button className="mg-btn" onClick={() => { setConfirmReset(true); setTimeout(() => setConfirmReset(false), 4000); }}
+              <button className="mg-btn" onClick={() => { setConfirmReset(true); setConfirmReplant(false); setTimeout(() => setConfirmReset(false), 4000); }}
                 style={{ background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "7px 14px", fontWeight: 600, fontSize: 13, color: C.inkSoft, cursor: "pointer" }}>
                 Start fresh…
               </button>
