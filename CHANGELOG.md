@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.12.2 — 2026-07-18 · *The seed count matches the packet* 🌰
+
+### Fixed
+
+- The import preview now counts the goals **in the backup file** rather than
+  the goals you'd have after importing — previously a barrel-less backup
+  previewed with one extra goal (the permanent rain barrel that migration
+  adds on import). "This backup contains" now means exactly that; the
+  barrel is still added on import as always.
+- Same honesty for the warning beneath it: "replaces your current garden
+  (X goals)" no longer counts a rain barrel you haven't touched — a fresh
+  garden reads "0 goals". A set-up or funded barrel still counts, because
+  replacing it would lose real money records.
+
 ## 0.12.1 — 2026-07-18 · *Sturdier hoops, honest signage* 🪣
 
 ### Fixed
