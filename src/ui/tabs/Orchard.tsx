@@ -6,7 +6,7 @@ import { useState } from "react";
 import type { Holding, Invest, State } from "../../engine/types";
 import { DEFAULT_INVEST } from "../../engine/types";
 import type { Derived } from "../../engine/stats";
-import { fmt } from "../../engine/format";
+import { fmt, monthKey, monthLabel, shortDate } from "../../engine/format";
 import { C, inputStyle } from "../theme";
 import { CardTitle, Field } from "../bits";
 import { OrchardTree } from "../art/OrchardTree";
@@ -104,6 +104,19 @@ export function Orchard({ state, d, setInvest, addHolding, updateHolding, delete
                 Log some expenses (or plant sample data) so the orchard can size your freedom number — it's your yearly spending × {Math.round(100 / f.wr)}.
               </p>
             )}
+            {/* The yield line — a hypothetical retirement draw, never income.
+                The conditional framing and "rule of thumb" are load-bearing:
+                user-approved copy, keep the hedge. Outside the ternary so it
+                shows whenever anything is planted, even before the freedom
+                number can be sized; hidden for a bare orchard (the empty
+                prompt above already carries the encouragement). */}
+            {f.portfolio > 0 && (
+              <div style={{ fontSize: 13, color: C.inkSoft, marginTop: 8 }}>
+                🍎 If you retired today, the {f.wr}% rule of thumb would let you draw about{" "}
+                <b className="mg-num" style={{ color: C.ink }}>{fmt(f.monthlyYield, { maximumFractionDigits: 0 })}</b>/month
+                from the orchard — in today's dollars. It grows every time you water.
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -124,8 +137,11 @@ export function Orchard({ state, d, setInvest, addHolding, updateHolding, delete
         <section className="mg-card" style={{ padding: 20 }}>
           <CardTitle>Growing conditions</CardTitle>
           <div style={{ display: "grid", gap: 10 }}>
-            <Field label="Your age">
-              <input className="mg-num" type="number" min="14" max="100" value={inv.age} onChange={(e) => setInvest({ age: numField(e.target.value) })} style={inputStyle} />
+            <Field label="Birth year (your age keeps itself current from this)">
+              {/* 0 is the "not set" sentinel → renders as an empty box; the
+                  engine falls back to age 30 until a year is entered. */}
+              <input className="mg-num" type="number" min="1920" max={new Date().getFullYear() - 14} placeholder="1995"
+                value={inv.birthYear || ""} onChange={(e) => setInvest({ birthYear: numField(e.target.value) })} style={inputStyle} />
             </Field>
             <Field label="Traditional retirement age (anchors Coast FIRE)">
               <input className="mg-num" type="number" min="40" max="100" value={inv.retireAge} onChange={(e) => setInvest({ retireAge: numField(e.target.value) })} style={inputStyle} />
@@ -138,6 +154,34 @@ export function Orchard({ state, d, setInvest, addHolding, updateHolding, delete
             </Field>
             <Field label="Monthly investing — the watering can">
               <input className="mg-num" type="number" min="0" value={inv.monthly} onChange={(e) => setInvest({ monthly: numField(e.target.value) })} style={inputStyle} />
+              {/* Journal-derived status, never a task: no button, nothing to
+                  dismiss, no scold — it clears itself when you water or the
+                  month rolls. (One-tap logging deliberately rejected: the
+                  planned amount often isn't the actual amount.) */}
+              {(() => {
+                const w = d.watering;
+                const planned = Number(inv.monthly) > 0;
+                if (!planned && w.lastWateredISO === null) return null;
+                const monthName = monthLabel(monthKey());
+                // Parse by parts — new Date("YYYY-MM-DD") would read as UTC
+                // and shift the day for UTC+ users (the toLocalISO lesson).
+                const poured = (() => {
+                  if (!w.lastWateredISO) return null;
+                  const [y, m, dd] = w.lastWateredISO.split("-").map(Number);
+                  return shortDate(new Date(y, m - 1, dd));
+                })();
+                const clauses = [
+                  planned ? `The can plans ${fmt(inv.monthly)}/month` : "No monthly amount set",
+                  poured ? `last poured ${poured}` : "nothing poured yet",
+                  ...(w.wateredThisMonth ? [`${fmt(w.pouredThisMonth)} this ${monthName}`]
+                    : poured ? [`nothing yet this ${monthName}`] : []),
+                ];
+                return (
+                  <span style={{ fontSize: 11.5, fontWeight: 500, color: C.inkSoft, lineHeight: 1.45 }}>
+                    💧 {clauses.join(" · ")}
+                  </span>
+                );
+              })()}
             </Field>
             <Field label="Expected annual return % (7% ≈ long-run stock average after inflation)">
               <input className="mg-num" type="number" min="0" max="15" step="0.5" value={inv.ret} onChange={(e) => setInvest({ ret: numField(e.target.value) })} style={inputStyle} />
