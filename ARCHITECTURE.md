@@ -36,7 +36,9 @@ leaves on that trunk; the engine could be transplanted into another frontend
 │               monthAggregates(state, ym)  → shared month core          │
 │               (budget basis: goal draws — isDraw — excluded from every │
 │               budget number; surfaced separately as `drawn`)           │
-│      ├── fire.ts         deriveFire()     → FIRE/Coast/projections     │
+│      ├── fire.ts         deriveFire(inv, exp, now) → FIRE/Coast/proj.  │
+│      │                    (age derives from birthYear at compute time)  │
+│      │                    deriveWatering() → the can's journal status   │
 │      └── commitments.ts  deriveCommitments(), nextDueDate(), …         │
 │   trends.ts   monthRange(), monthlyTrends() → Seasons + nav bounds     │
 │   advice.ts   buildAdvice(state, derived) → prioritized Tip[]          │
