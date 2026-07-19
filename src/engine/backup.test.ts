@@ -66,6 +66,26 @@ describe("parseBackup — round trip", () => {
     expect(result.preview.exportedAt).toBeNull();
   });
 
+  it("converts a legacy invest.age backup to birthYear on import", () => {
+    const NOW = new Date(2026, 5, 15);
+    const old = { budgets: {}, invest: { monthly: 250, age: 40 } };
+    const result = parseBackup(JSON.stringify(old), NOW);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.preview.state.invest.birthYear).toBe(1986);
+    expect("age" in result.preview.state.invest).toBe(false);
+    expect(result.preview.state.invest.monthly).toBe(250);
+  });
+
+  it("round-trips a birthYear state without resurrecting age", () => {
+    const s = sampleState(june15);
+    const result = parseBackup(buildBackup(s, june15).json);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.preview.state.invest.birthYear).toBe(s.invest.birthYear);
+    expect("age" in result.preview.state.invest).toBe(false);
+  });
+
   it("migrates old backups: fills missing invest keys, commitments, and the barrel", () => {
     // A pre-commitments era dump: no commitments, partial invest, no barrel.
     const old = { income: 100, budgets: { housing: 500 }, transactions: [], goals: [], invest: { monthly: 250 }, streak: { count: 0, lastDate: null } };

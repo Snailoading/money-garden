@@ -83,7 +83,11 @@ export interface Invest {
   monthly: number;
   /** Expected annual real return, percent (7 = 7%). */
   ret: number;
-  age: number;
+  /** Birth year (e.g. 1995) — age is DERIVED at computation time as
+   * currentYear − birthYear, so it never goes stale. 0 = "not set"
+   * sentinel → age defaults to 30 (replaces the stored `age` field;
+   * migrate() converts old saves). */
+  birthYear: number;
   retireAge: number;
   /** Withdrawal rate, percent (4 = the 4% rule). */
   wr: number;
@@ -162,5 +166,5 @@ export const PLANT_KINDS: PlantKind[] = [
 export const STORAGE_KEY = "money-garden:state-v1";
 
 export const DEFAULT_INVEST: Invest = {
-  holdings: [], monthly: 0, ret: 7, age: 30, retireAge: 65, wr: 4, retireSpend: 0,
+  holdings: [], monthly: 0, ret: 7, birthYear: 0, retireAge: 65, wr: 4, retireSpend: 0,
 };
