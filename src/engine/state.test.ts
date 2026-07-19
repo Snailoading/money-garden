@@ -99,6 +99,27 @@ describe("migrate", () => {
     expect((migrated.invest as unknown as Record<string, unknown>).futureKnob).toBe(true);
   });
 
+  it("converts a legacy stored age to birthYear and removes the age key", () => {
+    const NOW = new Date(2026, 5, 15);
+    const migrated = migrate({ income: 1, invest: { age: 40 } }, NOW);
+    expect(migrated.invest.birthYear).toBe(1986);
+    expect("age" in migrated.invest).toBe(false);
+  });
+
+  it("lets an existing birthYear win over a lingering legacy age", () => {
+    const NOW = new Date(2026, 5, 15);
+    const migrated = migrate({ invest: { age: 40, birthYear: 1990 } }, NOW);
+    expect(migrated.invest.birthYear).toBe(1990);
+    expect("age" in migrated.invest).toBe(false);
+  });
+
+  it("clamps an absurd legacy age before converting; no age → sentinel 0", () => {
+    const NOW = new Date(2026, 5, 15);
+    expect(migrate({ invest: { age: 900 } }, NOW).invest.birthYear).toBe(1926);  // clamped to 100
+    expect(migrate({ invest: { age: 3 } }, NOW).invest.birthYear).toBe(2012);    // clamped to 14
+    expect(migrate({ invest: { monthly: 5 } }, NOW).invest.birthYear).toBe(0);   // never had one
+  });
+
   it("injects the rain barrel into a pre-0.12 save without one", () => {
     const old = { income: 100, goals: [{ id: "j", name: "Japan trip", plant: "tulip", target: 2800, saved: 640, isEmergency: false }] };
     const migrated = migrate(old);

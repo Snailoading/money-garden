@@ -64,7 +64,7 @@ const looksLikeState = (v: unknown): v is Record<string, unknown> =>
 /** The array-valued State fields; anything present must actually be an array. */
 const ARRAY_FIELDS = ["transactions", "goals", "commitments"] as const;
 
-export function parseBackup(raw: string): ParseResult {
+export function parseBackup(raw: string, now: Date = new Date()): ParseResult {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -103,7 +103,7 @@ export function parseBackup(raw: string): ParseResult {
   // must not crash the app), then migrate() — which fills invest keys,
   // defaults commitments, and keeps unknown fields, so a backup from a
   // future minor version survives the round-trip intact.
-  const state = migrate({ ...emptyState(), ...candidate });
+  const state = migrate({ ...emptyState(), ...candidate }, now);
   return {
     ok: true,
     preview: {

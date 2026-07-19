@@ -103,7 +103,7 @@ export function sampleState(now: Date = new Date()): State {
         { id: uid(), name: "Global index fund ETF", value: 14200 },
         { id: uid(), name: "Retirement account",    value: 9800 },
       ],
-      monthly: 400, ret: 7, age: 29, retireAge: 65, wr: 4, retireSpend: 0,
+      monthly: 400, ret: 7, birthYear: y - 29, retireAge: 65, wr: 4, retireSpend: 0,
     },
     commitments: [
       { id: uid(), kind: "sub",  name: "Streaming bundle", amount: 15.99, cadence: "monthly", payDay: 12, payMonth: 1, endDate: "", category: "subs" },
@@ -118,16 +118,29 @@ export function sampleState(now: Date = new Date()): State {
 /**
  * Normalize a parsed stored state — the reference's load-time migration:
  * fill any missing invest keys from defaults, default commitments to [],
- * and enforce the rain-barrel invariant (backup import routes through here
- * too, so imported barrel-less backups gain the barrel the same way).
+ * enforce the rain-barrel invariant (backup import routes through here
+ * too, so imported barrel-less backups gain the barrel the same way), and
+ * convert the legacy stored `age` to `birthYear` (v0.14.0).
  * Spreads keep every unknown field intact (CLAUDE.md: never silently drop
  * unknown fields), so data written by future versions survives a round-trip.
+ * `age` is deliberately the exception: it's a KNOWN field owned by this
+ * migration, and a frozen age beside a living birthYear would be a second
+ * source of truth that rots every January — so it's converted, then removed.
  */
-export function migrate(parsed: Record<string, unknown>): State {
+export function migrate(parsed: Record<string, unknown>, now: Date = new Date()): State {
+  const savedInvest = (parsed.invest as Partial<Invest> & { age?: number }) || {};
+  const invest = { ...DEFAULT_INVEST, ...savedInvest };
+  if (!(Number(invest.birthYear) > 0) && Number.isFinite(savedInvest.age)) {
+    // Write the replacement BEFORE dropping the original; birthYear wins
+    // when both are somehow present (the birthYear > 0 guard above).
+    const legacyAge = Math.min(100, Math.max(14, Number(savedInvest.age) || 30));
+    invest.birthYear = now.getFullYear() - legacyAge;
+  }
+  delete (invest as { age?: number }).age;
   return {
     ...(parsed as unknown as State),
     goals: ensureEmergencyGoal((parsed.goals as Goal[]) || []),
-    invest: { ...DEFAULT_INVEST, ...((parsed.invest as Partial<Invest>) || {}) },
+    invest,
     commitments: (parsed.commitments as Commitment[]) || [],
   };
 }
@@ -135,8 +148,8 @@ export function migrate(parsed: Record<string, unknown>): State {
 export const serialize = (state: State): string => JSON.stringify(state);
 
 /** Parse + migrate. Throws on invalid JSON — callers decide the fallback. */
-export function deserialize(raw: string): State {
-  return migrate(JSON.parse(raw));
+export function deserialize(raw: string, now: Date = new Date()): State {
+  return migrate(JSON.parse(raw), now);
 }
 
 /**

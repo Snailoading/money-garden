@@ -7,7 +7,7 @@
 import type { State, Transaction } from "./types";
 import { CATEGORIES } from "./types";
 import { monthKey } from "./format";
-import { deriveFire, type FireDerived } from "./fire";
+import { deriveFire, deriveWatering, type FireDerived, type WateringStatus } from "./fire";
 import { deriveCommitments, type CommitmentsDerived } from "./commitments";
 
 export interface DailyPoint {
@@ -62,6 +62,8 @@ export interface Derived {
   /** Where monthlyExpenses came from: completed-month history, a projection
    * of this month's real spending, or (no spending at all) the budgets. */
   expensesBasis: "history" | "projection" | "budget";
+  /** Orchard watering-can status — journal-derived, a "now" concept like fire. */
+  watering: WateringStatus;
   fire: FireDerived;
   commit: CommitmentsDerived;
 }
@@ -196,13 +198,14 @@ export function derive(state: State, now: Date = new Date()): Derived {
           : [totalBudget || 1, "budget"];
   const emergencyMonths = emergency ? emergency.saved / (monthlyExpenses || 1) : 0;
 
-  const fire = deriveFire(state.invest, monthlyExpenses);
+  const fire = deriveFire(state.invest, monthlyExpenses, now);
+  const watering = deriveWatering(state.transactions, now);
   const commit = deriveCommitments(state.commitments || [], now, state.transactions);
 
   return {
     monthTx, spent, drawn, earned, income, savedThisMonth, left, savingsRate, byCat,
     totalBudget, overruns, needs, wants, health, daily, daysInMonth, monthFrac,
-    emergency, emergencyMonths, monthlyExpenses, expensesBasis, fire, commit,
+    emergency, emergencyMonths, monthlyExpenses, expensesBasis, watering, fire, commit,
   };
 }
 

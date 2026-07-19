@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.14.0 — 2026-07-19 · *The tree tells its yield* 🍎
+
+### Added
+
+- **The freedom tree tells its yield.** The Orchard now shows what the
+  withdrawal-rate rule of thumb would let you draw if you retired today —
+  "If you retired today, the 4% rule of thumb would let you draw about
+  $X/month from the orchard — in today's dollars." A planning estimate in
+  the same hedged voice as every projection, never a promise of income.
+- **The watering can reports its status.** Under the monthly-investing
+  field: what the can plans, when the orchard was last poured, and whether
+  anything has been poured this month — all read straight from your
+  journal. It's a status line, not a task: nothing to tap, nothing to
+  dismiss, and the app never logs a contribution for you.
+
+### Changed
+
+- **Your age now keeps itself current.** Growing conditions asks for your
+  birth year instead of your age; the age used by Coast FIRE and the
+  projections is derived fresh every time. Existing saves and old backups
+  convert automatically. Expect harvest ages and Coast numbers to tick
+  over each New Year — that's the feature working, not a bug.
+
 ## 0.13.1 — 2026-07-19 · *New tools in the shed* 🧰
 
 ### Changed

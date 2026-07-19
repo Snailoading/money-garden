@@ -1,16 +1,18 @@
 /*
- * The Orchard — FIRE math: freedom number, Coast FIRE, and month-by-month
- * projections with the ±2% return band.
+ * The Orchard — FIRE math: freedom number, Coast FIRE, month-by-month
+ * projections with the ±2% return band, and the watering status.
  * Ported verbatim from reference/money-garden.html lines 347–402.
- * Pure — no React, no DOM, no clock.
+ * Pure — no React, no DOM; `now` is injected (age derives from birthYear,
+ * and the watering status is month-scoped).
  *
  * Conventions (CLAUDE.md): everything is in today's dollars with real
  * (after-inflation) returns; projections simulate month by month, never with
  * closed-form annuity formulas; freedom dates are windows, not points.
  */
 
-import type { Invest } from "./types";
+import type { Invest, Transaction } from "./types";
 import { DEFAULT_INVEST } from "./types";
+import { monthKey } from "./format";
 
 export interface CurvePoint {
   age: number;
@@ -38,9 +40,47 @@ export interface FireDerived {
   progress: number;
   monthly: number;
   ret: number;
+  /** Derived at computation time: now.getFullYear() − birthYear (clamped). */
   age: number;
   retireAge: number;
   wr: number;
+  /** What the wr rule of thumb would let you draw per month if you retired
+   * today — portfolio × wr% ÷ 12, in today's dollars. A planning estimate,
+   * not income; the copy that renders it must keep the hedge. */
+  monthlyYield: number;
+}
+
+/** The watering-can status — journal-derived, no stored workflow state. */
+export interface WateringStatus {
+  /** ISO date of the latest orchard watering ever, or null if none. */
+  lastWateredISO: string | null;
+  wateredThisMonth: boolean;
+  /** Sum poured this month (journal-driven — edits and deletes move it). */
+  pouredThisMonth: number;
+}
+
+/**
+ * Derive the watering status from the journal. Waterings are the only
+ * holding-linked entries and are always saving-type (state.ts invariant;
+ * journal.ts uses the same discriminator for its link filter). Goal
+ * contributions carry goalId instead, so they never count here.
+ */
+export function deriveWatering(transactions: Transaction[], now: Date = new Date()): WateringStatus {
+  const mk = monthKey(now);
+  let lastWateredISO: string | null = null;
+  let pouredThisMonth = 0;
+  let wateredThisMonth = false;
+  for (const t of transactions) {
+    if (t.type !== "saving" || !t.holdingId) continue;
+    // ISO dates compare lexicographically, so max(date) needs no parsing —
+    // and no reliance on journal order (edits can re-date entries).
+    if (lastWateredISO === null || t.date > lastWateredISO) lastWateredISO = t.date;
+    if (t.date.startsWith(mk)) {
+      wateredThisMonth = true;
+      pouredThisMonth += t.amount;
+    }
+  }
+  return { lastWateredISO, wateredThisMonth, pouredThisMonth };
 }
 
 /* ---- global rate assumptions — adjust here, nowhere else ----
@@ -60,7 +100,7 @@ const monthlyRate = (annualPct: number): number => annualPct / 100 / 12;
  * `monthlyExpenses` is the spending-pace fallback computed in stats.ts —
  * it is only used when invest.retireSpend is 0.
  */
-export function deriveFire(invest: Invest | undefined, monthlyExpenses: number): FireDerived {
+export function deriveFire(invest: Invest | undefined, monthlyExpenses: number, now: Date = new Date()): FireDerived {
   const inv = invest || DEFAULT_INVEST;
   const portfolio = (inv.holdings || []).reduce((a, h) => a + (Number(h.value) || 0), 0);
   const customSpend = Math.max(0, Number(inv.retireSpend) || 0);
@@ -72,7 +112,11 @@ export function deriveFire(invest: Invest | undefined, monthlyExpenses: number):
   const fireNumber = annualExpenses > 0 ? annualExpenses * (100 / wr) : 0;
   const ret = Math.min(RET_CLAMP.max, Math.max(RET_CLAMP.min, Number(inv.ret) || 0));
   const contrib = Math.max(0, Number(inv.monthly) || 0);
-  const age = Math.min(100, Math.max(14, Number(inv.age) || 30));
+  // Age derives from birthYear so it never goes stale (v0.14.0). The 0
+  // sentinel ("not set", like the barrel's target 0) falls back to age 30 —
+  // the same default the old stored-age field had.
+  const birthYear = Number(inv.birthYear) || 0;
+  const age = Math.min(100, Math.max(14, birthYear > 0 ? now.getFullYear() - birthYear : 30));
   const retireAge = Math.min(100, Math.max(age, Number(inv.retireAge) || 65));
   const retLo = Math.max(RET_CLAMP.min, ret - BAND_SPREAD);
   const retHi = Math.min(RET_CLAMP.max, ret + BAND_SPREAD);
@@ -132,5 +176,7 @@ export function deriveFire(invest: Invest | undefined, monthlyExpenses: number):
     curve, coastNumber, coastReached,
     progress: fireNumber > 0 ? Math.min(1, portfolio / fireNumber) : 0,
     monthly: contrib, ret, age, retireAge, wr,
+    // Clamped wr, so the yield agrees with the ×(100/wr) freedom-number copy.
+    monthlyYield: portfolio * wr / 100 / 12,
   };
 }

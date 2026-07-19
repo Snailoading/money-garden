@@ -118,6 +118,13 @@ describe("monthly totals", () => {
     expect(d.expensesBasis).toBe("history"); // a completed month backs it
   });
 
+  it("nests the watering status and scopes it to the derive month", () => {
+    const watered: Transaction = { id: "w1", type: "saving", amount: 250, category: "other", note: "→ Orchard: ETF", date: `${mk}-08`, holdingId: "h1" };
+    const d = derive(state({ transactions: [watered] }), now);
+    expect(d.watering).toEqual({ lastWateredISO: `${mk}-08`, wateredThisMonth: true, pouredThisMonth: 250 });
+    expect(derive(state(), now).watering.lastWateredISO).toBeNull();
+  });
+
   it("labels the monthlyExpenses provenance: history / projection / budget", () => {
     // Fresh garden, nothing logged → the estimate is just the seeded budgets.
     expect(derive(state(), now).expensesBasis).toBe("budget");
