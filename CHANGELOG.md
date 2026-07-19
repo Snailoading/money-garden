@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.13.1 — 2026-07-19 · *New tools in the shed* 🧰
+
+### Changed
+
+- Build toolchain upgraded: Vite 5 → 8, Vitest 2 → 4 (with matching
+  plugin-react 6 and vite-plugin-singlefile 2.3). Clears all five npm-audit
+  advisories in the dev chain (dev-server request exposure, path traversal,
+  Vitest UI file read) — none of which shipped in the built app. No config
+  or app-code changes were needed; the built output has new bundle
+  internals (Vite 8's bundler) but identical structure and behavior,
+  verified by the full test suite and a headless walkthrough.
+
 ## 0.13.0 — 2026-07-18 · *The gardener reads the harvest ledger* 🪣
 
 ### Added
