@@ -11,8 +11,9 @@ import react from "@vitejs/plugin-react";
  * - install: cache the app shell + all assets, then activate immediately
  * - activate: drop caches from older builds
  * - fetch: cache-first for hashed assets (immutable by construction);
- *   network-first for navigations so new deploys arrive, falling back to the
- *   cached shell when offline
+ *   network-first with a short timeout for navigations so new deploys arrive
+ *   while lie-fi cold starts fall back to the cached shell quickly (offline
+ *   falls back too, via fetch rejection)
  */
 function serviceWorkerPlugin(): Plugin {
   return {
@@ -49,6 +50,10 @@ function serviceWorkerPlugin(): Plugin {
         fileName: "sw.js",
         source: `/* Money Garden service worker — generated at build time. */
 const CACHE = "money-garden-${version}";
+// How long a navigation waits on the network before the precached shell
+// serves instead — long enough for a normal online round-trip, short enough
+// that lie-fi cold starts stay usable.
+const NAV_TIMEOUT_MS = 2000;
 const PRECACHE = ${JSON.stringify(precache, null, 2)};
 
 self.addEventListener("install", (e) => {
@@ -72,12 +77,36 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET" || new URL(req.url).origin !== location.origin) return;
   if (req.mode === "navigate") {
-    // Network-first, but NO write-back. The shell is already precached
-    // coherently at install, so there's nothing to refresh — and writing a
-    // fresh navigation response into the cache is actively harmful: after a
-    // deploy it would store new HTML beside the old build's assets (desync),
-    // and it would cache a 404 or a captive-portal page as the app shell.
-    e.respondWith(fetch(req).catch(() => caches.match("./", { ignoreVary: true })));
+    // Network-first WITH a timeout, and NO write-back. Fully offline, fetch
+    // rejects fast and the cached shell serves — but on "lie-fi" (connected,
+    // barely transferring) a plain network-first hangs the cold start for as
+    // long as the browser is willing to wait. After NAV_TIMEOUT_MS we serve
+    // the precached shell instead; genuinely online loads answer well inside
+    // it, so deploys still arrive promptly (no version skew: the shell and
+    // its hashed assets come from the same coherent precache).
+    // No write-back for the same reason as v0.14.3: the shell is precached
+    // at install; a live navigation response written into the cache could
+    // pair new HTML with old assets or store a captive-portal page.
+    e.respondWith(
+      (async () => {
+        const network = fetch(req);
+        // Swallow a late rejection when we've already answered from cache —
+        // an unhandled promise rejection, not a real failure. (Attaching
+        // .catch() here doesn't consume the promise for the await below.)
+        network.catch(() => {});
+        try {
+          const res = await Promise.race([
+            network,
+            new Promise((resolve) => setTimeout(() => resolve(null), NAV_TIMEOUT_MS)),
+          ]);
+          if (res) return res;
+        } catch { /* offline / DNS failure — fall through to the shell */ }
+        const shell = await caches.match("./", { ignoreVary: true });
+        // No cached shell (e.g. storage was cleared): the slow network is
+        // still the only hope — hand the in-flight fetch back to the page.
+        return shell || network;
+      })()
+    );
     return;
   }
   // ignoreVary: hosts often serve assets with "Vary: Origin", and module
