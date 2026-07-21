@@ -10,6 +10,10 @@
   constant, comfortable on-screen size (Spending pace, Seasons, and the
   projection). Full-width charts on desktop are unchanged; tooltips only
   ever grow toward the readable floor, never shrink.
+- **Pressing and holding a chart to read a tooltip no longer selects the
+  chart's text or pops up the copy/callout menu** on phones (iOS and
+  Android). Charts now opt out of text selection and the tap-highlight, so
+  inspecting a data point stays clean.
 
 ## 0.14.0 — 2026-07-19 · *The tree tells its yield* 🍎
 

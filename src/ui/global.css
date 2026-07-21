@@ -204,6 +204,17 @@ button:focus-visible {
   }
 }
 
+/* Charts are inspected by press-and-hold on touch, which otherwise selects
+   the SVG's <text> (axis/tooltip labels) and pops iOS's callout/magnifier.
+   role="img" is worn only by the chart SVGs (the art SVGs have no role), so
+   this scopes cleanly to them and never touches selectable body copy. */
+svg[role="img"] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 .mg-card {
   background: var(--card);
   border: 1.5px solid var(--border);
