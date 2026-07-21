@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.14.4 — 2026-07-22 · *A friendlier cold start* 🌻
+
+### Fixed
+
+- **Opening the garden no longer starts with a blank page.** A lightweight
+  splash — the sunflower on the garden background with "Watering the
+  seedlings…" — paints straight from the HTML, before any script has
+  loaded, and hands off to the app the moment React is up. It follows your
+  day/night theme and holds still if your device asks for reduced motion.
+- **Cold starts on a barely-there connection no longer hang.** Opening the
+  app on "lie-fi" (connected but hardly transferring) used to wait on the
+  network indefinitely; the service worker now gives the network about two
+  seconds, then serves the saved copy of the app instead. Fully offline
+  starts were already instant, and on a normal connection nothing changes —
+  new versions still arrive on the next visit.
+
 ## 0.14.3 — 2026-07-21 · *A sturdier offline cache* 🛡️
 
 ### Fixed

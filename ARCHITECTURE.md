@@ -127,11 +127,16 @@ adapter rule); `App.tsx` owns the ☀️/🌙/🌗 mode (persisted under
 day 7am–7pm) on a timer. SVG colors go through `style=`, never presentation
 attributes, because the latter don't resolve `var()`.
 
+Cold starts paint a static splash (since v0.14.4): inline `<style>` + inlined
+icon SVG in `index.html`, so it renders from raw HTML before the bundle
+arrives, themed by the same boot script. An `App.tsx` mount effect removes it;
+the in-app "Preparing your garden…" state covers the storage load after that.
+
 ## Build targets (both from the same source)
 
 | Target | Command | Output |
 |---|---|---|
-| Hosted PWA | `npm run build` | `dist/` — hashed assets + `manifest.webmanifest` + `sw.js` (generated at build time by an inline Vite plugin with the precache list baked in; cache-first assets, network-first navigations) |
+| Hosted PWA | `npm run build` | `dist/` — hashed assets + `manifest.webmanifest` + `sw.js` (generated at build time by an inline Vite plugin with the precache list baked in; cache-first assets, network-first navigations with a ~2s timeout falling back to the precached shell) |
 | Single file | `npm run build:single` | `dist-single/money-garden.html` — everything inlined (JS, CSS, fonts as data URIs), PWA tags stripped, `__SINGLE_FILE__` define skips SW registration; runs from `file://` |
 
 Fonts (Fraunces + DM Sans, variable woff2) are self-hosted in
