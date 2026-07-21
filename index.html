@@ -23,11 +23,98 @@
       } catch (e) { /* storage unavailable → day */ }
     })();
   </script>
+  <style>
+    /* Static pre-JS splash: painted from raw HTML before the bundle
+       downloads/parses, so a cold start on a slow connection shows the
+       garden instead of a blank (or, at night, black) page. React removes
+       it on mount (App.tsx). Hexes mirror --bg/--ink-soft in global.css —
+       hardcoded because that stylesheet is part of the bundle we're
+       waiting for; same exception as the theme boot script above. */
+    #splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      background: #eef4e9;
+      color: #4a6355;
+      font: 15px/1.4 system-ui, -apple-system, sans-serif;
+    }
+    [data-theme="night"] #splash { background: #0d1524; color: #9db0c7; }
+    #splash svg {
+      animation: splash-breathe 2.4s ease-in-out infinite;
+    }
+    @keyframes splash-breathe {
+      50% { transform: scale(1.06); opacity: 0.85; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #splash svg { animation: none; }
+    }
+  </style>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" sizes="180x180" href="icons/money-garden-icon-180.png" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20512%20512%22%20width%3D%22512%22%20height%3D%22512%22%3E%0A%20%20%3C!--%20Money%20Garden%20app%20icon%20v3%3A%20centered%20sunflower%20bloom%2C%20circle-mask%20safe%20--%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3ClinearGradient%20id%3D%22bg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23358752%22%2F%3E%0A%20%20%20%20%20%20%3Cstop%20offset%3D%221%22%20stop-color%3D%22%232C7546%22%2F%3E%0A%20%20%20%20%3C%2FlinearGradient%3E%0A%20%20%20%20%3Cpath%20id%3D%22petalF%22%20d%3D%22M256%2078%20C%20280%20110%20282%20156%20256%20192%20C%20230%20156%20232%20110%20256%2078%20Z%22%2F%3E%0A%20%20%20%20%3Cpath%20id%3D%22petalB%22%20d%3D%22M256%2066%20C%20278%20100%20280%20150%20256%20188%20C%20232%20150%20234%20100%20256%2066%20Z%22%2F%3E%0A%20%20%3C%2Fdefs%3E%0A%0A%20%20%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%22512%22%20height%3D%22512%22%20rx%3D%22116%22%20fill%3D%22url(%23bg)%22%2F%3E%0A%0A%20%20%3C!--%20two%20small%20leaves%20peeking%20from%20behind%20the%20bloom%2C%20inside%20the%20safe%20circle%20--%3E%0A%20%20%3Cg%20stroke%3D%22%231C352A%22%20stroke-width%3D%2211%22%20stroke-linejoin%3D%22round%22%3E%0A%20%20%20%20%3Cpath%20d%3D%22M150%20372%20C%20108%20380%2084%20360%2082%20328%20C%20122%20322%20148%20340%20150%20372%20Z%22%20fill%3D%22%233E9B5F%22%20transform%3D%22rotate(18%20150%20372)%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M362%20372%20C%20404%20380%20428%20360%20430%20328%20C%20390%20322%20364%20340%20362%20372%20Z%22%20fill%3D%22%235FBF7F%22%20transform%3D%22rotate(-18%20362%20372)%22%2F%3E%0A%20%20%3C%2Fg%3E%0A%0A%20%20%3C!--%20back%20petal%20layer%20(darker%2C%20offset%20half-step)%20--%3E%0A%20%20%3Cg%20fill%3D%22%23D99A1F%22%20stroke%3D%22%231C352A%22%20stroke-width%3D%229%22%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalB%22%20transform%3D%22rotate(12.857%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalB%22%20transform%3D%22rotate(38.571%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalB%22%20transform%3D%22rotate(64.286%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalB%22%20transform%3D%22rotate(90%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalB%22%20transform%3D%22rotate(115.714%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalB%22%20transform%3D%22rotate(141.429%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalB%22%20transform%3D%22rotate(167.143%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalB%22%20transform%3D%22rotate(192.857%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalB%22%20transform%3D%22rotate(218.571%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalB%22%20transform%3D%22rotate(244.286%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalB%22%20transform%3D%22rotate(270%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalB%22%20transform%3D%22rotate(295.714%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalB%22%20transform%3D%22rotate(321.429%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalB%22%20transform%3D%22rotate(347.143%20256%20256)%22%2F%3E%0A%20%20%3C%2Fg%3E%0A%0A%20%20%3C!--%20front%20petal%20layer%20--%3E%0A%20%20%3Cg%20fill%3D%22%23F7C948%22%20stroke%3D%22%231C352A%22%20stroke-width%3D%229%22%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalF%22%20transform%3D%22rotate(0%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalF%22%20transform%3D%22rotate(25.714%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalF%22%20transform%3D%22rotate(51.429%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalF%22%20transform%3D%22rotate(77.143%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalF%22%20transform%3D%22rotate(102.857%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalF%22%20transform%3D%22rotate(128.571%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalF%22%20transform%3D%22rotate(154.286%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalF%22%20transform%3D%22rotate(180%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalF%22%20transform%3D%22rotate(205.714%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalF%22%20transform%3D%22rotate(231.429%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalF%22%20transform%3D%22rotate(257.143%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalF%22%20transform%3D%22rotate(282.857%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalF%22%20transform%3D%22rotate(308.571%20256%20256)%22%2F%3E%0A%20%20%20%20%3Cuse%20href%3D%22%23petalF%22%20transform%3D%22rotate(334.286%20256%20256)%22%2F%3E%0A%20%20%3C%2Fg%3E%0A%0A%20%20%3C!--%20seed%20head%20as%20a%20coin%20--%3E%0A%20%20%3Ccircle%20cx%3D%22256%22%20cy%3D%22256%22%20r%3D%2288%22%20fill%3D%22%235E4026%22%20stroke%3D%22%231C352A%22%20stroke-width%3D%2215%22%2F%3E%0A%20%20%3Ccircle%20cx%3D%22256%22%20cy%3D%22256%22%20r%3D%2264%22%20fill%3D%22none%22%20stroke%3D%22%23F0B429%22%20stroke-width%3D%228%22%20stroke-dasharray%3D%2211%2010%22%2F%3E%0A%20%20%3Ctext%20x%3D%22256%22%20y%3D%22292%22%20text-anchor%3D%22middle%22%20font-family%3D%22Georgia%2C%20'Times%20New%20Roman'%2C%20serif%22%20font-weight%3D%22bold%22%20font-size%3D%22104%22%20fill%3D%22%23F0B429%22%3E%24%3C%2Ftext%3E%0A%3C%2Fsvg%3E%0A" />
 </head>
 <body>
+  <div id="splash" aria-hidden="true">
+    <!-- The app icon, inlined: an <img> would fetch over the same slow
+         connection the splash is covering for (and break on file:// in the
+         single-file build). Ids are splash-prefixed to stay collision-free. -->
+    <svg viewBox="0 0 512 512" width="88" height="88">
+      <defs>
+        <linearGradient id="splash-bg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#358752"/>
+          <stop offset="1" stop-color="#2C7546"/>
+        </linearGradient>
+        <path id="splash-petalF" d="M256 78 C 280 110 282 156 256 192 C 230 156 232 110 256 78 Z"/>
+        <path id="splash-petalB" d="M256 66 C 278 100 280 150 256 188 C 232 150 234 100 256 66 Z"/>
+      </defs>
+      <rect x="0" y="0" width="512" height="512" rx="116" fill="url(#splash-bg)"/>
+      <g stroke="#1C352A" stroke-width="11" stroke-linejoin="round">
+        <path d="M150 372 C 108 380 84 360 82 328 C 122 322 148 340 150 372 Z" fill="#3E9B5F" transform="rotate(18 150 372)"/>
+        <path d="M362 372 C 404 380 428 360 430 328 C 390 322 364 340 362 372 Z" fill="#5FBF7F" transform="rotate(-18 362 372)"/>
+      </g>
+      <g fill="#D99A1F" stroke="#1C352A" stroke-width="9">
+        <use href="#splash-petalB" transform="rotate(12.857 256 256)"/>
+        <use href="#splash-petalB" transform="rotate(38.571 256 256)"/>
+        <use href="#splash-petalB" transform="rotate(64.286 256 256)"/>
+        <use href="#splash-petalB" transform="rotate(90 256 256)"/>
+        <use href="#splash-petalB" transform="rotate(115.714 256 256)"/>
+        <use href="#splash-petalB" transform="rotate(141.429 256 256)"/>
+        <use href="#splash-petalB" transform="rotate(167.143 256 256)"/>
+        <use href="#splash-petalB" transform="rotate(192.857 256 256)"/>
+        <use href="#splash-petalB" transform="rotate(218.571 256 256)"/>
+        <use href="#splash-petalB" transform="rotate(244.286 256 256)"/>
+        <use href="#splash-petalB" transform="rotate(270 256 256)"/>
+        <use href="#splash-petalB" transform="rotate(295.714 256 256)"/>
+        <use href="#splash-petalB" transform="rotate(321.429 256 256)"/>
+        <use href="#splash-petalB" transform="rotate(347.143 256 256)"/>
+      </g>
+      <g fill="#F7C948" stroke="#1C352A" stroke-width="9">
+        <use href="#splash-petalF" transform="rotate(0 256 256)"/>
+        <use href="#splash-petalF" transform="rotate(25.714 256 256)"/>
+        <use href="#splash-petalF" transform="rotate(51.429 256 256)"/>
+        <use href="#splash-petalF" transform="rotate(77.143 256 256)"/>
+        <use href="#splash-petalF" transform="rotate(102.857 256 256)"/>
+        <use href="#splash-petalF" transform="rotate(128.571 256 256)"/>
+        <use href="#splash-petalF" transform="rotate(154.286 256 256)"/>
+        <use href="#splash-petalF" transform="rotate(180 256 256)"/>
+        <use href="#splash-petalF" transform="rotate(205.714 256 256)"/>
+        <use href="#splash-petalF" transform="rotate(231.429 256 256)"/>
+        <use href="#splash-petalF" transform="rotate(257.143 256 256)"/>
+        <use href="#splash-petalF" transform="rotate(282.857 256 256)"/>
+        <use href="#splash-petalF" transform="rotate(308.571 256 256)"/>
+        <use href="#splash-petalF" transform="rotate(334.286 256 256)"/>
+      </g>
+      <circle cx="256" cy="256" r="88" fill="#5E4026" stroke="#1C352A" stroke-width="15"/>
+      <circle cx="256" cy="256" r="64" fill="none" stroke="#F0B429" stroke-width="8" stroke-dasharray="11 10"/>
+      <text x="256" y="292" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="bold" font-size="104" fill="#F0B429">$</text>
+    </svg>
+    <div>Watering the seedlings…</div>
+  </div>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
 </body>

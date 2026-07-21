@@ -62,6 +62,12 @@ export function MoneyGarden() {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const importInput = useRef<HTMLInputElement>(null);
 
+  // Take down the static index.html splash — React is painting now, and the
+  // "Preparing your garden…" state below covers the brief storage load.
+  useEffect(() => {
+    document.getElementById("splash")?.remove();
+  }, []);
+
   /* ---------- load & persist ---------- */
   useEffect(() => {
     (async () => {
