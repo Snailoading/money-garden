@@ -158,6 +158,25 @@ button {
   font-family: inherit;
 }
 
+/* iOS Safari auto-zooms the page when you focus a TEXT-ENTRY control whose
+   font-size is under 16px (our inputs are 14px). Lifting touch devices to
+   16px stops that zoom without disabling pinch-zoom (the viewport meta keeps
+   it on, for accessibility). Scoped to coarse pointers so desktop keeps its
+   14px; !important beats the inline fontSize on inputStyle. The non-text
+   input types below never trigger the zoom and font-size can nudge their box
+   size, so they're excluded; plain <button> elements aren't matched at all. */
+@media (pointer: coarse) {
+  input:not(
+    [type="checkbox"], [type="radio"], [type="file"],
+    [type="range"], [type="color"], [type="hidden"],
+    [type="button"], [type="submit"], [type="reset"]
+  ),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* Part of the 40px form-control height fix — date inputs especially. */
 input[type="date"] {
   -webkit-appearance: none;

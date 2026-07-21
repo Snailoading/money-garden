@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.14.2 — 2026-07-21 · *No more zoom-on-tap* 🔍
+
+### Fixed
+
+- **Tapping a text field no longer zooms the page in on phones.** iOS Safari
+  auto-zooms when you focus an input smaller than 16px (ours were 14px);
+  form fields now render at 16px on touch devices, which stops the zoom
+  while keeping pinch-zoom available. Desktop is unchanged, and non-text
+  controls (checkboxes, file pickers, etc.) are left alone.
+
 ## 0.14.1 — 2026-07-21 · *Readable labels on a small screen* 🔎
 
 ### Fixed
