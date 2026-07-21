@@ -1,5 +1,6 @@
 /// <reference types="vitest/config" />
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 
@@ -29,7 +30,20 @@ function serviceWorkerPlugin(): Plugin {
         "./icons/money-garden-icon-maskable-512.png",
         "./icons/money-garden-icon.svg",
       ];
-      const version = createHash("sha256").update(JSON.stringify(precache)).digest("hex").slice(0, 12);
+      // Version = hash of the precache NAME list PLUS the bytes of every entry
+      // that isn't content-hashed (index.html, manifest, icons). The JS/CSS/
+      // fonts self-invalidate through their hashed filenames; the fixed-name
+      // files would otherwise serve stale forever after a content-only change
+      // (a regenerated icon, a tweaked theme_color), so fold their bytes in
+      // too. Read from source on disk — cwd is the project root at build time.
+      const versionHash = createHash("sha256").update(JSON.stringify(precache));
+      for (const entry of precache) {
+        const rel = entry.replace(/^\.\//, "");
+        if (rel.startsWith("assets/")) continue; // already content-hashed by name
+        const src = rel === "" ? "index.html" : "public/" + rel; // "./" → the HTML template
+        try { versionHash.update(readFileSync(src)); } catch { /* missing → names still cover it */ }
+      }
+      const version = versionHash.digest("hex").slice(0, 12);
       this.emitFile({
         type: "asset",
         fileName: "sw.js",
@@ -46,7 +60,10 @@ self.addEventListener("install", (e) => {
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      // Prefix-scoped: caches.keys() is per-ORIGIN, and on github.io every
+      // project shares one origin — a bare "!== CACHE" filter would delete
+      // OTHER apps' caches. Only prune our own older versions.
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith("money-garden-") && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -55,15 +72,12 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET" || new URL(req.url).origin !== location.origin) return;
   if (req.mode === "navigate") {
-    e.respondWith(
-      fetch(req)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put("./", copy));
-          return res;
-        })
-        .catch(() => caches.match("./", { ignoreVary: true }))
-    );
+    // Network-first, but NO write-back. The shell is already precached
+    // coherently at install, so there's nothing to refresh — and writing a
+    // fresh navigation response into the cache is actively harmful: after a
+    // deploy it would store new HTML beside the old build's assets (desync),
+    // and it would cache a 404 or a captive-portal page as the app shell.
+    e.respondWith(fetch(req).catch(() => caches.match("./", { ignoreVary: true })));
     return;
   }
   // ignoreVary: hosts often serve assets with "Vary: Origin", and module
@@ -74,8 +88,13 @@ self.addEventListener("fetch", (e) => {
       (hit) =>
         hit ||
         fetch(req).then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
+          // Cache only real successes. fetch RESOLVES on 404/500, so an
+          // unguarded put would store an error under a hashed key and then
+          // serve it as a permanent cache hit (self-poisoning).
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy));
+          }
           return res;
         })
     )

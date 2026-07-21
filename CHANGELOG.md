@@ -1,6 +1,26 @@
 # Changelog
 
-## 0.14.2 — 2026-07-21 · *No more zoom-on-tap* 🔍
+## 0.14.3 — 2026-07-21 · *A sturdier offline cache* 🛡️
+
+### Fixed
+
+- **The offline cache no longer poisons itself on a bad response.** A failed
+  asset fetch (a 404/500) is no longer written to the cache, so a hiccup
+  during a deploy can't leave a broken file cached and served forever.
+- **A new deploy's cleanup no longer touches other apps' caches.** The
+  service worker's cache pruning is now scoped to Money Garden's own
+  versions — on a shared `github.io` account it leaves your other projects'
+  offline caches alone.
+- **Icon and manifest changes now actually reach you.** The cache version now
+  reflects the *contents* of the fixed-name files (icons, manifest), so a
+  regenerated icon or a tweaked theme color updates instead of serving the
+  old one indefinitely.
+- **The page shell is served from the coherent precache**, not re-written on
+  each online load — removing a subtle way the cached HTML could fall out of
+  sync with the cached scripts after a deploy.
+
+_All internal service-worker robustness; no visible change to how the app
+works, offline or on._
 
 ### Fixed
 
