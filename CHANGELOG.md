@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.14.1 — 2026-07-21 · *Readable labels on a small screen* 🔎
+
+### Fixed
+
+- **Chart hover/tap tooltips no longer shrink to unreadable on phones.** A
+  chart's fixed drawing is squeezed to fit the screen, so on a narrow phone
+  the tooltip text was rendering at ~7px. Tooltips now counter-scale to a
+  constant, comfortable on-screen size (Spending pace, Seasons, and the
+  projection). Full-width charts on desktop are unchanged; tooltips only
+  ever grow toward the readable floor, never shrink.
+
 ## 0.14.0 — 2026-07-19 · *The tree tells its yield* 🍎
 
 ### Added
