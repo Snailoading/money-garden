@@ -8,12 +8,13 @@ import { useRef } from "react";
 import type { CurvePoint } from "../../engine/fire";
 import { fmt, fmtK } from "../../engine/format";
 import { C } from "../theme";
-import { useNearest, useReveal } from "../hooks";
+import { useNearest, useReveal, useSvgScale } from "../hooks";
 
 export function SvgProjection({ curve, fireNumber, retLo, retHi }: { curve: CurvePoint[]; fireNumber: number; retLo: number; retHi: number }) {
   const W = 640, H = 235, pl = 50, pr = 14, pt = 14, pb = 24;
   const on = useReveal();
   const { ref, hi, locate, clear } = useNearest(W, pl, pr, curve ? curve.length : 0);
+  const k = useSvgScale(ref, W); // counter-scale the tooltip on narrow phones
   const cid = useRef("c" + Math.random().toString(36).slice(2, 9)).current;
   if (!curve || curve.length < 2) return null;
   const maxY = Math.max(fireNumber || 0, ...curve.map((p) => p.band[1])) * 1.06 || 1;
@@ -51,16 +52,20 @@ export function SvgProjection({ curve, fireNumber, retLo, retHi }: { curve: Curv
       <text x={pl} y={pt + 2} fontSize="10.5" style={{ fill: C.inkSoft }}>band: {retLo}–{retHi}%/yr</text>
       {hi != null && (() => {
         const p = curve[hi]; const bw = 158, bh = 58;
-        let tx = x(hi) + 10; if (tx + bw > W - pr) tx = x(hi) - bw - 10;
-        const ty = Math.max(pt, Math.min(y(p.value) - bh / 2, H - pb - bh));
+        // Box+text scale by k; the guide line and dot stay in chart geometry.
+        const ax = x(hi);
+        let bx = ax + 10; if (bx + bw * k > W - pr) bx = ax - 10 - bw * k;
+        const by = Math.max(pt, Math.min(y(p.value) - bh * k / 2, H - pb - bh * k));
         return (
           <g style={{ pointerEvents: "none" }}>
-            <line x1={x(hi)} x2={x(hi)} y1={pt} y2={H - pb} style={{ stroke: C.border }} />
-            <circle cx={x(hi)} cy={y(p.value)} r="4.5" style={{ fill: C.leafDark }} />
-            <rect x={tx} y={ty} width={bw} height={bh} rx="9" strokeWidth="1.5" style={{ fill: C.card, stroke: C.border }} />
-            <text x={tx + 10} y={ty + 17} fontSize="11" fontWeight="700" style={{ fill: C.ink }}>Age {p.age}</text>
-            <text x={tx + 10} y={ty + 33} fontSize="11" className="mg-num" style={{ fill: C.leafDark }}>Expected {fmt(p.value)}</text>
-            <text x={tx + 10} y={ty + 49} fontSize="11" className="mg-num" style={{ fill: C.inkSoft }}>Range {fmtK(p.band[0])} – {fmtK(p.band[1])}</text>
+            <line x1={ax} x2={ax} y1={pt} y2={H - pb} style={{ stroke: C.border }} />
+            <circle cx={ax} cy={y(p.value)} r="4.5" style={{ fill: C.leafDark }} />
+            <g transform={`translate(${bx} ${by}) scale(${k})`}>
+              <rect x={0} y={0} width={bw} height={bh} rx="9" strokeWidth="1.5" style={{ fill: C.card, stroke: C.border }} />
+              <text x={10} y={17} fontSize="11" fontWeight="700" style={{ fill: C.ink }}>Age {p.age}</text>
+              <text x={10} y={33} fontSize="11" className="mg-num" style={{ fill: C.leafDark }}>Expected {fmt(p.value)}</text>
+              <text x={10} y={49} fontSize="11" className="mg-num" style={{ fill: C.inkSoft }}>Range {fmtK(p.band[0])} – {fmtK(p.band[1])}</text>
+            </g>
           </g>
         );
       })()}

@@ -7,12 +7,13 @@ import { useRef } from "react";
 import type { DailyPoint } from "../../engine/stats";
 import { fmt } from "../../engine/format";
 import { C } from "../theme";
-import { useNearest, useReveal } from "../hooks";
+import { useNearest, useReveal, useSvgScale } from "../hooks";
 
 export function SvgPace({ data }: { data: DailyPoint[] }) {
   const W = 560, H = 190, pl = 46, pr = 10, pt = 8, pb = 22;
   const on = useReveal();
   const { ref, hi, locate, clear } = useNearest(W, pl, pr, data ? data.length : 0);
+  const k = useSvgScale(ref, W); // counter-scale the tooltip on narrow phones
   // Stable per-instance clipPath id so two charts on one page don't collide.
   const cid = useRef("c" + Math.random().toString(36).slice(2, 9)).current;
   if (!data || data.length < 2) return null;
@@ -54,29 +55,34 @@ export function SvgPace({ data }: { data: DailyPoint[] }) {
       ) : null))}
       {hi != null && (() => {
         const p = data[hi]; const bw = p.drawn ? 168 : 132, bh = p.drawn ? 74 : 58;
-        // Tooltip flips to the left of the cursor when it would overflow.
-        let tx = x(hi) + 10; if (tx + bw > W - pr) tx = x(hi) - bw - 10;
-        const ty = Math.max(pt, Math.min(y(Math.max(p.spent || 0, p.pace || 0)) - bh / 2, H - pb - bh));
+        // The box+text scale by k (constant on-screen size); the guide line
+        // and data dots stay in chart geometry. bw*k / bh*k is the box's
+        // footprint in viewBox units — flip and clamp against that.
+        const ax = x(hi);
+        let bx = ax + 10; if (bx + bw * k > W - pr) bx = ax - 10 - bw * k;
+        const by = Math.max(pt, Math.min(y(Math.max(p.spent || 0, p.pace || 0)) - bh * k / 2, H - pb - bh * k));
         return (
           <g style={{ pointerEvents: "none" }}>
-            <line x1={x(hi)} x2={x(hi)} y1={pt} y2={H - pb} style={{ stroke: C.border }} />
-            <circle cx={x(hi)} cy={y(p.spent || 0)} r="4" style={{ fill: C.leafDark }} />
-            <circle cx={x(hi)} cy={y(p.pace || 0)} r="3.5" strokeWidth="1.5" style={{ fill: C.card, stroke: C.inkSoft }} />
-            <rect x={tx} y={ty} width={bw} height={bh} rx="9" strokeWidth="1.5" style={{ fill: C.card, stroke: C.border }} />
-            <text x={tx + 10} y={ty + 17} fontSize="11" fontWeight="700" style={{ fill: C.ink }}>Day {p.day}</text>
-            <text x={tx + 10} y={ty + 33} fontSize="11" className="mg-num" style={{ fill: C.leafDark }}>Spent {fmt(p.spent || 0)}</text>
-            <text x={tx + 10} y={ty + 49} fontSize="11" className="mg-num" style={{ fill: C.inkSoft }}>Even pace {fmt(p.pace || 0)}</text>
-            {p.drawn ? (
-              <text x={tx + 10} y={ty + 65} fontSize="11" className="mg-num" style={{ fill: C.tomato }}>
-                {/* Long goal names are trimmed so the row stays inside the box. */}
-                🌸 {fmt(p.drawn)}{(() => {
-                  const n = p.drawNames?.[0];
-                  if (!n) return " from goals";
-                  const trimmed = n.length > 14 ? n.slice(0, 13) + "…" : n;
-                  return ` · ${trimmed}${p.drawNames!.length > 1 ? ` +${p.drawNames!.length - 1}` : ""}`;
-                })()}
-              </text>
-            ) : null}
+            <line x1={ax} x2={ax} y1={pt} y2={H - pb} style={{ stroke: C.border }} />
+            <circle cx={ax} cy={y(p.spent || 0)} r="4" style={{ fill: C.leafDark }} />
+            <circle cx={ax} cy={y(p.pace || 0)} r="3.5" strokeWidth="1.5" style={{ fill: C.card, stroke: C.inkSoft }} />
+            <g transform={`translate(${bx} ${by}) scale(${k})`}>
+              <rect x={0} y={0} width={bw} height={bh} rx="9" strokeWidth="1.5" style={{ fill: C.card, stroke: C.border }} />
+              <text x={10} y={17} fontSize="11" fontWeight="700" style={{ fill: C.ink }}>Day {p.day}</text>
+              <text x={10} y={33} fontSize="11" className="mg-num" style={{ fill: C.leafDark }}>Spent {fmt(p.spent || 0)}</text>
+              <text x={10} y={49} fontSize="11" className="mg-num" style={{ fill: C.inkSoft }}>Even pace {fmt(p.pace || 0)}</text>
+              {p.drawn ? (
+                <text x={10} y={65} fontSize="11" className="mg-num" style={{ fill: C.tomato }}>
+                  {/* Long goal names are trimmed so the row stays inside the box. */}
+                  🌸 {fmt(p.drawn)}{(() => {
+                    const n = p.drawNames?.[0];
+                    if (!n) return " from goals";
+                    const trimmed = n.length > 14 ? n.slice(0, 13) + "…" : n;
+                    return ` · ${trimmed}${p.drawNames!.length > 1 ? ` +${p.drawNames!.length - 1}` : ""}`;
+                  })()}
+                </text>
+              ) : null}
+            </g>
           </g>
         );
       })()}

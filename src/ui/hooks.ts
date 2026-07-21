@@ -2,7 +2,7 @@
  * Shared chart hooks, verbatim from the reference.
  */
 import { useEffect, useRef, useState } from "react";
-import type { PointerEvent } from "react";
+import type { PointerEvent, RefObject } from "react";
 
 /**
  * Entry-animation trigger: flips true one frame after mount so CSS
@@ -45,6 +45,33 @@ export function svgX(el: SVGSVGElement, e: PointerEvent<SVGSVGElement>, W: numbe
   if (ctm) return new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse()).x;
   const r = el.getBoundingClientRect();
   return ((e.clientX - r.left) / r.width) * W;
+}
+
+/**
+ * How many viewBox units map to one on-screen pixel — the inverse of the
+ * preserveAspectRatio scale. A chart's fixed viewBox (W≈560–640) is squeezed
+ * to fit its container, so on a narrow phone one CSS pixel spans ~1.6 viewBox
+ * units and a 11-unit label renders at ~7px. Multiplying a tooltip's geometry
+ * by this factor and never letting it drop below 1 counter-scales the tooltip
+ * to a CONSTANT on-screen size on small screens, while leaving desktop
+ * (where the chart is as wide as or wider than its viewBox) pixel-identical.
+ * Like CSS's `max(1, …)` — the clamp is what keeps desktop untouched.
+ */
+export function useSvgScale(ref: RefObject<SVGSVGElement | null>, W: number): number {
+  const [k, setK] = useState(1);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const w = el.getBoundingClientRect().width;
+      if (w > 0) setK(Math.max(1, W / w));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref, W]);
+  return k;
 }
 
 /**
