@@ -12,7 +12,7 @@ import type { PointerEvent } from "react";
 import type { TrendPoint } from "../../engine/trends";
 import { fmt, fmtK } from "../../engine/format";
 import { C } from "../theme";
-import { svgX, useReveal } from "../hooks";
+import { svgX, useReveal, useSvgScale } from "../hooks";
 
 const W = 640, H = 220, pl = 50, pr = 14, pt = 14, pb = 24;
 
@@ -57,19 +57,23 @@ function MonthLabels({ trends }: { trends: TrendPoint[] }) {
   );
 }
 
-function Tooltip({ x, rows, title }: { x: number; rows: [string, string, string][]; title: string }) {
+function Tooltip({ x, rows, title, k }: { x: number; rows: [string, string, string][]; title: string; k: number }) {
   const bw = 150, bh = 24 + rows.length * 16;
-  let tx = x + 10;
-  if (tx + bw > W - pr) tx = x - bw - 10;
-  const ty = pt + 4;
+  // Box+text scale by k (constant on-screen size on phones); the guide line
+  // stays in chart geometry. Flip against the scaled width bw*k.
+  let bx = x + 10;
+  if (bx + bw * k > W - pr) bx = x - bw * k - 10;
+  const by = pt + 4;
   return (
     <g style={{ pointerEvents: "none" }}>
       <line x1={x} x2={x} y1={pt} y2={H - pb} style={{ stroke: C.border }} />
-      <rect x={tx} y={ty} width={bw} height={bh} rx="9" strokeWidth="1.5" style={{ fill: C.card, stroke: C.border }} />
-      <text x={tx + 10} y={ty + 17} fontSize="11" fontWeight="700" style={{ fill: C.ink }}>{title}</text>
-      {rows.map(([label, value, color], i) => (
-        <text key={label} x={tx + 10} y={ty + 33 + i * 16} fontSize="11" className="mg-num" style={{ fill: color }}>{label} {value}</text>
-      ))}
+      <g transform={`translate(${bx} ${by}) scale(${k})`}>
+        <rect x={0} y={0} width={bw} height={bh} rx="9" strokeWidth="1.5" style={{ fill: C.card, stroke: C.border }} />
+        <text x={10} y={17} fontSize="11" fontWeight="700" style={{ fill: C.ink }}>{title}</text>
+        {rows.map(([label, value, color], i) => (
+          <text key={label} x={10} y={33 + i * 16} fontSize="11" className="mg-num" style={{ fill: color }}>{label} {value}</text>
+        ))}
+      </g>
     </g>
   );
 }
@@ -78,6 +82,7 @@ function Tooltip({ x, rows, title }: { x: number; rows: [string, string, string]
 export function SeasonsBars({ trends, onPick }: { trends: TrendPoint[]; onPick?: (ym: string) => void }) {
   const on = useReveal();
   const { ref, hi, locate, clear } = useBandHover(trends.length);
+  const k = useSvgScale(ref, W);
   const cid = useRef("c" + Math.random().toString(36).slice(2, 9)).current;
   if (trends.length === 0) return null;
   const n = trends.length;
@@ -125,7 +130,7 @@ export function SeasonsBars({ trends, onPick }: { trends: TrendPoint[]; onPick?:
             style={{ cursor: "pointer" }} onClick={() => onPick(p.ym)} />
         ))}
         {hi != null && (
-          <Tooltip x={cxOf(hi, n)} title={trends[hi].label + (trends[hi].partial ? " (so far)" : "")}
+          <Tooltip k={k} x={cxOf(hi, n)} title={trends[hi].label + (trends[hi].partial ? " (so far)" : "")}
             rows={[
               ["Earned", fmt(trends[hi].earned), C.leafDark],
               ["Spent", fmt(trends[hi].spent), C.tomato],
@@ -145,6 +150,7 @@ export function SeasonsBars({ trends, onPick }: { trends: TrendPoint[]; onPick?:
 export function SeasonsRate({ trends }: { trends: TrendPoint[] }) {
   const on = useReveal();
   const { ref, hi, locate, clear } = useBandHover(trends.length);
+  const k = useSvgScale(ref, W);
   const cid = useRef("c" + Math.random().toString(36).slice(2, 9)).current;
   if (trends.length === 0) return null;
   const n = trends.length;
@@ -172,7 +178,7 @@ export function SeasonsRate({ trends }: { trends: TrendPoint[] }) {
           ))}
         </g>
         {hi != null && (
-          <Tooltip x={cxOf(hi, n)} title={trends[hi].label + (trends[hi].partial ? " (so far)" : "")}
+          <Tooltip k={k} x={cxOf(hi, n)} title={trends[hi].label + (trends[hi].partial ? " (so far)" : "")}
             rows={[["Savings rate", Math.round(trends[hi].savingsRate * 100) + "%", C.leafDark]]} />
         )}
       </Frame>
@@ -184,6 +190,7 @@ export function SeasonsRate({ trends }: { trends: TrendPoint[] }) {
 export function SeasonsSplit({ trends }: { trends: TrendPoint[] }) {
   const on = useReveal();
   const { ref, hi, locate, clear } = useBandHover(trends.length);
+  const k = useSvgScale(ref, W);
   const cid = useRef("c" + Math.random().toString(36).slice(2, 9)).current;
   if (trends.length === 0) return null;
   const n = trends.length;
@@ -212,7 +219,7 @@ export function SeasonsSplit({ trends }: { trends: TrendPoint[] }) {
           })}
         </g>
         {hi != null && (
-          <Tooltip x={cxOf(hi, n)} title={trends[hi].label + (trends[hi].partial ? " (so far)" : "")}
+          <Tooltip k={k} x={cxOf(hi, n)} title={trends[hi].label + (trends[hi].partial ? " (so far)" : "")}
             rows={[
               ["Needs", fmt(trends[hi].needs), C.leafDark],
               ["Wants", fmt(trends[hi].wants), C.amber],
