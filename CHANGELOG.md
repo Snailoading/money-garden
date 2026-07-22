@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.14.5 — 2026-07-22 · *Steady ground under the search* 🔍
+
+### Fixed
+
+- **Searching the ledger no longer makes the page jump while you type.**
+  Every keystroke narrows the list, which used to shrink the page and yank
+  the scroll position around — up to a few hundred pixels per letter on a
+  phone. While the search pill is open, the ledger card now holds at least
+  a full screen of height, so the ground can't move under your thumbs.
+- **On phones, search results are no longer hidden behind the keyboard.**
+  Focusing the search box used to leave it hugging the top of the on-screen
+  keyboard with the results buried below it; on touch screens the search now
+  pins itself to the top of the screen, putting the results in the visible
+  space above the keyboard. Desktop behavior is unchanged.
+
 ## 0.14.4 — 2026-07-22 · *A friendlier cold start* 🌻
 
 ### Fixed
