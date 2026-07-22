@@ -304,6 +304,19 @@ svg[role="img"] {
   transition: opacity 0.2s ease 0.1s, visibility 0s, transform 0.08s ease;
 }
 
+/* While the search pill is open, the ledger card holds at least a full
+ * viewport of height. Filtering shrinks the list live on every keystroke;
+ * without the hold, the page gets shorter, the browser clamps the scroll
+ * position, and the card lurches under the typist's finger (300px measured
+ * on a phone). With it, the document can never shrink beneath the reader. */
+.mg-search-hold {
+  min-height: 100vh;
+  min-height: 100dvh; /* dynamic toolbars (mobile) — ignored where unsupported */
+  /* when search-focus pins the card to the viewport top, leave a sliver of
+     garden above so the card's top edge reads as a card, not a cut-off */
+  scroll-margin-top: 10px;
+}
+
 /* Height-animated disclosure (the filter panel) — the 0fr→1fr grid trick
  * animates to the content's own height without measuring it in JS. */
 .mg-collapse {

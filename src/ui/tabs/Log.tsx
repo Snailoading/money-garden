@@ -84,8 +84,19 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
   const [fTo, setFTo] = useState("");
   const [visibleCount, setVisibleCount] = useState(PAGE);
   const searchRef = useRef<HTMLInputElement>(null);
+  const ledgerCardRef = useRef<HTMLElement>(null);
   // Below ~380px the pill can't fit the full placeholder next to its buttons.
   const narrowScreen = useMediaQuery("(max-width: 379px)");
+  // Touch devices get the search pinned to the top of the viewport on focus:
+  // the browser's default puts a focused input just above the on-screen
+  // keyboard, which hides the results (they render below the input). Same
+  // guard as the 16px input-zoom rule in global.css.
+  const coarsePointer = useMediaQuery("(pointer: coarse)");
+  // Scrolls the whole card (not the pill row) so its rounded top edge stays
+  // on screen; .mg-search-hold adds a scroll-margin for a little breathing room.
+  const pinSearchToTop = () => {
+    if (coarsePointer) ledgerCardRef.current?.scrollIntoView({ block: "start" });
+  };
 
   const openSearch = () => {
     setSearchOpen(true);
@@ -233,7 +244,10 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
         </div>
       </section>
 
-      <section className="mg-card" style={{ padding: 20 }}>
+      {/* mg-search-hold: while searching, the card never gets shorter than the
+          viewport — otherwise each keystroke's re-filter shrinks the page and
+          the browser's scroll clamp makes the card jump under the typist. */}
+      <section ref={ledgerCardRef} className={"mg-card" + (searchOpen ? " mg-search-hold" : "")} style={{ padding: 20 }}>
         {/* flexWrap: on narrow screens the open pill drops to its own full-width
             row under the title instead of crushing it — nothing truncates. */}
         <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
@@ -252,6 +266,7 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
               <input ref={searchRef} className="mg-search-extra" value={query} aria-label="Search the ledger"
                 placeholder={narrowScreen ? "Search…" : "Search the ledger…"} maxLength={60} size={1}
                 onChange={(e) => setQuery(e.target.value)}
+                onFocus={pinSearchToTop}
                 onKeyDown={(e) => e.key === "Escape" && closeSearch()}
                 style={{ flex: 1, minWidth: 56, border: "none", background: "transparent", outline: "none", font: "inherit", fontSize: 14, color: C.ink, padding: 0, height: "100%", textOverflow: "ellipsis" }} />
               <button className="mg-btn mg-search-extra" onClick={() => setShowFilters((v) => !v)}
