@@ -35,6 +35,21 @@ export const clampDay = (y: number, mIdx: number, day: number | undefined): numb
 export function nextDueDate(c: Commitment, nowInput: Date = new Date()): Date {
   const now = midnight(nowInput);
   let dt: Date;
+  if (c.cadence === "fortnight") {
+    // 14-day cycle counted from the anchor date (missing or unparseable
+    // anchor → today, defensive: the form always sets one, but imports are
+    // deliberately loose). Day count via Math.round is DST-safe (a
+    // spring-forward day is 23h, not 24); the date constructor handles the
+    // calendar walk.
+    const parsed = c.anchorDate ? new Date(c.anchorDate + "T00:00:00") : now;
+    const a = isNaN(parsed.getTime()) ? now : parsed;
+    const diffDays = Math.round((now.getTime() - a.getTime()) / 86400000);
+    // First cycle boundary ≥ today; a payment due today stays today, and a
+    // future anchor is itself the next due date (ceil of a negative → 0).
+    const cycles = Math.max(0, Math.ceil(diffDays / 14));
+    dt = new Date(a.getFullYear(), a.getMonth(), a.getDate() + cycles * 14);
+    return dt;
+  }
   if (c.cadence === "annual") {
     const m = (Number(c.payMonth) || 1) - 1;
     dt = new Date(now.getFullYear(), m, clampDay(now.getFullYear(), m, c.payDay));
@@ -60,13 +75,21 @@ export function nextDueWithPayments(
   nowInput: Date = new Date(),
 ): Date {
   const due = nextDueDate(c, nowInput);
-  const windowDays = c.cadence === "annual" ? 31 : 15;
+  // One day WIDER than the due-soon strip's invitation (15 vs monthly's 14,
+  // 8 vs fortnight's 7): a payment logged the moment the strip appears must
+  // land inside the window, or "Log payment" wouldn't advance the date and
+  // a second tap would double-log. Still narrower than a cycle, so
+  // consecutive windows never overlap.
+  const windowDays = c.cadence === "annual" ? 31 : c.cadence === "fortnight" ? 8 : 15;
   const windowStart = toLocalISO(new Date(due.getFullYear(), due.getMonth(), due.getDate() - windowDays));
   const dueISO = toLocalISO(due);
   const paid = transactions.some(
     (t) => t.commitmentId === c.id && t.date > windowStart && t.date <= dueISO,
   );
   if (!paid) return due;
+  if (c.cadence === "fortnight") {
+    return new Date(due.getFullYear(), due.getMonth(), due.getDate() + 14);
+  }
   if (c.cadence === "annual") {
     const m = (Number(c.payMonth) || 1) - 1;
     return new Date(due.getFullYear() + 1, m, clampDay(due.getFullYear() + 1, m, c.payDay));
@@ -96,13 +119,27 @@ export interface DueSoonEntry {
 export interface CommitmentsDerived {
   all: Commitment[];
   active: Commitment[];
-  /** Active subscriptions normalized to per-month (annual ÷ 12). */
+  /** Active subscriptions normalized to per-month (annual ÷ 12,
+   * fortnightly × 26 ÷ 12 — 26 payments a year; a flat ×2 would
+   * understate every fortnightly vine by ~8%). */
   subsMonthly: number;
   /** Active installments normalized to per-month (annual ÷ 12), like subsMonthly. */
   instMonthly: number;
-  /** Anything billing within 14 days, soonest first. */
+  /** Anything billing within 14 days (7 for fortnightly — half its cycle;
+   * a fortnightly vine is ALWAYS ≤14 days out and would pin itself to the
+   * due-soon strip forever), soonest first. */
   dueSoon: DueSoonEntry[];
 }
+
+/** A commitment's cost normalized to per-month: annual ÷ 12, fortnightly
+ * × 26 ÷ 12 (26 payments a year — a flat ×2 understates by ~8%). The ONE
+ * place cadence→monthly math lives; advice ranks vines with it too. */
+export const monthlyCost = (c: Commitment): number => {
+  const amt = Number(c.amount) || 0;
+  if (c.cadence === "annual") return amt / 12;
+  if (c.cadence === "fortnight") return (amt * 26) / 12;
+  return amt;
+};
 
 export function deriveCommitments(
   allCommitments: Commitment[],
@@ -112,18 +149,18 @@ export function deriveCommitments(
   const active = allCommitments.filter((c) => !commitmentEnded(c, now, transactions));
   const subsMonthly = active
     .filter((c) => c.kind === "sub")
-    .reduce((a, c) => a + (c.cadence === "annual" ? (Number(c.amount) || 0) / 12 : Number(c.amount) || 0), 0);
-  // The commitment form only creates monthly installments, so the annual
-  // branch is defensive — it matters for hand-edited or imported data.
+    .reduce((a, c) => a + monthlyCost(c), 0);
+  // The commitment form only creates monthly installments, so the non-monthly
+  // branches are defensive — they matter for hand-edited or imported data.
   const instMonthly = active
     .filter((c) => c.kind === "inst")
-    .reduce((a, c) => a + (c.cadence === "annual" ? (Number(c.amount) || 0) / 12 : Number(c.amount) || 0), 0);
+    .reduce((a, c) => a + monthlyCost(c), 0);
   const dueSoon = active
     .map((c) => {
       const due = nextDueWithPayments(c, transactions, now);
       return { c, due, days: daysUntil(due, now) };
     })
-    .filter((x) => x.days <= 14)
+    .filter((x) => x.days <= (x.c.cadence === "fortnight" ? 7 : 14))
     .sort((a, b) => a.days - b.days);
   return { all: allCommitments, active, subsMonthly, instMonthly, dueSoon };
 }

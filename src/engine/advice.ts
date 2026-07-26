@@ -12,7 +12,7 @@
 import type { State } from "./types";
 import type { Derived } from "./stats";
 import { fmt, monthKey, shortDate } from "./format";
-import { daysUntil, nextDueWithPayments } from "./commitments";
+import { daysUntil, monthlyCost, nextDueWithPayments } from "./commitments";
 
 export type Priority = 1 | 2 | 3;
 
@@ -239,7 +239,9 @@ export function buildAdvice(state: State, d: Derived, now: Date = new Date()): T
         `Tracked subscriptions total ${fmt(cm.subsMonthly)}/month, but the Subscriptions budget is ${fmt(subsBudget)}. Either prune a vine or widen the plot — a budget that's set below known commitments will read as "overgrown" every single month.`);
     }
     if (d.income > 0 && cm.subsMonthly / d.income > 0.06) {
-      const biggest = cm.active.filter((c) => c.kind === "sub").sort((a, b) => (b.cadence === "annual" ? b.amount / 12 : b.amount) - (a.cadence === "annual" ? a.amount / 12 : a.amount))[0];
+      // monthlyCost, not raw amount: a $30/fortnight vine costs $65/month
+      // and must outrank a $40/monthly one as "thickest".
+      const biggest = cm.active.filter((c) => c.kind === "sub").sort((a, b) => monthlyCost(b) - monthlyCost(a))[0];
       push(2, "✂️", "The vines are drinking deeply",
         `Subscriptions draw ${fmt(cm.subsMonthly)}/month — about ${Math.round((cm.subsMonthly / d.income) * 100)}% of income (${fmt(cm.subsMonthly * 12)}/year). The classic test: if you haven't used one in 30 days, cut it${biggest ? ` — "${biggest.name}" is the thickest vine` : ""}. You can always resubscribe; most people don't miss them.`);
     }

@@ -409,6 +409,20 @@ describe("rule 10 — vines & trellis", () => {
     expect(tip!.body).toContain('"Big" is the thickest vine');
   });
 
+  it("ranks thickest by monthly cost, not raw amount (fortnight × 26/12)", () => {
+    // $30/fortnight ≈ $65/month must outrank $40/month.
+    const s = state({
+      transactions: [tx("income", 1500)],
+      commitments: [
+        sub({ name: "Cheap-looking", amount: 30, cadence: "fortnight", anchorDate: "2026-06-05" }),
+        sub({ name: "Monthly", amount: 40 }),
+      ],
+    });
+    const tip = find(tipsFor(s), "The vines are drinking deeply");
+    expect(tip).toBeDefined();
+    expect(tip!.body).toContain('"Cheap-looking" is the thickest vine');
+  });
+
   it("celebrates installments with ≤2 payments left", () => {
     const s = state({
       commitments: [{

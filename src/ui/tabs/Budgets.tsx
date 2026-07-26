@@ -3,7 +3,7 @@
  * (recurring commitments) with a due-soon strip and one-tap payment logging.
  */
 import { useState } from "react";
-import type { Commitment, State } from "../../engine/types";
+import type { Cadence, Commitment, State } from "../../engine/types";
 import { CATEGORIES } from "../../engine/types";
 import type { Derived, MonthView } from "../../engine/stats";
 import { fmt, MONTH_NAMES, monthLabel, shortDate, todayISO } from "../../engine/format";
@@ -26,22 +26,36 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
   const [cKind, setCKind] = useState<"sub" | "inst">("sub");
   const [cName, setCName] = useState("");
   const [cAmount, setCAmount] = useState("");
-  const [cCadence, setCCadence] = useState<"monthly" | "annual">("monthly");
+  const [cCadence, setCCadence] = useState<Cadence>("monthly");
   const [cDay, setCDay] = useState<number | string>(1);
   const [cMonth, setCMonth] = useState<number | string>(1);
+  // Fortnightly cycles count from a real payment date, not a day-of-month;
+  // today is a sensible seed (any known payment date works, past or future).
+  const [cAnchor, setCAnchor] = useState(todayISO());
   const [cEnd, setCEnd] = useState("");
   const [cTotal, setCTotal] = useState("");
   const [cPaid, setCPaid] = useState("");
   const [cCategory, setCCategory] = useState("subs");
 
-  const canAdd = Boolean(cName.trim() && parseFloat(cAmount) > 0 && (cKind === "sub" || parseInt(cTotal) > 0));
+  const isFortnight = cKind === "sub" && cCadence === "fortnight";
+  const canAdd = Boolean(
+    cName.trim() && parseFloat(cAmount) > 0 &&
+    (cKind === "sub" || parseInt(cTotal) > 0) &&
+    (!isFortnight || cAnchor),
+  );
   const submitCommitment = () => {
     if (!canAdd) return;
     addCommitment({
       kind: cKind, name: cName.trim(), amount: parseFloat(cAmount),
       // Installments are always monthly — the cadence picker only shows for subs.
       cadence: cKind === "inst" ? "monthly" : cCadence,
-      payDay: Math.min(31, Math.max(1, parseInt(String(cDay)) || 1)),
+      // Fortnightly: payDay mirrors the anchor's day-of-month so a
+      // pre-fortnight build importing this backup degrades to "monthly on
+      // that day" instead of garbage (forward-only compat, types.ts).
+      payDay: isFortnight
+        ? Math.min(31, Math.max(1, parseInt(cAnchor.slice(8, 10)) || 1))
+        : Math.min(31, Math.max(1, parseInt(String(cDay)) || 1)),
+      anchorDate: isFortnight ? cAnchor : undefined,
       payMonth: Math.min(12, Math.max(1, parseInt(String(cMonth)) || 1)),
       endDate: cKind === "sub" ? cEnd : "",
       totalPayments: cKind === "inst" ? Math.max(1, parseInt(cTotal) || 1) : undefined,
@@ -58,9 +72,10 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
   const [editingCId, setEditingCId] = useState<string | null>(null);
   const [eName, setEName] = useState("");
   const [eAmount, setEAmount] = useState("");
-  const [eCadence, setECadence] = useState<"monthly" | "annual">("monthly");
+  const [eCadence, setECadence] = useState<Cadence>("monthly");
   const [eDay, setEDay] = useState<number | string>(1);
   const [eMonth, setEMonth] = useState<number | string>(1);
+  const [eAnchor, setEAnchor] = useState("");
   const [eEnd, setEEnd] = useState("");
   const [eTotal, setETotal] = useState("");
   const [ePaid, setEPaid] = useState("");
@@ -73,22 +88,31 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
     setECadence(c.cadence);
     setEDay(c.payDay);
     setEMonth(c.payMonth || 1);
+    // Legacy fortnightly rows always have an anchor; seed today defensively.
+    setEAnchor(c.anchorDate || todayISO());
     setEEnd(c.endDate || "");
     setETotal(c.totalPayments != null ? String(c.totalPayments) : "");
     setEPaid(c.paidCount != null ? String(c.paidCount) : "");
     setECategory(c.category);
   };
-  const canSaveC = Boolean(eName.trim() && parseFloat(eAmount) > 0);
+  const eFortnight = eCadence === "fortnight";
+  const canSaveC = Boolean(eName.trim() && parseFloat(eAmount) > 0 && (!eFortnight || eAnchor));
   const saveEditC = (c: Commitment) => {
     if (!canSaveC) return;
     const patch: Partial<Omit<Commitment, "id">> = {
       name: eName.trim(),
       amount: parseFloat(eAmount),
-      payDay: Math.min(31, Math.max(1, parseInt(String(eDay)) || 1)),
+      // Fortnightly: payDay mirrors the anchor's day (forward compat, as on create).
+      payDay: c.kind === "sub" && eFortnight
+        ? Math.min(31, Math.max(1, parseInt(eAnchor.slice(8, 10)) || 1))
+        : Math.min(31, Math.max(1, parseInt(String(eDay)) || 1)),
       category: eCategory,
     };
     if (c.kind === "sub") {
       patch.cadence = eCadence;
+      // Leaving fortnight clears the anchor — a stale one would silently
+      // win if the vine ever switched back (undefined drops out of JSON).
+      patch.anchorDate = eFortnight ? eAnchor : undefined;
       patch.payMonth = Math.min(12, Math.max(1, parseInt(String(eMonth)) || 1));
       patch.endDate = eEnd;
     } else {
@@ -114,8 +138,9 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
         </Field>
         {c.kind === "sub" && (
           <Field label="Cadence">
-            <select value={eCadence} onChange={(e) => setECadence(e.target.value as "monthly" | "annual")} style={inputStyle}>
+            <select value={eCadence} onChange={(e) => setECadence(e.target.value as Cadence)} style={inputStyle}>
               <option value="monthly">Monthly</option>
+              <option value="fortnight">Fortnightly</option>
               <option value="annual">Yearly</option>
             </select>
           </Field>
@@ -127,9 +152,16 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
             </select>
           </Field>
         )}
-        <Field label="Day">
-          <input className="mg-num" type="number" min="1" max="31" value={eDay} onChange={(e) => setEDay(e.target.value)} style={inputStyle} />
-        </Field>
+        {c.kind === "sub" && eFortnight ? (
+          // Fortnights count from a known payment date, not a day-of-month.
+          <Field label="A payment date">
+            <input type="date" value={eAnchor} onChange={(e) => setEAnchor(e.target.value)} style={inputStyle} />
+          </Field>
+        ) : (
+          <Field label="Day">
+            <input className="mg-num" type="number" min="1" max="31" value={eDay} onChange={(e) => setEDay(e.target.value)} style={inputStyle} />
+          </Field>
+        )}
         {c.kind === "sub" ? (
           <Field label="End date (optional)">
             <input type="date" value={eEnd} onChange={(e) => setEEnd(e.target.value)} style={inputStyle} />
@@ -180,7 +212,7 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
             {c.kind === "inst" ? (
               ended ? "All payments made 🎉" : <>{c.paidCount || 0} of {c.totalPayments} paid · {fmt(((c.totalPayments ?? 0) - (c.paidCount || 0)) * c.amount)} to go</>
             ) : (
-              <>{c.cadence === "annual" ? "yearly" : "monthly"}{c.endDate ? ` · ends ${c.endDate}` : ""}</>
+              <>{c.cadence === "annual" ? "yearly" : c.cadence === "fortnight" ? "fortnightly" : "monthly"}{c.endDate ? ` · ends ${c.endDate}` : ""}</>
             )}
             {!ended && <> · next {shortDate(due)}{days <= 7 ? ` (in ${days}d)` : ""}</>}
           </div>
@@ -191,7 +223,7 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
           )}
         </div>
         <span className="mg-num" style={{ fontWeight: 700, fontSize: 14 }}>
-          {fmt(c.amount)}<span style={{ fontWeight: 500, fontSize: 12, color: C.inkSoft }}>{c.kind === "inst" ? "/pmt" : c.cadence === "annual" ? "/yr" : "/mo"}</span>
+          {fmt(c.amount)}<span style={{ fontWeight: 500, fontSize: 12, color: C.inkSoft }}>{c.kind === "inst" ? "/pmt" : c.cadence === "annual" ? "/yr" : c.cadence === "fortnight" ? "/fortnight" : "/mo"}</span>
         </span>
         {!ended && (
           <button className="mg-btn" onClick={() => logCommitmentPayment(c.id)}
@@ -299,8 +331,9 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
             {cKind === "sub" && (
               <div style={{ flex: "0 1 110px" }}>
                 <Field label="Cadence">
-                  <select value={cCadence} onChange={(e) => setCCadence(e.target.value as "monthly" | "annual")} style={inputStyle}>
+                  <select value={cCadence} onChange={(e) => setCCadence(e.target.value as Cadence)} style={inputStyle}>
                     <option value="monthly">Monthly</option>
+                    <option value="fortnight">Fortnightly</option>
                     <option value="annual">Yearly</option>
                   </select>
                 </Field>
@@ -315,11 +348,21 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
                 </Field>
               </div>
             )}
-            <div style={{ flex: "0 1 84px", minWidth: 70 }}>
-              <Field label="Day">
-                <input className="mg-num" type="number" min="1" max="31" value={cDay} onChange={(e) => setCDay(e.target.value)} style={inputStyle} />
-              </Field>
-            </div>
+            {isFortnight ? (
+              // Any payment date you know anchors the 14-day cycle — past or
+              // upcoming both work (the engine steps forward from either).
+              <div style={{ flex: "0 1 150px", minWidth: 130 }}>
+                <Field label="A payment date">
+                  <input type="date" value={cAnchor} onChange={(e) => setCAnchor(e.target.value)} style={inputStyle} />
+                </Field>
+              </div>
+            ) : (
+              <div style={{ flex: "0 1 84px", minWidth: 70 }}>
+                <Field label="Day">
+                  <input className="mg-num" type="number" min="1" max="31" value={cDay} onChange={(e) => setCDay(e.target.value)} style={inputStyle} />
+                </Field>
+              </div>
+            )}
             {cKind === "inst" ? (
               <>
                 <div style={{ flex: "0 1 100px", minWidth: 84 }}>
