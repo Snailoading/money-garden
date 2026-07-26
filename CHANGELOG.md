@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.15.0 — 2026-07-26 · *Left unplanted* 🌱
+
+### Added
+
+- **A new Seasons chart: "Left unplanted."** Each month's leftover —
+  income minus spending minus what you sent to goals — as a bar around a
+  zero line: green above when the month ended with money to spare, red
+  below when it outgrew its income. Months with nothing on the budget —
+  nothing logged at all, or only goal draws — show as gaps rather than
+  pretending to be break-even, and months without logged income note
+  that the figure rests on your stated monthly income.
+  Leftover money isn't counted as savings anywhere else in the garden —
+  this chart is where it becomes visible.
+
 ## 0.14.5 — 2026-07-22 · *Steady ground under the search* 🔍
 
 ### Fixed

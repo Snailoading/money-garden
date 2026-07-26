@@ -19,7 +19,7 @@ leaves on that trunk; the engine could be transplanted into another frontend
 │      │     toast                                                       │
 │      ▼                                                                 │
 │  tabs/       Overview  Log  Budgets  Garden  Orchard  Seasons  Advice  │
-│  charts/     SvgPace  SvgDonut  SvgProjection  SvgSeasons (×3)         │
+│  charts/     SvgPace  SvgDonut  SvgProjection  SvgSeasons (×4)         │
 │  art/        Plant (5 stages)  OrchardTree (freedom tree)              │
 │  bits.tsx    Stat  CardTitle  Empty  Field  PlantMini                  │
 │  hooks.ts    useReveal (entry anims)  useNearest/svgX (tooltips)       │
