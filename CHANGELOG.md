@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.16.0 — 2026-07-26 · *Fortnightly vines* 🌿
+
+### Added
+
+- **Subscriptions can now bill fortnightly.** Some services (and plenty of
+  pay cycles) run every two weeks — the cadence picker now offers
+  Fortnightly alongside Monthly and Yearly. Instead of a day of the month,
+  you give it one payment date you know (past or upcoming, either works)
+  and the vine counts 14-day cycles from there, keeping the weekday.
+  Fortnightly vines count as 26 payments a year in the monthly vines total
+  (about 2.17 a month — a flat "twice a month" would undercount them), and
+  they join the due-soon strip within a week of billing. Logging a payment
+  nudges the next date forward one cycle, exactly like monthly vines.
+  Older backups are untouched; on a pre-fortnight build a fortnightly vine
+  from a newer backup falls back to monthly on its anchor day.
+
 ## 0.15.0 — 2026-07-26 · *Left unplanted* 🌱
 
 ### Added
