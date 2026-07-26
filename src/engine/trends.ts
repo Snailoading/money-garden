@@ -5,7 +5,7 @@
 
 import type { State } from "./types";
 import { MONTH_NAMES, monthKey } from "./format";
-import { monthAggregates } from "./stats";
+import { isDraw, monthAggregates } from "./stats";
 
 export interface TrendPoint {
   /** YYYY-MM. */
@@ -23,6 +23,15 @@ export interface TrendPoint {
   savingsRate: number;
   needs: number;
   wants: number;
+  /** The month's operative income: logged income if any, otherwise the
+   * stated monthly figure — the same replacement rule as stats.ts. */
+  income: number;
+  /** income − spent − saved: what the month left unplanted (negative =
+   * the month outgrew its income). null for months with no budget-basis
+   * entries (nothing at all, or only goal draws) — like Python's
+   * Optional, absence is a state, not zero: such a month would otherwise
+   * show its full stated income as a fabricated "leftover". */
+  left: number | null;
   /** true for the current, still-unfolding month. */
   partial: boolean;
 }
@@ -61,7 +70,7 @@ export function monthlyTrends(state: State, now: Date = new Date(), maxMonths = 
   const end = Math.max(maxMonths, range.length - Math.max(0, offset));
   const window = range.slice(Math.max(0, end - maxMonths), end);
   return window.map((ym, i) => {
-    const { spent, drawn, earned, savedThisMonth, needs, wants } = monthAggregates(state, ym);
+    const { monthTx, spent, drawn, earned, savedThisMonth, needs, wants } = monthAggregates(state, ym);
     const income = earned || state.income || 0;
     const [, m] = ym.split("-").map(Number);
     const monthName = MONTH_NAMES[m - 1];
@@ -76,6 +85,12 @@ export function monthlyTrends(state: State, now: Date = new Date(), maxMonths = 
       savingsRate: income > 0 ? savedThisMonth / income : 0,
       needs,
       wants,
+      income,
+      // Emptiness is judged on the BUDGET basis, not the raw journal: a
+      // month whose only entries are goal draws recorded nothing that
+      // participates in left (draws spend a goal's pool), so it must be a
+      // gap too — otherwise it fabricates a full-stated-income bar.
+      left: monthTx.some((t) => !isDraw(t)) ? income - spent - savedThisMonth : null,
       partial: ym === current,
     };
   });

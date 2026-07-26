@@ -103,3 +103,63 @@ describe("monthlyTrends", () => {
     expect(march.wants).toBe(200);
   });
 });
+
+describe("monthlyTrends · left (unplanted surplus)", () => {
+  it("is income − spent − saved, on the budget basis (draws excluded)", () => {
+    const draw = { ...tx("2026-04", "expense", 500, "shopping"), goalId: "g1" };
+    const s = state([tx("2026-04", "income", 2000), tx("2026-04", "expense", 800), tx("2026-04", "saving", 300), draw]);
+    const april = monthlyTrends(s, now).find((p) => p.ym === "2026-04")!;
+    expect(april.income).toBe(2000);
+    expect(april.left).toBe(900); // 2000 − 800 − 300; the 500 draw spends a goal's pool, not April's income
+  });
+
+  it("goes negative when the month outgrows its income", () => {
+    const s = state([tx("2026-04", "income", 1000), tx("2026-04", "expense", 1400)]);
+    expect(monthlyTrends(s, now).find((p) => p.ym === "2026-04")!.left).toBe(-400);
+  });
+
+  it("is null for months with no entries — a gap, never a fabricated bar", () => {
+    // March logged nothing; with stated income 1000 a zero-based left would
+    // invent a +1000 bar for a month that simply wasn't recorded.
+    const s = state([tx("2026-02", "expense", 10), tx("2026-04", "expense", 10)], { income: 1000 });
+    const points = monthlyTrends(s, now);
+    expect(points.find((p) => p.ym === "2026-03")!.left).toBeNull();
+    expect(points.find((p) => p.ym === "2026-04")!.left).toBe(990);
+  });
+
+  it("is null for a draws-only month — draws don't participate in left", () => {
+    // Only goal draws logged: nothing on the budget basis was recorded, so
+    // rendering stated income − 0 − 0 would fabricate a full-income bar
+    // (the same trap as an unlogged month, one level deeper).
+    const draw = { ...tx("2026-04", "expense", 350, "shopping"), goalId: "g1" };
+    const s = state([draw], { income: 1000 });
+    const april = monthlyTrends(s, now).find((p) => p.ym === "2026-04")!;
+    expect(april.left).toBeNull();
+    expect(april.drawn).toBe(350); // still annotated — the tooltip says draws-only
+  });
+
+  it("falls back to stated income when no income was logged", () => {
+    const s = state([tx("2026-04", "expense", 600)], { income: 1000 });
+    const april = monthlyTrends(s, now).find((p) => p.ym === "2026-04")!;
+    expect(april.income).toBe(1000);
+    expect(april.earned).toBe(0); // the UI hedges the tooltip off this
+    expect(april.left).toBe(400);
+  });
+
+  it("logged income replaces the stated figure entirely (never adds)", () => {
+    const s = state([tx("2026-04", "income", 50), tx("2026-04", "expense", 600)], { income: 1000 });
+    expect(monthlyTrends(s, now).find((p) => p.ym === "2026-04")!.left).toBe(-550);
+  });
+
+  it("stays honest with no income at all: left is simply the deficit", () => {
+    const s = state([tx("2026-04", "expense", 600), tx("2026-04", "saving", 100)]);
+    expect(monthlyTrends(s, now).find((p) => p.ym === "2026-04")!.left).toBe(-700);
+  });
+
+  it("computes for the current partial month too", () => {
+    const s = state([tx(currentYm, "income", 2000), tx(currentYm, "expense", 500)]);
+    const cur = monthlyTrends(s, now).find((p) => p.ym === currentYm)!;
+    expect(cur.partial).toBe(true);
+    expect(cur.left).toBe(1500);
+  });
+});
