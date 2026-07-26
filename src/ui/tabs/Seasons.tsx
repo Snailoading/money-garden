@@ -9,7 +9,7 @@ import { monthRange, monthlyTrends } from "../../engine/trends";
 import { MONTH_NAMES } from "../../engine/format";
 import { C } from "../theme";
 import { CardTitle } from "../bits";
-import { SeasonsBars, SeasonsRate, SeasonsSplit } from "../charts/SvgSeasons";
+import { SeasonsBars, SeasonsLeftover, SeasonsRate, SeasonsSplit } from "../charts/SvgSeasons";
 
 const WINDOW = 12;
 
@@ -98,6 +98,17 @@ export function Seasons({ state, goToMonth }: {
         </p>
         <div style={{ height: 220 }}>
           <SeasonsRate trends={trends} />
+        </div>
+      </section>
+
+      <section className="mg-card" style={{ padding: 20 }}>
+        <CardTitle>Left unplanted</CardTitle>
+        <p style={{ margin: "0 0 8px", fontSize: 13, color: C.inkSoft, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+          <span>What each month left over after spending and saving — dips below the line are months that outgrew their income.</span>
+          <Legend items={[["left over", C.leaf], ["overspent", C.tomato]]} />
+        </p>
+        <div style={{ height: 220 }}>
+          <SeasonsLeftover trends={trends} />
         </div>
       </section>
 

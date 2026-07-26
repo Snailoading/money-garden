@@ -1,8 +1,9 @@
 /*
  * Seasons charts — dependency-free SVG like the rest of the garden:
- *   SeasonsBars  — earned vs spent per month, saved as a marigold line
- *   SeasonsRate  — savings rate per month vs the 20% benchmark
- *   SeasonsSplit — needs vs wants stacked per month
+ *   SeasonsBars     — earned vs spent per month, saved as a marigold line
+ *   SeasonsRate     — savings rate per month vs the 20% benchmark
+ *   SeasonsSplit    — needs vs wants stacked per month
+ *   SeasonsLeftover — money left unplanted per month, diverging around zero
  * Shared band geometry + tooltip pattern (edge-flip, clamp). Hover maps the
  * pointer to a month band (bars aren't evenly spread points, so this uses a
  * band-based locate instead of useNearest).
@@ -142,6 +143,90 @@ export function SeasonsBars({ trends, onPick }: { trends: TrendPoint[]; onPick?:
             ]} />
         )}
       </Frame>
+    </svg>
+  );
+}
+
+/** Signed fmtK for the diverging axis — fmtK itself renders −1400 as "$-1400". */
+const fmtKSigned = (v: number) => (v < 0 ? "−" + fmtK(-v) : fmtK(v));
+
+/**
+ * Money left unplanted per month (income − spent − saved), diverging around
+ * a zero baseline: leaf above (surplus), tomato below (the month outgrew its
+ * income). Months with nothing logged are gaps, not bars — left is null
+ * there, and a zero-height bar would still claim "exactly break-even".
+ * Its own frame: the shared Frame assumes a 0-based axis.
+ */
+export function SeasonsLeftover({ trends }: { trends: TrendPoint[] }) {
+  const on = useReveal();
+  const { ref, hi, locate, clear } = useBandHover(trends.length);
+  const k = useSvgScale(ref, W);
+  const cid = useRef("c" + Math.random().toString(36).slice(2, 9)).current;
+  if (trends.length === 0) return null;
+  const n = trends.length;
+  const band = (W - pl - pr) / n;
+  const lefts = trends.map((p) => p.left).filter((v): v is number => v !== null);
+  const maxV = Math.max(1, ...lefts) * 1.08;
+  const minV = Math.min(0, ...lefts) * 1.08;
+  const y = (v: number) => pt + ((maxV - v) / (maxV - minV)) * (H - pt - pb);
+  const bw = Math.min(26, band * 0.55);
+  // Gridlines at the halves and extremes of each side that exists — an
+  // all-deficit window would otherwise print the Math.max floor's 1.08
+  // and 0.54 as two overlapping "$1" ticks hugging the zero line.
+  const ticks = [
+    ...(lefts.some((v) => v > 0) ? [maxV, maxV / 2] : []),
+    ...(minV < 0 ? [minV / 2, minV] : []),
+  ];
+  return (
+    <svg ref={ref} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
+      onPointerMove={locate} onPointerDown={locate} onPointerLeave={clear}
+      style={{ width: "100%", height: "100%", display: "block", touchAction: "pan-y" }} role="img"
+      aria-label="Money left over per month; months below the line outgrew their income">
+      <defs><clipPath id={cid}><rect x="0" y="0" height={H} width={on ? W : 0} style={{ transition: "width .9s ease" }} /></clipPath></defs>
+      {ticks.map((t) => (
+        <g key={t}>
+          <line x1={pl} x2={W - pr} y1={y(t)} y2={y(t)} strokeDasharray="3 5" style={{ stroke: C.border }} />
+          <text x={pl - 6} y={y(t) + 4} textAnchor="end" fontSize="11" className="mg-num" style={{ fill: C.inkSoft }}>{fmtKSigned(t)}</text>
+        </g>
+      ))}
+      {/* the zero baseline is the story's pivot — solid, labeled */}
+      <line x1={pl} x2={W - pr} y1={y(0)} y2={y(0)} strokeWidth="1.5" style={{ stroke: C.border }} />
+      <text x={pl - 6} y={y(0) + 4} textAnchor="end" fontSize="11" className="mg-num" style={{ fill: C.inkSoft }}>$0</text>
+      <MonthLabels trends={trends} />
+      <g clipPath={`url(#${cid})`}>
+        {trends.map((p, i) => {
+          if (p.left === null) return null; // nothing logged — a gap
+          const cx = cxOf(i, n);
+          const top = Math.min(y(p.left), y(0));
+          return (
+            <rect key={p.ym} x={cx - bw / 2} y={top} width={bw} rx="2"
+              height={Math.max(1, Math.abs(y(0) - y(p.left)))} opacity={p.partial ? 0.55 : 1}
+              style={{ fill: p.left >= 0 ? C.leaf : C.tomato }} />
+          );
+        })}
+      </g>
+      {hi != null && (
+        <Tooltip k={k} x={cxOf(hi, n)} title={trends[hi].label + (trends[hi].partial ? " (so far)" : "")}
+          rows={
+            trends[hi].left === null
+              ? trends[hi].drawn > 0
+                // A draws-only month: the gap is honest (draws spend a goal's
+                // pool, not this month's income) but "nothing logged" isn't.
+                ? [
+                    ["Only goal draws logged", "", C.inkSoft] as [string, string, string],
+                    ["🌸 Drawn", fmt(trends[hi].drawn), C.tomato] as [string, string, string],
+                  ]
+                : [["Nothing logged", "", C.inkSoft]]
+              : [
+                  [trends[hi].left! >= 0 ? "Left over" : "Overspent by", fmt(Math.abs(trends[hi].left!)), trends[hi].left! >= 0 ? C.leafDark : C.tomato],
+                  // No income logged that month — the figure rests on the
+                  // stated monthly income, so say so (honest-copy rule).
+                  ...(trends[hi].earned === 0 && trends[hi].income > 0
+                    ? [["· from stated income", "", C.inkSoft] as [string, string, string]]
+                    : []),
+                ]
+          } />
+      )}
     </svg>
   );
 }
