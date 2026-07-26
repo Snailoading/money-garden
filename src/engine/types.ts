@@ -96,7 +96,7 @@ export interface Invest {
 }
 
 export type CommitmentKind = "sub" | "inst";
-export type Cadence = "monthly" | "annual";
+export type Cadence = "monthly" | "annual" | "fortnight";
 
 export interface Commitment {
   id: string;
@@ -104,10 +104,17 @@ export interface Commitment {
   name: string;
   amount: number;
   cadence: Cadence;
-  /** Day of month the payment lands, 1–31 (clamped to short months). */
+  /** Day of month the payment lands, 1–31 (clamped to short months).
+   * Kept populated for fortnightly vines too (from the anchor's day) so a
+   * pre-fortnight build importing this data degrades to "monthly on that
+   * day" instead of garbage — forward-only compat, birthYear-style. */
   payDay: number;
   /** Month of year for annual cadence, 1–12. */
   payMonth: number;
+  /** Fortnightly only: an ISO date a payment lands on (past or future) —
+   * the 14-day cycle counts from here. Day-of-month can't express "every
+   * other Friday". */
+  anchorDate?: string;
   /** Subscriptions only: ISO date after which the vine is ended. "" = open-ended. */
   endDate?: string;
   /** Installments only. */

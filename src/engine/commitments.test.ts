@@ -206,3 +206,128 @@ describe("deriveCommitments", () => {
     expect(d.dueSoon.map((x) => x.days)).toEqual([0, 5]);
   });
 });
+
+describe("nextDueDate — fortnight", () => {
+  const fort = (over: Partial<Commitment> = {}) =>
+    sub({ cadence: "fortnight", anchorDate: "2026-06-05", payDay: 5, ...over });
+
+  it("steps 14 days from the anchor to the first date ≥ today", () => {
+    const due = nextDueDate(fort(), june15); // anchor Jun 5 → Jun 19
+    expect([due.getMonth(), due.getDate()]).toEqual([5, 19]);
+    expect(daysUntil(due, june15)).toBe(4);
+  });
+
+  it("keeps a payment due today as today (anchor exactly N cycles back)", () => {
+    const due = nextDueDate(fort({ anchorDate: "2026-06-01" }), june15); // 14 days ago
+    expect([due.getMonth(), due.getDate()]).toEqual([5, 15]);
+    expect(daysUntil(due, june15)).toBe(0);
+  });
+
+  it("a future anchor is itself the next due date", () => {
+    const due = nextDueDate(fort({ anchorDate: "2026-06-20" }), june15);
+    expect([due.getMonth(), due.getDate()]).toEqual([5, 20]);
+  });
+
+  it("preserves the anchor's weekday across long spans and year boundaries", () => {
+    const due = nextDueDate(fort({ anchorDate: "2025-01-03" }), june15); // a Friday, ~17 months back
+    expect(due.getDay()).toBe(5); // still a Friday
+    expect(daysUntil(due, june15)).toBeGreaterThanOrEqual(0);
+    expect(daysUntil(due, june15)).toBeLessThan(14);
+  });
+
+  it("falls back to today when the anchor is missing (defensive)", () => {
+    const due = nextDueDate(fort({ anchorDate: undefined }), june15);
+    expect(daysUntil(due, june15)).toBe(0);
+  });
+});
+
+describe("nextDueWithPayments — fortnight", () => {
+  const pay = (date: string): Transaction =>
+    ({ id: `p-${date}`, type: "expense", amount: 12, category: "subs", note: "", date, commitmentId: "s1" });
+  const fort = (over: Partial<Commitment> = {}) =>
+    sub({ cadence: "fortnight", anchorDate: "2026-06-05", payDay: 5, ...over });
+
+  it("advances exactly one 14-day cycle when paid within the 7-day window", () => {
+    // due Jun 19; window (Jun 12, Jun 19]
+    const due = nextDueWithPayments(fort(), [pay("2026-06-13")], june15);
+    expect([due.getMonth(), due.getDate()]).toEqual([6, 3]); // Jul 3
+  });
+
+  it("a payment on the due date itself counts", () => {
+    const due = nextDueWithPayments(fort(), [pay("2026-06-19")], june15);
+    expect([due.getMonth(), due.getDate()]).toEqual([6, 3]);
+  });
+
+  it("ignores a payment older than half a cycle — that was last fortnight's", () => {
+    const due = nextDueWithPayments(fort(), [pay("2026-06-11")], june15);
+    expect([due.getMonth(), due.getDate()]).toEqual([5, 19]); // still Jun 19
+  });
+
+  it("never double-advances into the cycle after next", () => {
+    const paid = pay("2026-06-18");
+    // Jun 15: this cycle paid → Jul 3.
+    expect(nextDueWithPayments(fort(), [paid], june15).getDate()).toBe(3);
+    // Jul 1 (next cycle window): the old payment must not cover Jul 3 too.
+    const jul1 = new Date(2026, 6, 1, 12);
+    expect(nextDueWithPayments(fort(), [paid], jul1).getDate()).toBe(3); // Jul 3, unpaid
+    expect(nextDueWithPayments(fort(), [paid], jul1).getMonth()).toBe(6);
+  });
+});
+
+describe("deriveCommitments — fortnight", () => {
+  it("normalizes fortnightly subs at 26 payments a year (×26 ÷ 12)", () => {
+    const d = deriveCommitments(
+      [sub({ id: "m", amount: 10 }), sub({ id: "f", amount: 30, cadence: "fortnight", anchorDate: "2026-06-05" })],
+      june15,
+    );
+    expect(d.subsMonthly).toBeCloseTo(10 + 65); // 30 × 26/12 = 65, not 60
+  });
+
+  it("shows fortnightly vines in dueSoon only within half a cycle (≤7 days)", () => {
+    const d = deriveCommitments(
+      [
+        sub({ id: "near", cadence: "fortnight", anchorDate: "2026-06-05" }), // due Jun 19 → 4 days
+        sub({ id: "far", cadence: "fortnight", anchorDate: "2026-06-13" }),  // due Jun 27 → 12 days: excluded
+        sub({ id: "mo", payDay: 27 }),                                       // monthly, 12 days: included
+      ],
+      june15,
+    );
+    expect(d.dueSoon.map((x) => x.c.id)).toEqual(["near", "mo"]);
+  });
+
+  it("ends a fortnightly sub when the next due date passes endDate", () => {
+    const c = sub({ id: "f", cadence: "fortnight", anchorDate: "2026-06-05", endDate: "2026-06-18" });
+    expect(commitmentEnded(c, june15)).toBe(true); // next due Jun 19 > Jun 18
+    const c2 = sub({ id: "f2", cadence: "fortnight", anchorDate: "2026-06-05", endDate: "2026-06-19" });
+    expect(commitmentEnded(c2, june15)).toBe(false); // the final billing day still counts
+  });
+});
+
+describe("verifier round — boundary and defensive fixes", () => {
+  const pay = (date: string): Transaction =>
+    ({ id: `p-${date}`, type: "expense", amount: 12, category: "subs", note: "", date, commitmentId: "s1" });
+  const fort = (over: Partial<Commitment> = {}) =>
+    sub({ cadence: "fortnight", anchorDate: "2026-06-05", payDay: 5, ...over });
+
+  it("a payment logged the day the strip first invites it (due−7) counts", () => {
+    // due Jun 19; on Jun 12 the vine enters dueSoon (7d) with a Log-payment
+    // button — that payment must advance the date, or a second tap
+    // double-logs. Window is strip + 1 day, mirroring monthly's 15 vs 14.
+    const jun12 = new Date(2026, 5, 12, 12);
+    const d = deriveCommitments([fort()], jun12);
+    expect(d.dueSoon.map((x) => x.c.id)).toEqual(["s1"]); // invited today
+    const due = nextDueWithPayments(fort(), [pay("2026-06-12")], jun12);
+    expect([due.getMonth(), due.getDate()]).toEqual([6, 3]); // advanced to Jul 3
+  });
+
+  it("an unparseable anchor degrades to today, never NaN", () => {
+    const due = nextDueDate(fort({ anchorDate: "garbage" }), june15);
+    expect(isNaN(due.getTime())).toBe(false);
+    expect(daysUntil(due, june15)).toBe(0);
+  });
+
+  it("normalizes fortnightly installments too (defensive, via monthlyCost)", () => {
+    const d = deriveCommitments([inst({ cadence: "fortnight", anchorDate: "2026-06-05", amount: 60 })], june15);
+    expect(d.instMonthly).toBeCloseTo(130); // 60 × 26/12
+  });
+});
