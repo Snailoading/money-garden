@@ -310,9 +310,10 @@ describe("verifier round — boundary and defensive fixes", () => {
     sub({ cadence: "fortnight", anchorDate: "2026-06-05", payDay: 5, ...over });
 
   it("a payment logged the day the strip first invites it (due−7) counts", () => {
-    // due Jun 19; on Jun 12 the vine enters dueSoon (7d) with a Log-payment
-    // button — that payment must advance the date, or a second tap
-    // double-logs. Window is strip + 1 day, mirroring monthly's 15 vs 14.
+    // due Jun 19; on Jun 12 the vine enters dueSoon (7d) — the strip is the
+    // invitation to hit the row's Log-payment button, and that payment must
+    // advance the date, or a second tap double-logs. Window is strip + 1
+    // day, mirroring monthly's 15 vs 14.
     const jun12 = new Date(2026, 5, 12, 12);
     const d = deriveCommitments([fort()], jun12);
     expect(d.dueSoon.map((x) => x.c.id)).toEqual(["s1"]); // invited today
