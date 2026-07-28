@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.17.0 — 2026-07-28 · *Search across the seasons* 🔍
+
+### Changed
+
+- **Date filters in the ledger search now reach the whole journal.** Setting
+  a From or To date used to quietly search only the month you were viewing —
+  a range spanning March to July would show just July's matches with no hint
+  the rest existed. An explicit date range now searches every entry you've
+  ever logged, the result count says "across all seasons" so the wider scope
+  is stated, and each row shows its year. Leave both dates empty and the
+  search stays month-scoped exactly as before.
+- **An empty month no longer hides the search.** On the 1st of a fresh month
+  (or browsing a quiet past month) the 🔍 still appears whenever the journal
+  has any history, so a date range can reach it.
+
 ## 0.16.0 — 2026-07-26 · *Fortnightly vines* 🌿
 
 ### Added
