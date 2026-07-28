@@ -179,9 +179,17 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
     to: fTo || undefined,
   };
   const monthTx = (view ?? d).monthTx;
+  // An explicit From/To overrides the month scope: a typed date range is
+  // the clearest statement of intent, and intersecting it with the viewed
+  // month would silently hide matches from other months — the "invisible
+  // mystery" this search was built to never be. With no dates set, the
+  // ledger stays month-scoped exactly as before. Stored order (newest
+  // logged first) matches how the month view already presents entries.
+  const dateScoped = Boolean(fFrom || fTo);
+  const baseTx = dateScoped ? state.transactions : monthTx;
   // The row being edited is pinned into the results even if the filter no
   // longer matches it — typing in search must never swallow an open editor.
-  const filtered = monthTx.filter((t) => t.id === editingId || matchesFilter(t, jf));
+  const filtered = baseTx.filter((t) => t.id === editingId || matchesFilter(t, jf));
   const shown = filtered.slice(0, visibleCount);
   const hidden = filtered.length - shown.length;
   const filterActive = isFilterActive(jf);
@@ -254,7 +262,9 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
           <CardTitle style={{ margin: 0, flex: "1 1 auto", minWidth: 0 }}>
             {view ? `${monthLabel(view.ym)}'s ledger` : "This month's ledger"}
           </CardTitle>
-          {monthTx.length > 0 && (
+          {/* Journal-gated, not month-gated: an empty month (say, the 1st of
+              a fresh month) must still let a date range reach the history. */}
+          {state.transactions.length > 0 && (
             <div className={"mg-search" + (searchOpen ? " open" : "")}>
               <button className="mg-btn" onClick={searchOpen ? () => searchRef.current?.focus() : openSearch}
                 aria-label="Search the ledger" title="Search the ledger" tabIndex={searchOpen ? -1 : 0}
@@ -280,8 +290,8 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
             </div>
           )}
         </div>
-        {monthTx.length === 0 ? (
-          <Empty text={view ? "Nothing was logged that month." : "Nothing logged yet this month."} />
+        {state.transactions.length === 0 ? (
+          <Empty text="Nothing logged yet this month." />
         ) : (
           <>
             <div className={"mg-collapse" + (searchOpen && showFilters ? " open" : "")}>
@@ -321,7 +331,14 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
             </div>
             {filterActive && (
               <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12.5, color: C.inkSoft, marginBottom: 8 }}>
-                <span>{filtered.length} of {monthTx.length} entries</span>
+                <span>
+                  {dateScoped
+                    // Honest scope: with dates set the search leaves the month
+                    // and covers the whole journal — say so, don't imply "of
+                    // this month".
+                    ? `${filtered.length} ${filtered.length === 1 ? "entry" : "entries"} across all seasons`
+                    : `${filtered.length} of ${monthTx.length} entries`}
+                </span>
                 <button className="mg-btn" onClick={clearFilters}
                   style={{ background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: 999, padding: "3px 10px", fontWeight: 700, fontSize: 11.5, color: C.inkSoft, cursor: "pointer" }}>
                   Clear
@@ -330,6 +347,10 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
             )}
             {filterActive && filtered.length === 0 ? (
               <Empty text="No entries match — the ledger's quiet under these filters." cta="Clear filters" onClick={clearFilters} />
+            ) : !filterActive && monthTx.length === 0 ? (
+              // The journal has history but this month has nothing — the
+              // search pill above still works (dates reach other months).
+              <Empty text={view ? "Nothing was logged that month." : "Nothing logged yet this month."} />
             ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {shown.map((t) => {
@@ -416,7 +437,11 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
                       {t.note || (t.type === "saving" ? SAVING_LABEL : cat?.label || "Other")}
                     </div>
                     <div style={{ fontSize: 11.5, color: C.inkSoft }}>
-                      {new Date(t.date + "T12:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      {/* Journal-wide results can span years — "Jul 15" alone
+                          would be ambiguous, so the year rides along. */}
+                      {new Date(t.date + "T12:00").toLocaleDateString("en-US", dateScoped
+                        ? { month: "short", day: "numeric", year: "numeric" }
+                        : { month: "short", day: "numeric" })}
                       {t.type === "expense" && cat ? ` · ${cat.label}` : ""}
                       {/* Draws say where the money came from — a custom note can hide it otherwise. */}
                       {isDraw(t) ? ` · 🌸 from ${state.goals.find((g) => g.id === t.goalId)?.name ?? "a departed goal"}` : ""}
