@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.17.1 — 2026-08-09 · *A livelier sample garden* 🌼
+
+### Changed
+
+- **"Plant sample data" now shows off the newer features.** The sample
+  garden gains a fortnightly meal-kit vine (with its 14-day cycle mid-count,
+  so the due-soon strip has something to say), an orchard watering so the
+  watering can reads "poured this month", a car-repair draw from the rain
+  barrel (the 🌸 harvest story in Seasons and the Log), goal-linked savings
+  entries that edit and delete reversibly, and a third month of history
+  where flight tickets outgrew the month's income — so the "Left unplanted"
+  chart demonstrates its below-the-line story. Real gardens are untouched;
+  this only changes what the demo plants.
+
 ## 0.17.0 — 2026-07-28 · *Search across the seasons* 🔍
 
 ### Changed
