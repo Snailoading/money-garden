@@ -30,8 +30,9 @@ describe("parseBackup — round trip", () => {
     if (!result.ok) return;
     expect(result.preview.state).toEqual(s);
     expect(result.preview.exportedAt).toBe("2026-06-15");
-    // 10 current-month + 2×10 prior-month sample transactions.
-    expect(result.preview.counts).toEqual({ transactions: 30, goals: 3, commitments: 4, holdings: 2 });
+    // 11 current-month (incl. the orchard watering) + 11 + 10 + 10 across
+    // three prior sample months (the k=1 month carries the barrel draw).
+    expect(result.preview.counts).toEqual({ transactions: 42, goals: 3, commitments: 5, holdings: 2 });
   });
 
   it("carries transaction links (goalId/commitmentId/holdingId) through the round trip", () => {
