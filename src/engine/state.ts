@@ -64,7 +64,11 @@ export function sampleState(now: Date = new Date()): State {
     const dim = new Date(y, m - k + 1, 0).getDate();
     return toLocalISO(new Date(y, m - k, Math.min(day, dim)));
   };
-  const priorMonth = (k: number, tweaks: { groceriesA: number; groceriesB: number; utilities: number; dining: number; transport: number; extraCat: string; extraNote: string; extra: number; savingNote: string; saving: number }): Transaction[] => [
+  // Hoisted ids so journal entries can link to what they watered or drew
+  // (goalId/holdingId) — the sample should demo the linked-entry features,
+  // not just the legacy unlinked style.
+  const barrelId = uid(), japanId = uid(), indexFundId = uid();
+  const priorMonth = (k: number, tweaks: { groceriesA: number; groceriesB: number; utilities: number; dining: number; transport: number; extraCat: string; extraNote: string; extra: number; savingNote: string; saving: number; savingGoalId?: string }): Transaction[] => [
     { id: uid(), type: "income",  amount: 4200, category: "other", note: "Paycheck", date: dp(k, 1) },
     { id: uid(), type: "expense", amount: 1400, category: "housing", note: "Rent", date: dp(k, 1) },
     { id: uid(), type: "expense", amount: tweaks.groceriesA, category: "groceries", note: "Weekly shop", date: dp(k, 6) },
@@ -74,8 +78,12 @@ export function sampleState(now: Date = new Date()): State {
     { id: uid(), type: "expense", amount: tweaks.dining, category: "dining", note: "Eating out", date: dp(k, 13) },
     { id: uid(), type: "expense", amount: tweaks.transport, category: "transport", note: "Transit pass", date: dp(k, 9) },
     { id: uid(), type: "expense", amount: tweaks.extra, category: tweaks.extraCat, note: tweaks.extraNote, date: dp(k, 21) },
-    { id: uid(), type: "saving", amount: tweaks.saving, category: "other", note: tweaks.savingNote, date: dp(k, 26) },
+    { id: uid(), type: "saving", amount: tweaks.saving, category: "other", note: tweaks.savingNote, goalId: tweaks.savingGoalId, date: dp(k, 26) },
   ];
+  // A known payment date for the fortnightly vine, 9 days back → next due in
+  // 5 days, so the due-soon strip has something to show. The Date constructor
+  // rolls a negative day into the prior month correctly.
+  const mealAnchor = new Date(y, m, now.getDate() - 9);
   return {
     income: 4200,
     budgets: Object.fromEntries(CATEGORIES.map((c) => [c.id, c.budget])),
@@ -90,24 +98,38 @@ export function sampleState(now: Date = new Date()): State {
       { id: uid(), type: "expense", amount: 34.5,  category: "fun",       note: "Climbing gym",   date: d(12) },
       { id: uid(), type: "expense", amount: 67.8,  category: "shopping",  note: "Running shoes",  date: d(14) },
       { id: uid(), type: "expense", amount: 28.0,  category: "transport", note: "Transit pass",   date: d(15) },
-      ...priorMonth(1, { groceriesA: 196.4, groceriesB: 188.25, utilities: 61.2, dining: 118, transport: 44, extraCat: "fun", extraNote: "Climbing gym", extra: 38, savingNote: "→ Japan trip", saving: 400 }),
-      ...priorMonth(2, { groceriesA: 205.1, groceriesB: 179.6, utilities: 58.7, dining: 84.5, transport: 52, extraCat: "shopping", extraNote: "Winter boots", extra: 45, savingNote: "→ Emergency fund", saving: 500 }),
+      // Orchard watering, journal-linked (holdingId) — lights the watering
+      // can's "poured this month" status line instead of an empty one.
+      { id: uid(), type: "saving", amount: 400, category: "other", note: "→ Orchard: index fund", holdingId: indexFundId, date: d(8) },
+      ...priorMonth(1, { groceriesA: 196.4, groceriesB: 188.25, utilities: 61.2, dining: 118, transport: 44, extraCat: "fun", extraNote: "Climbing gym", extra: 38, savingNote: "→ Japan trip", saving: 400, savingGoalId: japanId }),
+      // A draw from the rain barrel (expense + goalId): the harvest story —
+      // 🌸 in Seasons, "Spent from goals" on the Overview's month view, and
+      // a linked, exactly-reversible entry in the Log.
+      { id: uid(), type: "expense", amount: 380, category: "transport", note: "Car repair — from the barrel", goalId: barrelId, date: dp(1, 16) },
+      ...priorMonth(2, { groceriesA: 205.1, groceriesB: 179.6, utilities: 58.7, dining: 84.5, transport: 52, extraCat: "shopping", extraNote: "Winter boots", extra: 45, savingNote: "→ Emergency fund", saving: 500, savingGoalId: barrelId }),
+      // A month that outgrew its income (flights bought with cash): the
+      // "Left unplanted" chart needs a dip below the zero line to tell its
+      // whole story, and the almanac reads better with a spiky month in it.
+      ...priorMonth(3, { groceriesA: 190, groceriesB: 185, utilities: 59.5, dining: 96, transport: 48, extraCat: "shopping", extraNote: "Flights to Osaka", extra: 2600, savingNote: "→ Japan trip", saving: 150, savingGoalId: japanId }),
     ],
     goals: [
-      { id: uid(), name: "Emergency fund", plant: "sunflower", target: 6000, saved: 2150, isEmergency: true },
-      { id: uid(), name: "Japan trip",     plant: "tulip",     target: 2800, saved: 640,  isEmergency: false },
-      { id: uid(), name: "New laptop",     plant: "bluebell",  target: 1500, saved: 1275, isEmergency: false },
+      { id: barrelId, name: "Emergency fund", plant: "sunflower", target: 6000, saved: 2150, isEmergency: true },
+      { id: japanId,  name: "Japan trip",     plant: "tulip",     target: 2800, saved: 640,  isEmergency: false },
+      { id: uid(),    name: "New laptop",     plant: "bluebell",  target: 1500, saved: 1275, isEmergency: false },
     ],
     invest: {
       holdings: [
-        { id: uid(), name: "Global index fund ETF", value: 14200 },
-        { id: uid(), name: "Retirement account",    value: 9800 },
+        { id: indexFundId, name: "Global index fund ETF", value: 14200 },
+        { id: uid(),       name: "Retirement account",    value: 9800 },
       ],
       monthly: 400, ret: 7, birthYear: y - 29, retireAge: 65, wr: 4, retireSpend: 0,
     },
     commitments: [
       { id: uid(), kind: "sub",  name: "Streaming bundle", amount: 15.99, cadence: "monthly", payDay: 12, payMonth: 1, endDate: "", category: "subs" },
       { id: uid(), kind: "sub",  name: "Gym membership",   amount: 35,    cadence: "monthly", payDay: 1,  payMonth: 1, endDate: "", category: "subs" },
+      // Fortnightly vine (v0.16): 14-day cycle from a known payment date;
+      // payDay mirrors the anchor's day for pre-fortnight backup compat.
+      { id: uid(), kind: "sub",  name: "Meal-kit box",     amount: 32,    cadence: "fortnight", payDay: mealAnchor.getDate(), payMonth: 1, anchorDate: toLocalISO(mealAnchor), endDate: "", category: "groceries" },
       { id: uid(), kind: "sub",  name: "Car insurance",    amount: 640,   cadence: "annual",  payDay: 15, payMonth: 9, endDate: "", category: "transport" },
       { id: uid(), kind: "inst", name: "Tax bill (plan)",  amount: 240,   cadence: "monthly", payDay: 20, payMonth: 1, totalPayments: 6, paidCount: 2, category: "other" },
     ],
