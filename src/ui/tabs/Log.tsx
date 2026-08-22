@@ -217,7 +217,12 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
           <Field label="Amount">
-            <input className="mg-num" type="number" min="0" step="0.01" value={amount} placeholder="0.00"
+            {/* inputMode picks the MOBILE KEYBOARD (type="number" alone
+                doesn't): "decimal" = the big numeric pad with a decimal
+                point. Piloting here before rolling out app-wide. Note the
+                iOS decimal pad has no Return key — the Add button carries
+                submission there. */}
+            <input className="mg-num" type="number" inputMode="decimal" min="0" step="0.01" value={amount} placeholder="0.00"
               onChange={(e) => setAmount(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submit()}
               style={inputStyle} />
@@ -373,7 +378,7 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
                     )}
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8 }}>
                       <Field label="Amount">
-                        <input className="mg-num" type="number" min="0" step="0.01" value={eAmount} autoFocus
+                        <input className="mg-num" type="number" inputMode="decimal" min="0" step="0.01" value={eAmount} autoFocus
                           onChange={(e) => setEAmount(e.target.value)} style={inputStyle} />
                       </Field>
                       {(typeLocked(t) ? t.type === "expense" : eType === "expense") && (
