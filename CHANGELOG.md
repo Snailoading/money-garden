@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.17.2 — 2026-08-22 · *The right keyboard for numbers* ⌨️
+
+### Fixed
+
+- **Tapping the Log tab's Amount fields on a phone now opens the numeric
+  keypad** (with a decimal point) instead of the full text keyboard. This
+  is a pilot on the Log tab — the same fix will roll out to every numeric
+  field once it's proven comfortable. One small trade: the iPhone decimal
+  pad has no Return key, so submitting is the Add button there (Android
+  keypads keep their enter key). Desktop is unchanged.
+
 ## 0.17.1 — 2026-08-09 · *A livelier sample garden* 🌼
 
 ### Changed
