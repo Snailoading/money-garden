@@ -134,7 +134,7 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
           <input value={eName} maxLength={40} onChange={(e) => setEName(e.target.value)} style={inputStyle} autoFocus />
         </Field>
         <Field label={c.kind === "inst" ? "Per payment" : "Amount"}>
-          <input className="mg-num" type="number" min="0.01" step="0.01" value={eAmount} onChange={(e) => setEAmount(e.target.value)} style={inputStyle} />
+          <input className="mg-num" type="number" inputMode="decimal" min="0.01" step="0.01" value={eAmount} onChange={(e) => setEAmount(e.target.value)} style={inputStyle} />
         </Field>
         {c.kind === "sub" && (
           <Field label="Cadence">
@@ -159,7 +159,7 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
           </Field>
         ) : (
           <Field label="Day">
-            <input className="mg-num" type="number" min="1" max="31" value={eDay} onChange={(e) => setEDay(e.target.value)} style={inputStyle} />
+            <input className="mg-num" type="number" inputMode="numeric" min="1" max="31" value={eDay} onChange={(e) => setEDay(e.target.value)} style={inputStyle} />
           </Field>
         )}
         {c.kind === "sub" ? (
@@ -169,10 +169,10 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
         ) : (
           <>
             <Field label="# payments">
-              <input className="mg-num" type="number" min="1" value={eTotal} onChange={(e) => setETotal(e.target.value)} style={inputStyle} />
+              <input className="mg-num" type="number" inputMode="numeric" min="1" value={eTotal} onChange={(e) => setETotal(e.target.value)} style={inputStyle} />
             </Field>
             <Field label="Already paid">
-              <input className="mg-num" type="number" min="0" value={ePaid} onChange={(e) => setEPaid(e.target.value)} style={inputStyle} />
+              <input className="mg-num" type="number" inputMode="numeric" min="0" value={ePaid} onChange={(e) => setEPaid(e.target.value)} style={inputStyle} />
             </Field>
           </>
         )}
@@ -265,7 +265,7 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
                   </span>
                   <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
                     <span className="mg-num" style={{ color: pct > 1 ? C.tomato : C.inkSoft }}>{fmt(spent)} of</span>
-                    <input className="mg-num" type="number" min="0" value={budget || ""} placeholder="0"
+                    <input className="mg-num" type="number" inputMode="decimal" min="0" value={budget || ""} placeholder="0"
                       onChange={(e) => setBudget(c.id, e.target.value)}
                       style={{ ...inputStyle, width: 88, padding: "5px 8px" }} aria-label={`${c.label} budget`} />
                   </span>
@@ -325,7 +325,7 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
             </div>
             <div style={{ flex: "0 1 104px", minWidth: 84 }}>
               <Field label={cKind === "inst" ? "Per payment" : "Amount"}>
-                <input className="mg-num" type="number" min="0.01" step="0.01" value={cAmount} placeholder="15.99" onChange={(e) => setCAmount(e.target.value)} style={inputStyle} />
+                <input className="mg-num" type="number" inputMode="decimal" min="0.01" step="0.01" value={cAmount} placeholder="15.99" onChange={(e) => setCAmount(e.target.value)} style={inputStyle} />
               </Field>
             </div>
             {cKind === "sub" && (
@@ -359,7 +359,7 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
             ) : (
               <div style={{ flex: "0 1 84px", minWidth: 70 }}>
                 <Field label="Day">
-                  <input className="mg-num" type="number" min="1" max="31" value={cDay} onChange={(e) => setCDay(e.target.value)} style={inputStyle} />
+                  <input className="mg-num" type="number" inputMode="numeric" min="1" max="31" value={cDay} onChange={(e) => setCDay(e.target.value)} style={inputStyle} />
                 </Field>
               </div>
             )}
@@ -367,12 +367,12 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
               <>
                 <div style={{ flex: "0 1 100px", minWidth: 84 }}>
                   <Field label="# payments">
-                    <input className="mg-num" type="number" min="1" value={cTotal} placeholder="6" onChange={(e) => setCTotal(e.target.value)} style={inputStyle} />
+                    <input className="mg-num" type="number" inputMode="numeric" min="1" value={cTotal} placeholder="6" onChange={(e) => setCTotal(e.target.value)} style={inputStyle} />
                   </Field>
                 </div>
                 <div style={{ flex: "0 1 100px", minWidth: 84 }}>
                   <Field label="Already paid">
-                    <input className="mg-num" type="number" min="0" value={cPaid} placeholder="0" onChange={(e) => setCPaid(e.target.value)} style={inputStyle} />
+                    <input className="mg-num" type="number" inputMode="numeric" min="0" value={cPaid} placeholder="0" onChange={(e) => setCPaid(e.target.value)} style={inputStyle} />
                   </Field>
                 </div>
               </>

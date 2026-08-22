@@ -116,7 +116,7 @@ export function Garden({ state, monthlyExpenses, expensesBasis, addGoal, waterGo
         <input value={eName} maxLength={40} onChange={(e) => setEName(e.target.value)} style={inputStyle} autoFocus />
       </Field>
       <Field label="Target amount">
-        <input className="mg-num" type="number" min="1" value={eTarget} onChange={(e) => setETarget(e.target.value)} style={inputStyle} />
+        <input className="mg-num" type="number" inputMode="decimal" min="1" value={eTarget} onChange={(e) => setETarget(e.target.value)} style={inputStyle} />
       </Field>
       <Field label="Flower">
         <select value={ePlant} onChange={(e) => setEPlant(e.target.value)} style={inputStyle}>
@@ -151,7 +151,7 @@ export function Garden({ state, monthlyExpenses, expensesBasis, addGoal, waterGo
           Logged in your journal and drained from the goal — draws spend the goal's pool, not this month's budget, so it shows up beside your spending as 🌸 rather than inside it. The barrel holds <b className="mg-num" style={{ color: C.ink }}>{fmt(g.saved)}</b>.
         </div>
         <Field label={`Amount (up to ${fmt(g.saved)})`}>
-          <input className="mg-num" type="number" min="1" placeholder="500" value={dAmount}
+          <input className="mg-num" type="number" inputMode="decimal" min="1" placeholder="500" value={dAmount}
             onChange={(e) => setDAmount(e.target.value)} style={inputStyle} autoFocus />
         </Field>
         {over && (
@@ -198,11 +198,11 @@ export function Garden({ state, monthlyExpenses, expensesBasis, addGoal, waterGo
         {" "}A rule of thumb, not personalized financial advice — set what feels safe.
       </div>
       <Field label="Target amount">
-        <input className="mg-num" type="number" min="1" value={barrelTarget} placeholder="6000"
+        <input className="mg-num" type="number" inputMode="decimal" min="1" value={barrelTarget} placeholder="6000"
           onChange={(e) => setBarrelTarget(e.target.value)} style={inputStyle} />
       </Field>
       <Field label="Already set aside (optional)">
-        <input className="mg-num" type="number" min="0" value={barrelOpening} placeholder="0"
+        <input className="mg-num" type="number" inputMode="decimal" min="0" value={barrelOpening} placeholder="0"
           onChange={(e) => setBarrelOpening(e.target.value)} style={inputStyle} />
       </Field>
       <div style={{ fontSize: 12, color: C.inkSoft }}>
@@ -224,7 +224,7 @@ export function Garden({ state, monthlyExpenses, expensesBasis, addGoal, waterGo
             <input value={name} placeholder="Japan trip" maxLength={40} onChange={(e) => setName(e.target.value)} style={inputStyle} />
           </Field>
           <Field label="Target amount">
-            <input className="mg-num" type="number" min="1" value={target} placeholder="2800" onChange={(e) => setTarget(e.target.value)} style={inputStyle} />
+            <input className="mg-num" type="number" inputMode="decimal" min="1" value={target} placeholder="2800" onChange={(e) => setTarget(e.target.value)} style={inputStyle} />
           </Field>
           <Field label="Flower">
             <select value={plant} onChange={(e) => setPlant(e.target.value)} style={inputStyle}>
@@ -232,7 +232,7 @@ export function Garden({ state, monthlyExpenses, expensesBasis, addGoal, waterGo
             </select>
           </Field>
           <Field label="Already saved (optional)">
-            <input className="mg-num" type="number" min="0" value={alreadySaved} placeholder="0"
+            <input className="mg-num" type="number" inputMode="decimal" min="0" value={alreadySaved} placeholder="0"
               onChange={(e) => setAlreadySaved(e.target.value)} style={inputStyle} />
           </Field>
         </div>
@@ -303,7 +303,7 @@ export function Garden({ state, monthlyExpenses, expensesBasis, addGoal, waterGo
                 </div>
                 {progress < 1 && (
                   <div style={{ display: "flex", gap: 6, marginTop: 6, width: "100%" }}>
-                    <input className="mg-num" type="number" min="1" placeholder="50"
+                    <input className="mg-num" type="number" inputMode="decimal" min="1" placeholder="50"
                       value={waterAmounts[g.id] || ""}
                       onChange={(e) => setWaterAmounts({ ...waterAmounts, [g.id]: e.target.value })}
                       onKeyDown={(e) => { if (e.key === "Enter") water(); }}

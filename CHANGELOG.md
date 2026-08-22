@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.17.3 — 2026-08-22 · *The right keyboard, everywhere* ⌨️
+
+### Fixed
+
+- **Every numeric field in the garden now raises the right phone keyboard.**
+  The Log tab's pilot rolls out app-wide: money fields (budgets, commitment
+  amounts, goal targets and waterings, holding values, monthly income, the
+  growing-conditions numbers) open the decimal keypad; whole-number fields
+  (pay day, payment counts, birth year, retirement age) open the digit-only
+  keypad. A new test guards that future numeric fields can't ship without
+  declaring their keyboard.
+
 ## 0.17.2 — 2026-08-22 · *The right keyboard for numbers* ⌨️
 
 ### Fixed

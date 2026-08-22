@@ -76,7 +76,7 @@ export function Overview({ state, d, view, setIncome, goTo, goToDraws }: {
             {!isPast && (
               <label style={{ fontSize: 12, color: C.inkSoft, display: "flex", alignItems: "center", gap: 8 }}>
                 Monthly income
-                <input className="mg-num" type="number" min="0" value={state.income || ""} placeholder="4200"
+                <input className="mg-num" type="number" inputMode="decimal" min="0" value={state.income || ""} placeholder="4200"
                   onChange={(e) => setIncome(e.target.value)}
                   style={{ width: 100, padding: "6px 8px", border: `1.5px solid ${C.border}`, borderRadius: 8, background: C.mist, color: C.ink }} />
               </label>
