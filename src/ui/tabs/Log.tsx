@@ -219,8 +219,9 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
           <Field label="Amount">
             {/* inputMode picks the MOBILE KEYBOARD (type="number" alone
                 doesn't): "decimal" = the big numeric pad with a decimal
-                point. Piloting here before rolling out app-wide. Note the
-                iOS decimal pad has no Return key — the Add button carries
+                point, "numeric" = digits only (day/count/year fields).
+                App-wide since v0.17.3; inputs.test.ts guards new fields.
+                The iOS decimal pad has no Return key — buttons carry
                 submission there. */}
             <input className="mg-num" type="number" inputMode="decimal" min="0" step="0.01" value={amount} placeholder="0.00"
               onChange={(e) => setAmount(e.target.value)}

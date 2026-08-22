@@ -140,20 +140,20 @@ export function Orchard({ state, d, setInvest, addHolding, updateHolding, delete
             <Field label="Birth year (your age keeps itself current from this)">
               {/* 0 is the "not set" sentinel → renders as an empty box; the
                   engine falls back to age 30 until a year is entered. */}
-              <input className="mg-num" type="number" min="1920" max={new Date().getFullYear() - 14} placeholder="1995"
+              <input className="mg-num" type="number" inputMode="numeric" min="1920" max={new Date().getFullYear() - 14} placeholder="1995"
                 value={inv.birthYear || ""} onChange={(e) => setInvest({ birthYear: numField(e.target.value) })} style={inputStyle} />
             </Field>
             <Field label="Traditional retirement age (anchors Coast FIRE)">
-              <input className="mg-num" type="number" min="40" max="100" value={inv.retireAge} onChange={(e) => setInvest({ retireAge: numField(e.target.value) })} style={inputStyle} />
+              <input className="mg-num" type="number" inputMode="numeric" min="40" max="100" value={inv.retireAge} onChange={(e) => setInvest({ retireAge: numField(e.target.value) })} style={inputStyle} />
             </Field>
             <Field label="Planned retirement spending per month (0 = use your current spending pace)">
-              <input className="mg-num" type="number" min="0" step="50" value={inv.retireSpend ?? 0} onChange={(e) => setInvest({ retireSpend: numField(e.target.value) })} style={inputStyle} />
+              <input className="mg-num" type="number" inputMode="decimal" min="0" step="50" value={inv.retireSpend ?? 0} onChange={(e) => setInvest({ retireSpend: numField(e.target.value) })} style={inputStyle} />
               <span style={{ fontSize: 11.5, fontWeight: 500, color: C.inkSoft, lineHeight: 1.45 }}>
                 Use today's dollars — inflation is already handled if your expected return is a real (after-inflation) figure like 7%. Inflating this number yourself would double-count it.
               </span>
             </Field>
             <Field label="Monthly investing — the watering can">
-              <input className="mg-num" type="number" min="0" value={inv.monthly} onChange={(e) => setInvest({ monthly: numField(e.target.value) })} style={inputStyle} />
+              <input className="mg-num" type="number" inputMode="decimal" min="0" value={inv.monthly} onChange={(e) => setInvest({ monthly: numField(e.target.value) })} style={inputStyle} />
               {/* Journal-derived status, never a task: no button, nothing to
                   dismiss, no scold — it clears itself when you water or the
                   month rolls. (One-tap logging deliberately rejected: the
@@ -184,10 +184,10 @@ export function Orchard({ state, d, setInvest, addHolding, updateHolding, delete
               })()}
             </Field>
             <Field label="Expected annual return % (7% ≈ long-run stock average after inflation)">
-              <input className="mg-num" type="number" min="0" max="15" step="0.5" value={inv.ret} onChange={(e) => setInvest({ ret: numField(e.target.value) })} style={inputStyle} />
+              <input className="mg-num" type="number" inputMode="decimal" min="0" max="15" step="0.5" value={inv.ret} onChange={(e) => setInvest({ ret: numField(e.target.value) })} style={inputStyle} />
             </Field>
             <Field label="Withdrawal rate % (4% is the classic rule; 3–3.5% is more cautious)">
-              <input className="mg-num" type="number" min="2" max="10" step="0.5" value={inv.wr} onChange={(e) => setInvest({ wr: numField(e.target.value) })} style={inputStyle} />
+              <input className="mg-num" type="number" inputMode="decimal" min="2" max="10" step="0.5" value={inv.wr} onChange={(e) => setInvest({ wr: numField(e.target.value) })} style={inputStyle} />
             </Field>
           </div>
         </section>
@@ -205,7 +205,7 @@ export function Orchard({ state, d, setInvest, addHolding, updateHolding, delete
               <div key={h.id} className="mg-row" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 12, border: `1.5px solid ${C.border}` }}>
                 <span style={{ fontSize: 18 }}>🌳</span>
                 <span style={{ flex: "1 1 120px", fontWeight: 600, fontSize: 14, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.name}</span>
-                <input className="mg-num" type="number" min="0" value={h.value} aria-label={`Value of ${h.name}`}
+                <input className="mg-num" type="number" inputMode="decimal" min="0" value={h.value} aria-label={`Value of ${h.name}`}
                   onChange={(e) => updateHolding(h.id, e.target.value)} style={{ ...inputStyle, flex: "0 1 110px", width: 110, minWidth: 84, padding: "6px 8px" }} />
                 <button className="mg-btn" onClick={() => deleteHolding(h.id)} title="Remove holding" aria-label={`Remove ${h.name}`}
                   style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 14 }}>✕</button>
@@ -219,7 +219,7 @@ export function Orchard({ state, d, setInvest, addHolding, updateHolding, delete
                 <select value={targetId} onChange={(e) => setWaterTarget(e.target.value)} style={{ ...inputStyle, flex: "1 1 150px", width: "auto", minWidth: 0 }} aria-label="Holding to add to">
                   {inv.holdings.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
                 </select>
-                <input className="mg-num" type="number" min="1" placeholder="500" value={waterAmt}
+                <input className="mg-num" type="number" inputMode="decimal" min="1" placeholder="500" value={waterAmt}
                   onChange={(e) => setWaterAmt(e.target.value)} onKeyDown={(e) => e.key === "Enter" && doWater()}
                   style={{ ...inputStyle, flex: "0 1 110px", width: 110, minWidth: 84 }} aria-label="One-off amount to invest" />
                 <button className="mg-btn" onClick={doWater} disabled={!waterAmt}
@@ -240,7 +240,7 @@ export function Orchard({ state, d, setInvest, addHolding, updateHolding, delete
             </div>
             <div style={{ flex: "0 1 110px", minWidth: 84 }}>
               <Field label="Value">
-                <input className="mg-num" type="number" min="1" value={value} placeholder="5000" onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} style={inputStyle} />
+                <input className="mg-num" type="number" inputMode="decimal" min="1" value={value} placeholder="5000" onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} style={inputStyle} />
               </Field>
             </div>
             <button className="mg-btn" onClick={submit} disabled={!name.trim() || !value}
