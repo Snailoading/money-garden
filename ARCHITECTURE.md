@@ -26,7 +26,10 @@ leaves on that trunk; the engine could be transplanted into another frontend
 │  Recovery.tsx  shown INSTEAD of the garden when the save is unreadable │
 │  bits.tsx    Stat  CardTitle  Empty  Field  PlantMini                  │
 │  hooks.ts    useReveal (entry anims)  useNearest/svgX (tooltips)       │
+│              useArmed (two-step confirm: arm → Delete? → auto-disarm)  │
 │  store.ts    the one shared storage-adapter instance                   │
+│  storageNote.ts  the shed's "where your garden lives" line + the       │
+│              navigator.storage.persist() request (UI side, not engine) │
 │  download.ts downloadText() — backups and rescued raw data             │
 └───────────────┬────────────────────────────────────────────────────────┘
                 │  plain function calls, plain data back
@@ -61,6 +64,8 @@ leaves on that trunk; the engine could be transplanted into another frontend
 │               only "fresh" may be overwritten)                         │
 │               linkedAmountBounds()/canRemoveTransaction(): how far a   │
 │               goal-linked entry may move and stay exactly reversible   │
+│               isFreshGarden(): nothing entered at all — the only state │
+│               one-tap "Plant sample data" may replace (v0.17.5)        │
 │   validate.ts findStateProblems() — reports (never repairs) damage     │
 │               that would crash the app or corrupt its sums; gates both │
 │               loadSaved and parseBackup (depends on types.ts only)     │
@@ -71,10 +76,12 @@ leaves on that trunk; the engine could be transplanted into another frontend
 └───────────────┬────────────────────────────────────────────────────────┘
                 │  one JSON string, key "money-garden:state-v1"
 ┌───────────────▼────────────────────────────────────────────────────────┐
-│  STORAGE  (per-call fallback; active tier reported by store.mode())    │
+│  STORAGE  (per-call fallback; every get/set result reports its tier)   │
 │     platform storage (injected host iface, e.g. future native shell)   │
 │       → browser localStorage                                           │
-│         → in-memory (session only — UI toasts a warning once)          │
+│         → in-memory (session only — banner + shed warning + a toast)   │
+│  The shed names the tier the garden's OWN last load/save used (since   │
+│  v0.17.5); persist() is requested once the garden holds real data.     │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
