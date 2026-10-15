@@ -50,7 +50,12 @@ const shiftYm = (ym: string, offset: number): string => {
 export function monthRange(state: State, now: Date = new Date()): string[] {
   const current = monthKey(now);
   // ISO YYYY-MM strings sort chronologically, so min() is the earliest month.
-  const txMonths = state.transactions.map((t) => t.date.slice(0, 7)).filter((ym) => ym <= current);
+  // Malformed dates are skipped: "" (a cleared date box) sorts before every
+  // real month and used to become the range's "first month", collapsing
+  // navigation and Seasons to a single blank entry.
+  const txMonths = state.transactions
+    .map((t) => t.date.slice(0, 7))
+    .filter((ym) => /^\d{4}-\d{2}$/.test(ym) && ym <= current);
   const first = txMonths.length > 0 ? txMonths.reduce((a, b) => (a < b ? a : b)) : current;
   const range: string[] = [];
   for (let ym = first; ym <= current; ym = shiftYm(ym, 1)) range.push(ym);

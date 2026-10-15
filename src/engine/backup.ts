@@ -13,6 +13,7 @@
 import type { State } from "./types";
 import { emptyState, migrate } from "./state";
 import { todayISO } from "./format";
+import { describeProblems, findStateProblems } from "./validate";
 
 /** Bump when the backup envelope itself changes shape (not the State — that
  * migrates via migrate()). Newer-schema files are refused with a clear message. */
@@ -103,7 +104,23 @@ export function parseBackup(raw: string, now: Date = new Date()): ParseResult {
   // must not crash the app), then migrate() — which fills invest keys,
   // defaults commitments, and keeps unknown fields, so a backup from a
   // future minor version survives the round-trip intact.
-  const state = migrate({ ...emptyState(), ...candidate }, now);
+  let state: State;
+  try {
+    state = migrate({ ...emptyState(), ...candidate }, now);
+  } catch {
+    // e.g. a null inside "goals" — migrate can't even start. Without this
+    // the exception escaped to the file picker and the import died silently.
+    return { ok: false, error: "That backup looks damaged — part of it can't be read by this version. Nothing was changed." };
+  }
+  // Entry-level inspection, AFTER migrate (so legacy shapes have been
+  // upgraded first). The checks above only see the outline; a file can
+  // pass them and still carry an entry that would crash every render or
+  // turn sums into string-glue — and an import is saved the moment it's
+  // confirmed. Refuse it here, while the current garden is still intact.
+  const problems = findStateProblems(state);
+  if (problems.length > 0) {
+    return { ok: false, error: `That backup looks damaged — ${describeProblems(problems)}. Nothing was changed.` };
+  }
   return {
     ok: true,
     preview: {
