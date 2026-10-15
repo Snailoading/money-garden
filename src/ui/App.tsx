@@ -9,11 +9,13 @@ import { DEFAULT_INVEST, STORAGE_KEY, UNREADABLE_KEY_PREFIX } from "../engine/ty
 import { fmt, monthKey, monthLabel, uid, todayISO } from "../engine/format";
 import { derive, deriveMonthView, weatherFor } from "../engine/stats";
 import { monthRange } from "../engine/trends";
-import { bumpStreak, canRemoveTransaction, deleteGoal as engineDeleteGoal, emptyState, insertGoal, linkedAmountBounds, loadSaved, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
+import { bumpStreak, canRemoveTransaction, deleteGoal as engineDeleteGoal, emptyState, insertGoal, isFreshGarden, linkedAmountBounds, loadSaved, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
 import { buildBackup, parseBackup, type ImportPreview } from "../engine/backup";
 import { store } from "./store";
 import { downloadText } from "./download";
 import { Recovery } from "./Recovery";
+import type { StorageMode } from "../engine/storage";
+import { checkPersistentStorage, requestPersistentStorage, storageNote } from "./storageNote";
 import { C, INSTALL_HINT_KEY, isIOS, isStandalone, isTouchDevice, resolveTheme, THEME_COLOR, THEME_KEY, type ThemeMode } from "./theme";
 import { Overview } from "./tabs/Overview";
 import { Log } from "./tabs/Log";
@@ -82,7 +84,7 @@ export function MoneyGarden() {
       // loadSaved never throws (it returns a verdict instead).
       const res = await store.get(STORAGE_KEY);
       const loaded = loadSaved(res?.value);
-      if (loaded.kind === "ok") setState(loaded.state);
+      if (loaded.kind === "ok") { setState(loaded.state); setStorageMode(res!.mode); }
       else if (loaded.kind === "unreadable") setUnreadable({ raw: res?.value ?? "", reason: loaded.reason });
       // Only a genuinely empty save may be initialized — the old code also
       // landed here when the save failed to parse, erasing the only copy.
@@ -90,6 +92,32 @@ export function MoneyGarden() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /**
+   * Where the garden actually lives — the tier that handled the latest
+   * load/save of the garden itself (not store.mode(), which other keys like
+   * the theme also move). null until storage first answers. Drives the
+   * shed's disclosure and, in "memory", the warning banner.
+   */
+  const [storageMode, setStorageMode] = useState<StorageMode | null>(null);
+  /** The browser's answer to "don't evict this site": true/false, null = unknown. */
+  const [persisted, setPersisted] = useState<boolean | null>(null);
+  const persistStage = useRef<"none" | "checked" | "asked">("none");
+  useEffect(() => {
+    if (!state || storageMode !== "local") return;
+    // A brand-new garden only READS the current answer — Firefox shows a
+    // permission prompt for persist(), and a first-time visitor with
+    // nothing saved shouldn't meet one. Ask once the garden holds real data.
+    if (isFreshGarden(state)) {
+      if (persistStage.current !== "none") return;
+      persistStage.current = "checked";
+      void checkPersistentStorage().then(setPersisted);
+      return;
+    }
+    if (persistStage.current === "asked") return;
+    persistStage.current = "asked";
+    void requestPersistentStorage().then(setPersisted);
+  }, [state, storageMode]);
 
   // The user chose to start fresh over an unreadable save. Tuck the raw
   // string away under its own key first; overwrite only if that copy
@@ -110,8 +138,11 @@ export function MoneyGarden() {
     setState(next);
     void (async () => {
       const r = await store.set(STORAGE_KEY, serialize(next));
-      // The memory tier reports persisted: false — disclose it once, like the
-      // reference's one-time "session only" toast.
+      // Follows every save: a mid-session quota failure drops to memory
+      // (banner appears), and a later successful write brings it back.
+      setStorageMode(r.mode);
+      // The memory tier reports persisted: false — also toast it once, like
+      // the reference's one-time "session only" toast.
       if (!r.persisted && !memoryFallback.current && !skipToastOnFail) {
         memoryFallback.current = true;
         showToast("Saving is unavailable here — changes live in this session only.");
@@ -402,10 +433,19 @@ export function MoneyGarden() {
   const canNext = viewYm !== null;
   const goToMonth = (ym: string) => setViewYm(ym === currentYm ? null : ym);
 
-  // "Fresh soil" = nothing logged and nothing but the untouched barrel-in-setup
-  // (the barrel always exists since v0.12.0, so goals is never []).
-  const isEmpty = state.transactions.length === 0 &&
-    state.goals.every((g) => g.isEmergency && g.target === 0 && g.saved === 0);
+  // "Fresh soil" = nothing entered at all — not just no entries and goals,
+  // but no income, budgets, commitments, holdings, settings, or streak
+  // either (engine isFreshGarden). It decides between the one-tap "Plant
+  // sample data" card and the shed's two-step replant.
+  const isEmpty = isFreshGarden(state);
+  const note = storageNote(storageMode, persisted);
+  // Passed by name, so it guards itself rather than trusting the card's
+  // visibility: replace the garden ONLY if there's nothing to lose.
+  const plantSampleData = () => {
+    if (!isFreshGarden(state)) return;
+    setStateSafe(sampleState());
+    setViewYm(null);
+  };
   const weather = weatherFor(derived.health);
   const navBtnStyle = (enabled: boolean) => ({
     border: "none", background: "transparent", cursor: enabled ? "pointer" : "default",
@@ -474,13 +514,20 @@ export function MoneyGarden() {
       </header>
 
       <main style={{ maxWidth: 980, margin: "0 auto", padding: "16px 20px 60px" }}>
+        {/* Nothing is being saved: say so where it can't be missed, not
+            only in the footer (CLAUDE.md: keep the disclosure visible). */}
+        {note?.warn && (
+          <div role="alert" className="mg-card" style={{ padding: "12px 16px", marginBottom: 18, border: `1.5px solid ${C.tomato}`, color: C.tomato, fontWeight: 600, fontSize: 13.5, lineHeight: 1.5 }}>
+            {note.text}
+          </div>
+        )}
         {isEmpty && (
           <div className="mg-card" style={{ padding: 24, marginBottom: 18, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
             <div>
               <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 20 }}>Fresh soil 🌱</div>
               <div style={{ color: C.inkSoft, fontSize: 14 }}>Log your first expense or plant a goal — or explore with sample data first.</div>
             </div>
-            <button className="mg-btn" onClick={() => { setStateSafe(sampleState()); setViewYm(null); }}
+            <button className="mg-btn" onClick={plantSampleData}
               style={{ background: C.leaf, color: C.inkContrast, border: "none", borderRadius: 12, padding: "10px 18px", fontWeight: 700, cursor: "pointer" }}>
               Plant sample data
             </button>
@@ -523,7 +570,7 @@ export function MoneyGarden() {
         {/* ===== the shed — housekeeping ===== */}
         <footer style={{ marginTop: 28, paddingTop: 16, borderTop: `1.5px dashed ${C.border}`, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 12.5, color: C.inkSoft }}>
-            🧰 The shed · your data saves automatically to this app's storage. Edit a logged entry with its ✏️, delete with its ✕.
+            🧰 The shed · {note && <span style={note.warn ? { color: C.tomato, fontWeight: 600 } : undefined}>{note.text} </span>}Edit a logged entry with its ✏️, delete with its ✕.
           </span>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button className="mg-btn" onClick={saveBackup}

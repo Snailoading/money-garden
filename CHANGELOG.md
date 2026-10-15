@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.17.5 — 2026-10-16 · *Two taps, and honest soil* 🧺
+
+### Fixed
+
+- **Subscriptions, installments, and orchard holdings no longer delete on
+  a single tap.** The ✕ now arms a red **Delete?** (it quietly disarms
+  after a few seconds), the same two-step the ledger and goal beds already
+  had — one stray tap can't fell a $14k tree anymore.
+- **"Plant sample data" can no longer wipe a garden you've started
+  setting up.** The one-tap button appeared whenever the garden had no
+  entries and no goals — even if you'd already set your income, budgets,
+  subscriptions, holdings, or growing conditions. It now appears only for
+  a truly untouched garden; anyone with anything entered gets the shed's
+  two-step **Replant sample data…** instead.
+- **The shed now says where your garden is actually saved** — in this
+  browser on this device — instead of always claiming it "saves
+  automatically". If this browser can't save at all (site data blocked,
+  or storage full), a red banner says so right away: your changes last
+  only until the tab closes, so save a backup.
+
+### Added
+
+- **The garden asks your browser to keep its data safe** from automatic
+  cleanup when space runs low — but only once your garden has something in
+  it, sample data included (Firefox shows a permission prompt for this, and
+  a first-time visitor shouldn't meet one). If the browser agrees, the shed
+  says so; otherwise it reminds you to keep a backup.
+
 ## 0.17.4 — 2026-10-15 · *A sturdier gate* 🛡️
 
 ### Fixed
