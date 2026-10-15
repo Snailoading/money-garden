@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.17.4 — 2026-10-15 · *A sturdier gate* 🛡️
+
+### Fixed
+
+- **An unreadable save is never erased anymore.** If the garden saved on
+  this device couldn't be read when the app opened, the app used to replace
+  it with an empty garden on the spot — destroying the only copy. Now it
+  leaves the data exactly as it is and shows a recovery screen that says
+  what went wrong, offers a download of the saved data, and only starts
+  fresh if you choose to (two taps — and a copy is tucked away first).
+- **Damaged backup files are refused before anything is replaced.** Import
+  used to check only a file's outline, so an entry with a missing date, an
+  empty slot, or an amount written as text could slip through, get saved,
+  and leave the app blank on every load. Each entry is now checked first,
+  and the message names the problem ("transaction #3 has no date"). Real
+  backups — including ones from older versions — import exactly as before.
+- **If the page ever does crash while drawing, you get a rescue screen**
+  with Reload and "Download your saved data" buttons, instead of a blank
+  page.
+- **No more phantom goal balances.** Deleting a goal watering whose money
+  had since been drawn (or shrinking it below that) silently clamped the
+  goal at $0 — and undoing the draw afterwards left money in the goal that
+  was never there. The Log now explains "Partly drawn — undo the draw
+  first", and the editor won't let a watering shrink below what the goal
+  can give back. Undo the draw first and everything reverses to the cent.
+- **A cleared date box can't log an undated entry** — Add/Save stay
+  disabled until there's a date. And if an undated entry already exists, it
+  no longer collapses the month arrows and Seasons to a single blank month.
+- Backup downloads keep their temporary link alive a little longer, which
+  some Safari versions need to finish saving the file.
+
 ## 0.17.3 — 2026-08-22 · *The right keyboard, everywhere* ⌨️
 
 ### Fixed
