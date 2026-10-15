@@ -9,6 +9,7 @@ import type { Derived } from "../../engine/stats";
 import { fmt, monthKey, monthLabel, shortDate } from "../../engine/format";
 import { C, inputStyle } from "../theme";
 import { CardTitle, Field } from "../bits";
+import { useArmed } from "../hooks";
 import { OrchardTree } from "../art/OrchardTree";
 import { SvgProjection } from "../charts/SvgProjection";
 
@@ -34,6 +35,8 @@ export function Orchard({ state, d, setInvest, addHolding, updateHolding, delete
   const [waterTarget, setWaterTarget] = useState("");
   const inv = state.invest || DEFAULT_INVEST;
   const f = d.fire;
+  // Two-step removal for holdings (shared hook — see hooks.ts).
+  const { armedId, arm, disarm } = useArmed();
 
   const targetId = waterTarget || (inv.holdings[0] && inv.holdings[0].id) || "";
   const doWater = () => {
@@ -207,8 +210,18 @@ export function Orchard({ state, d, setInvest, addHolding, updateHolding, delete
                 <span style={{ flex: "1 1 120px", fontWeight: 600, fontSize: 14, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.name}</span>
                 <input className="mg-num" type="number" inputMode="decimal" min="0" value={h.value} aria-label={`Value of ${h.name}`}
                   onChange={(e) => updateHolding(h.id, e.target.value)} style={{ ...inputStyle, flex: "0 1 110px", width: 110, minWidth: 84, padding: "6px 8px" }} />
-                <button className="mg-btn" onClick={() => deleteHolding(h.id)} title="Remove holding" aria-label={`Remove ${h.name}`}
-                  style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 14 }}>✕</button>
+                {/* Two-step: a holding carries its whole value — one stray
+                    tap must not fell a tree. ✕ arms, Delete? removes. */}
+                {armedId === h.id ? (
+                  <button className="mg-btn" onClick={() => { disarm(); deleteHolding(h.id); }}
+                    title="Really remove this holding" aria-label={`Really remove ${h.name}`}
+                    style={{ background: C.tomato, border: "none", borderRadius: 999, padding: "4px 10px", fontWeight: 700, fontSize: 12, color: C.inkContrast, cursor: "pointer", whiteSpace: "nowrap" }}>
+                    Delete?
+                  </button>
+                ) : (
+                  <button className="mg-btn" onClick={() => arm(h.id)} title="Remove holding" aria-label={`Remove ${h.name}`}
+                    style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 14 }}>✕</button>
+                )}
               </div>
             ))}
           </div>

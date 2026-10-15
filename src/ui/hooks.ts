@@ -18,6 +18,30 @@ export function useReveal(): boolean {
 }
 
 /**
+ * Two-step confirm for destructive taps (CLAUDE.md: nothing destroys data
+ * without an explicit two-step confirm). `arm(id)` swaps that item's ✕ for
+ * a "Delete?" control; it quietly disarms after `ms`, and only one item is
+ * armed at a time. Returns a plain object — like a small Python class
+ * instance whose attributes the component reads.
+ */
+export function useArmed(ms = 4000) {
+  const [armedId, setArmedId] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // No stray disarm firing after the component is gone.
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const arm = (id: string) => {
+    setArmedId(id);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setArmedId(null), ms);
+  };
+  const disarm = () => {
+    clearTimeout(timer.current);
+    setArmedId(null);
+  };
+  return { armedId, arm, disarm };
+}
+
+/**
  * Reactive media-query match — re-renders when the query flips (resize,
  * rotation). Used for copy that adapts to the space available (e.g. the
  * search placeholder on very narrow phones).

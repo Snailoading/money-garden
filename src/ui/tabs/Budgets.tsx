@@ -10,6 +10,7 @@ import { fmt, MONTH_NAMES, monthLabel, shortDate, todayISO } from "../../engine/
 import { commitmentEnded, daysUntil, nextDueWithPayments } from "../../engine/commitments";
 import { C, inputStyle } from "../theme";
 import { CardTitle, Field } from "../bits";
+import { useArmed } from "../hooks";
 
 export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommitment, logCommitmentPayment, updateCommitment }: {
   state: State;
@@ -64,6 +65,9 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
     });
     setCName(""); setCAmount(""); setCEnd(""); setCTotal(""); setCPaid("");
   };
+
+  // Two-step removal for commitments (shared hook — see hooks.ts).
+  const { armedId, arm, disarm } = useArmed();
 
   const subs = cm.all.filter((c) => c.kind === "sub");
   const insts = cm.all.filter((c) => c.kind === "inst");
@@ -195,14 +199,17 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
     </div>
   );
 
-  const CommitmentRow = ({ c }: { c: Commitment }) => {
+  // A render function, not a nested component (CLAUDE.md): a component
+  // defined in here gets a new identity every render and remounts — which
+  // would rebuild the armed "Delete?" button and drop keyboard focus.
+  const commitmentRow = (c: Commitment) => {
     const ended = commitmentEnded(c, new Date(), state.transactions);
     // Payments-aware: logging a payment advances the date; deleting reverts it.
     const due = nextDueWithPayments(c, state.transactions);
     const days = daysUntil(due);
     const cat = CATEGORIES.find((x) => x.id === c.category);
     return (
-      <div className="mg-row" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 12, border: `1.5px solid ${C.border}`, opacity: ended ? 0.6 : 1 }}>
+      <div key={c.id} className="mg-row" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10, padding: "9px 10px", borderRadius: 12, border: `1.5px solid ${C.border}`, opacity: ended ? 0.6 : 1 }}>
         <span style={{ fontSize: 17 }}>{c.kind === "inst" ? "🪜" : "🌿"}</span>
         <div style={{ flex: "1 1 150px", minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 14, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -231,16 +238,25 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
             💸 Log payment
           </button>
         )}
-        <button className="mg-btn" onClick={() => openEditC(c)} title="Edit" aria-label={`Edit ${c.name}`}
+        <button className="mg-btn" onClick={() => { disarm(); openEditC(c); }} title="Edit" aria-label={`Edit ${c.name}`}
           style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 14, padding: 4 }}>✏️</button>
-        <button className="mg-btn" onClick={() => deleteCommitment(c.id)} title="Remove" aria-label={`Remove ${c.name}`}
-          style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 14 }}>✕</button>
+        {/* Two-step, like the ledger and the goal beds: ✕ arms, Delete? removes. */}
+        {armedId === c.id ? (
+          <button className="mg-btn" onClick={() => { disarm(); deleteCommitment(c.id); }}
+            title="Really remove this commitment" aria-label={`Really remove ${c.name}`}
+            style={{ background: C.tomato, border: "none", borderRadius: 999, padding: "4px 10px", fontWeight: 700, fontSize: 12, color: C.inkContrast, cursor: "pointer", whiteSpace: "nowrap" }}>
+            Delete?
+          </button>
+        ) : (
+          <button className="mg-btn" onClick={() => arm(c.id)} title="Remove" aria-label={`Remove ${c.name}`}
+            style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 14 }}>✕</button>
+        )}
       </div>
     );
   };
 
   const renderCommitment = (c: Commitment) =>
-    c.id === editingCId ? commitmentEditPanel(c) : <CommitmentRow key={c.id} c={c} />;
+    c.id === editingCId ? commitmentEditPanel(c) : commitmentRow(c);
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
