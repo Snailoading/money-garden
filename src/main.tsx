@@ -1,10 +1,16 @@
 import ReactDOM from "react-dom/client";
 import { MoneyGarden } from "./ui/App";
+import { ErrorBoundary } from "./ui/ErrorBoundary";
 import "./ui/global.css";
 
 // No StrictMode: the reference mounts the tree directly, and StrictMode's
 // dev-only double effects would run the async storage load twice.
-ReactDOM.createRoot(document.getElementById("root")!).render(<MoneyGarden />);
+// ErrorBoundary: a render crash shows a rescue screen, not a blank page.
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <ErrorBoundary>
+    <MoneyGarden />
+  </ErrorBoundary>,
+);
 
 // Offline support — hosted build only. The single-file build has nothing to
 // precache, and service workers don't exist on file:// anyway.

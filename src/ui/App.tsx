@@ -5,13 +5,15 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Commitment, Goal, Invest, State, Transaction } from "../engine/types";
-import { DEFAULT_INVEST, STORAGE_KEY } from "../engine/types";
+import { DEFAULT_INVEST, STORAGE_KEY, UNREADABLE_KEY_PREFIX } from "../engine/types";
 import { fmt, monthKey, monthLabel, uid, todayISO } from "../engine/format";
 import { derive, deriveMonthView, weatherFor } from "../engine/stats";
 import { monthRange } from "../engine/trends";
-import { bumpStreak, deleteGoal as engineDeleteGoal, deserialize, emptyState, insertGoal, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
+import { bumpStreak, canRemoveTransaction, deleteGoal as engineDeleteGoal, emptyState, insertGoal, linkedAmountBounds, loadSaved, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
 import { buildBackup, parseBackup, type ImportPreview } from "../engine/backup";
-import { createStore } from "../engine/storage";
+import { store } from "./store";
+import { downloadText } from "./download";
+import { Recovery } from "./Recovery";
 import { C, INSTALL_HINT_KEY, isIOS, isStandalone, isTouchDevice, resolveTheme, THEME_COLOR, THEME_KEY, type ThemeMode } from "./theme";
 import { Overview } from "./tabs/Overview";
 import { Log } from "./tabs/Log";
@@ -20,8 +22,6 @@ import { Garden } from "./tabs/Garden";
 import { Orchard } from "./tabs/Orchard";
 import { Seasons } from "./tabs/Seasons";
 import { Advice } from "./tabs/Advice";
-
-const store = createStore();
 
 const TABS = [
   { id: "overview", label: "Overview", icon: "🌤️" },
@@ -68,22 +68,43 @@ export function MoneyGarden() {
     document.getElementById("splash")?.remove();
   }, []);
 
+  /**
+   * Set when something IS saved but can't be read safely: the garden is
+   * replaced by the Recovery screen and NOTHING is written to the save
+   * until the user chooses (see onStartFreshOverUnreadable).
+   */
+  const [unreadable, setUnreadable] = useState<{ raw: string; reason: string } | null>(null);
+
   /* ---------- load & persist ---------- */
   useEffect(() => {
     (async () => {
-      try {
-        const res = await store.get(STORAGE_KEY);
-        if (res && res.value) {
-          // deserialize = JSON.parse + migrate (fills missing invest keys,
-          // defaults commitments, keeps unknown fields).
-          setState(deserialize(res.value));
-          return;
-        }
-      } catch { /* key missing or storage unavailable */ }
-      setStateSafe(emptyState(), true);
+      // store.get never throws (each tier swallows its own errors) and
+      // loadSaved never throws (it returns a verdict instead).
+      const res = await store.get(STORAGE_KEY);
+      const loaded = loadSaved(res?.value);
+      if (loaded.kind === "ok") setState(loaded.state);
+      else if (loaded.kind === "unreadable") setUnreadable({ raw: res?.value ?? "", reason: loaded.reason });
+      // Only a genuinely empty save may be initialized — the old code also
+      // landed here when the save failed to parse, erasing the only copy.
+      else setStateSafe(emptyState(), true);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The user chose to start fresh over an unreadable save. Tuck the raw
+  // string away under its own key first; overwrite only if that copy
+  // persisted or the user already downloaded one — never with neither.
+  const onStartFreshOverUnreadable = async (downloaded: boolean): Promise<boolean> => {
+    if (!unreadable) return false;
+    const kept = await store.set(`${UNREADABLE_KEY_PREFIX}:${new Date().toISOString()}`, unreadable.raw);
+    if (!kept.persisted && !downloaded) return false;
+    setUnreadable(null);
+    setStateSafe(emptyState());
+    showToast(kept.persisted
+      ? "🌱 Fresh soil — the unreadable data was set aside, not erased."
+      : "🌱 Fresh soil — your downloaded file is the copy of the old data.");
+    return true;
+  };
 
   const setStateSafe = (next: State, skipToastOnFail = false) => {
     setState(next);
@@ -174,6 +195,10 @@ export function MoneyGarden() {
   const monthView = useMemo(() => (state && viewYm ? deriveMonthView(state, viewYm) : null), [state, viewYm]);
   const months = useMemo(() => (state ? monthRange(state) : []), [state]);
 
+  if (unreadable) {
+    return <Recovery raw={unreadable.raw} reason={unreadable.reason} onStartFresh={onStartFreshOverUnreadable} />;
+  }
+
   if (!state || !derived) {
     return (
       <div style={{ minHeight: "100vh", background: C.bg, display: "grid", placeItems: "center", fontFamily: "'DM Sans', sans-serif", color: C.ink }}>
@@ -200,6 +225,12 @@ export function MoneyGarden() {
   const deleteTransaction = (id: string) => {
     const existing = state.transactions.find((t) => t.id === id);
     if (!existing) return;
+    // Backstop for the Log's own guard: a watering whose money was since
+    // drawn can't be taken back without leaving a phantom balance.
+    if (!canRemoveTransaction(state, existing)) {
+      showToast("🪣 Part of that was already drawn — undo the draw first.");
+      return;
+    }
     const drainedGoal = existing.goalId ? state.goals.find((g) => g.id === existing.goalId) : undefined;
     setStateSafe(removeTransaction(state, id));
     showToast(drainedGoal ? `🍂 Entry deleted — "${drainedGoal.name}" adjusted too` : "🍂 Entry deleted");
@@ -208,6 +239,17 @@ export function MoneyGarden() {
   const editTransaction = (id: string, patch: Partial<Omit<Transaction, "id">>) => {
     const existing = state.transactions.find((t) => t.id === id);
     if (!existing) return;
+    if (patch.amount !== undefined && patch.amount !== existing.amount) {
+      // Same backstop for edits: stay inside what the linked goal can give back.
+      // Only when the amount actually changes — cent-rounded bounds can sit a
+      // hair below a sub-cent amount, and that must not block a note/date edit.
+      const { min, max } = linkedAmountBounds(state, existing);
+      // !(x > 0) also catches NaN, which slips past both < and > comparisons.
+      if (!(patch.amount > 0) || patch.amount < min || patch.amount > max) {
+        showToast("🪣 That amount would break the link to its goal — see the note in the editor.");
+        return;
+      }
+    }
     const adjustedGoal =
       existing.goalId && patch.amount !== undefined && patch.amount !== existing.amount
         ? state.goals.find((g) => g.id === existing.goalId)
@@ -328,12 +370,7 @@ export function MoneyGarden() {
   /* ---------- backup: export & import ---------- */
   const saveBackup = () => {
     const { filename, json } = buildBackup(state);
-    const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadText(filename, json);
     showToast("🌾 Backup saved — keep it somewhere safe.");
   };
 

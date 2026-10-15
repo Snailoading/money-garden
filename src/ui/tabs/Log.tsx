@@ -7,6 +7,7 @@ import type { State, Transaction } from "../../engine/types";
 import { CATEGORIES } from "../../engine/types";
 import type { Derived, MonthView } from "../../engine/stats";
 import { isDraw } from "../../engine/stats";
+import { canRemoveTransaction, linkedAmountBounds } from "../../engine/state";
 import type { JournalFilter } from "../../engine/journal";
 import { isFilterActive, matchesFilter, SAVING_LABEL } from "../../engine/journal";
 import { fmt, monthLabel, todayISO } from "../../engine/format";
@@ -138,18 +139,19 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
   // Linked entries keep their type: saving entries belong to watering flows,
   // goalId/commitmentId entries have side effects a type change would orphan.
   const typeLocked = (t: Transaction) => t.type === "saving" || Boolean(t.goalId || t.commitmentId);
-  // A draw entry (expense + goalId) can only grow as far as the goal's
-  // remaining balance — otherwise deletion couldn't reverse it exactly.
-  const maxDrawFor = (t: Transaction): number | null => {
-    if (t.type !== "expense" || !t.goalId) return null;
-    const g = state.goals.find((x) => x.id === t.goalId);
-    return g ? t.amount + g.saved : null;
-  };
+  // Goal-linked amounts stay inside what the goal can give back (engine
+  // linkedAmountBounds): a draw can only grow by what the goal still holds,
+  // and a watering can only shrink by what it still holds — otherwise
+  // undoing entries later couldn't reverse them exactly.
   const canSaveFor = (t: Transaction) => {
     const a = parseFloat(eAmount);
-    if (!(a > 0)) return false;
-    const max = maxDrawFor(t);
-    return max === null || a <= max;
+    // A cleared date box reads "" — an undated entry belongs to no month.
+    if (!(a > 0) || !eDate) return false;
+    // An unchanged amount is always fine (note/date-only edits); the
+    // cent-rounded bounds could otherwise sit a hair below a sub-cent amount.
+    if (a === t.amount) return true;
+    const { min, max } = linkedAmountBounds(state, t);
+    return a >= min && a <= max;
   };
   const saveEdit = (t: Transaction) => {
     if (!canSaveFor(t)) return;
@@ -166,7 +168,7 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
 
   const submit = () => {
     const a = parseFloat(amount);
-    if (!a || a <= 0) return;
+    if (!a || a <= 0 || !date) return; // "" date = cleared box: no month to file it in
     addTransaction({ type, amount: a, category: type === "income" ? "other" : category, note: note.trim(), date });
     setAmount(""); setNote("");
   };
@@ -244,8 +246,8 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
           </Field>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginTop: 14 }}>
-          <button className="mg-btn" onClick={submit} disabled={!amount}
-            style={{ background: amount ? C.leaf : C.border, color: C.inkContrast, border: "none", borderRadius: 12, padding: "11px 22px", fontWeight: 700, fontSize: 15, cursor: amount ? "pointer" : "not-allowed" }}>
+          <button className="mg-btn" onClick={submit} disabled={!amount || !date}
+            style={{ background: amount && date ? C.leaf : C.border, color: C.inkContrast, border: "none", borderRadius: 12, padding: "11px 22px", fontWeight: 700, fontSize: 15, cursor: amount && date ? "pointer" : "not-allowed" }}>
             {type === "expense" ? "Add expense" : "Add income"}
           </button>
           <span style={{ fontSize: 13, color: C.inkSoft }}>
@@ -364,6 +366,8 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
               const sign = t.type === "income" ? "+" : t.type === "saving" ? "→" : "−";
               const color = t.type === "income" ? C.leafDark : t.type === "saving" ? C.marigold : C.ink;
               if (t.id === editingId) {
+                const bounds = linkedAmountBounds(state, t);
+                const typed = parseFloat(eAmount);
                 return (
                   <li key={t.id} style={{ margin: "4px 0", padding: "12px 10px", borderRadius: 12, background: C.mist, border: `1.5px solid ${C.border}`, display: "grid", gap: 10 }}
                     onKeyDown={(e) => { if (e.key === "Enter") saveEdit(t); if (e.key === "Escape") setEditingId(null); }}>
@@ -400,11 +404,14 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
                       <div style={{ fontSize: 12, color: C.inkSoft }}>🥀 The goal this fed has been deleted — editing changes only the ledger.</div>
                     )}
                     {t.goalId && t.type === "saving" && state.goals.some((g) => g.id === t.goalId) && (
-                      <div style={{ fontSize: 12, color: C.inkSoft }}>💧 Linked to a goal — changing the amount waters or drains it.</div>
+                      <div style={{ fontSize: 12, color: typed < bounds.min ? C.tomato : C.inkSoft }}>
+                        💧 Linked to a goal — changing the amount waters or drains it.
+                        {bounds.min > 0 && <> Part of it was already drawn, so it can't go below {fmt(bounds.min)} — undo that draw first to go lower.</>}
+                      </div>
                     )}
-                    {t.goalId && t.type === "expense" && maxDrawFor(t) !== null && (
-                      <div style={{ fontSize: 12, color: parseFloat(eAmount) > maxDrawFor(t)! ? C.tomato : C.inkSoft }}>
-                        🪣 Drawn from a goal — changing the amount adjusts it (up to {fmt(maxDrawFor(t)!)}).
+                    {t.goalId && t.type === "expense" && bounds.max !== Infinity && (
+                      <div style={{ fontSize: 12, color: typed > bounds.max ? C.tomato : C.inkSoft }}>
+                        🪣 Drawn from a goal — changing the amount adjusts it (up to {fmt(bounds.max)}).
                       </div>
                     )}
                     {t.holdingId && state.invest?.holdings.some((h) => h.id === t.holdingId) && (
@@ -457,7 +464,16 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
                     <b className="mg-num" style={{ color, fontSize: 15 }}>{sign}{fmt(t.amount)}</b>
                     <button className="mg-btn" onClick={() => openEdit(t)} title="Edit entry" aria-label="Edit entry"
                       style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 14, padding: 4 }}>✏️</button>
-                    {confirmDeleteId === t.id ? (
+                    {confirmDeleteId === t.id && !canRemoveTransaction(state, t) ? (
+                      // The armed ✕ explains instead of offering Delete?: this
+                      // watering's money was partly drawn since, so removing it
+                      // would leave the goal with a phantom balance later.
+                      // maxWidth lets it wrap to two lines on phones instead
+                      // of running past the card's right edge.
+                      <span role="status" style={{ fontSize: 12, fontWeight: 700, color: C.tomato, maxWidth: 150, textAlign: "right", lineHeight: 1.3 }}>
+                        🪣 Partly drawn — undo the draw first
+                      </span>
+                    ) : confirmDeleteId === t.id ? (
                       <button className="mg-btn" onClick={() => { deleteTransaction(t.id); setConfirmDeleteId(null); }}
                         title="Really delete this entry" aria-label="Really delete this entry"
                         style={{ background: C.tomato, border: "none", borderRadius: 999, padding: "4px 10px", fontWeight: 700, fontSize: 12, color: C.inkContrast, cursor: "pointer", whiteSpace: "nowrap" }}>
