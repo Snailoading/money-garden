@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { State, Transaction } from "./types";
 import { CATEGORIES, DEFAULT_INVEST } from "./types";
-import { bumpStreak, canRemoveTransaction, deleteGoal, deserialize, emptyState, ensureEmergencyGoal, insertGoal, linkedAmountBounds, loadSaved, migrate, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "./state";
+import { bumpStreak, canRemoveTransaction, deleteGoal, deserialize, emptyState, ensureEmergencyGoal, insertGoal, isFreshGarden, linkedAmountBounds, loadSaved, migrate, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "./state";
 import { derive } from "./stats";
 import { todayISO } from "./format";
 
@@ -598,5 +598,61 @@ describe("linkedAmountBounds — non-expense goal links count as waterings", () 
     const s: State = { ...emptyState(), goals: [{ id: "g1", name: "Trip", plant: "tulip", target: 500, saved: 60, isEmergency: false }] };
     const odd: Transaction = { id: "i", type: "income", amount: 100, category: "other", note: "", date: "2026-10-01", goalId: "g1" };
     expect(linkedAmountBounds(s, odd)).toEqual({ min: 40, max: Infinity }); // 100 − 60
+  });
+});
+
+describe("isFreshGarden — 'nothing entered yet', the only garden one-tap sample planting may replace", () => {
+  const NOW = new Date(2026, 5, 15, 12);
+  /** A fresh garden with exactly one thing entered. */
+  const touched = (mutate: (s: State) => void): State => {
+    const s = structuredClone(emptyState());
+    mutate(s);
+    return s;
+  };
+
+  it("is true for a brand-new garden (incl. a pre-0.12 empty save that just gained its barrel)", () => {
+    expect(isFreshGarden(emptyState())).toBe(true);
+    const old = loadSaved(JSON.stringify({ ...emptyState(), goals: [] }), NOW);
+    expect(old.kind === "ok" && isFreshGarden(old.state)).toBe(true);
+  });
+
+  it("was already false for entries and goals (the old check)", () => {
+    expect(isFreshGarden(touched((s) => { s.transactions.push({ id: "t", type: "expense", amount: 5, category: "fun", note: "", date: "2026-06-01" }); }))).toBe(false);
+    expect(isFreshGarden(touched((s) => { s.goals.push({ id: "g", name: "Trip", plant: "tulip", target: 100, saved: 0, isEmergency: false }); }))).toBe(false);
+    expect(isFreshGarden(touched((s) => { s.goals[0].target = 6000; }))).toBe(false); // barrel set up
+    expect(isFreshGarden(touched((s) => { s.goals[0].saved = 50; }))).toBe(false);
+  });
+
+  it("is false once ANY setup exists — the data the old check ignored", () => {
+    expect(isFreshGarden(touched((s) => { s.income = 4200; }))).toBe(false);
+    expect(isFreshGarden(touched((s) => { s.budgets.dining = 300; }))).toBe(false);
+    expect(isFreshGarden(touched((s) => { delete s.budgets.dining; }))).toBe(false);
+    expect(isFreshGarden(touched((s) => { s.budgets.pets = 40; }))).toBe(false);
+    expect(isFreshGarden(touched((s) => {
+      s.commitments.push({ id: "c", kind: "sub", name: "Gym", amount: 35, cadence: "monthly", payDay: 1, payMonth: 1, endDate: "", category: "subs" });
+    }))).toBe(false);
+    expect(isFreshGarden(touched((s) => { s.invest.holdings.push({ id: "h", name: "Index fund", value: 14200 }); }))).toBe(false);
+    expect(isFreshGarden(touched((s) => { s.invest.monthly = 400; }))).toBe(false);
+    expect(isFreshGarden(touched((s) => { s.invest.birthYear = 1995; }))).toBe(false);
+    expect(isFreshGarden(touched((s) => { s.invest.wr = 3.5; }))).toBe(false);
+    expect(isFreshGarden(touched((s) => { s.invest.ret = "" as unknown as number; }))).toBe(false); // cleared box = touched
+    expect(isFreshGarden(touched((s) => { s.streak = { count: 1, lastDate: "2026-06-15" }; }))).toBe(false); // a no-spend day
+  });
+
+  it("is false for data a newer version wrote (unknown top-level fields) and for the sample garden", () => {
+    expect(isFreshGarden({ ...emptyState(), debts: [] } as unknown as State)).toBe(false);
+    expect(isFreshGarden(sampleState(NOW))).toBe(false);
+  });
+});
+
+describe("isFreshGarden — unknown fields nested inside known ones (verifier nit)", () => {
+  it("is false when a newer version's field hides inside invest, the barrel, or the streak", () => {
+    const withInvest = { ...emptyState(), invest: { ...emptyState().invest, inflation: 2.5 } } as unknown as State;
+    const barrel = { ...emptyState().goals[0], colour: "blue" };
+    const withGoalField = { ...emptyState(), goals: [barrel] } as unknown as State;
+    const withStreakField = { ...emptyState(), streak: { count: 0, lastDate: null, best: 12 } } as unknown as State;
+    expect(isFreshGarden(withInvest)).toBe(false);
+    expect(isFreshGarden(withGoalField)).toBe(false);
+    expect(isFreshGarden(withStreakField)).toBe(false);
   });
 });

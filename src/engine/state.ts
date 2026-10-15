@@ -52,6 +52,50 @@ export function emptyState(): State {
   };
 }
 
+/** The top-level State fields this version knows. Anything else was written
+ * by a newer version — data we can't see, so never "nothing to lose". */
+const KNOWN_FIELDS = new Set(["income", "budgets", "transactions", "goals", "invest", "commitments", "streak"]);
+/** Same idea one level down — a newer version could nest its data here too. */
+const KNOWN_INVEST = new Set([...Object.keys(DEFAULT_INVEST)]);
+const KNOWN_GOAL = new Set(["id", "name", "plant", "target", "saved", "isEmergency"]);
+const KNOWN_STREAK = new Set(["count", "lastDate"]);
+/** Every own key of `obj` is one this version knows. */
+const onlyKnown = (obj: object, known: Set<string>): boolean => Object.keys(obj).every((k) => known.has(k));
+
+/**
+ * True only when NOTHING has been entered yet — the one garden a one-tap
+ * "Plant sample data" may replace (anything else gets the shed's two-step
+ * replant). Deliberately conservative: any difference from a brand-new
+ * garden counts as "entered", even a cleared settings box or a no-spend-day
+ * streak, because a false "fresh" erases real setup with no confirm.
+ * (Before v0.17.5 only entries and goals were checked, so income, budgets,
+ * commitments, holdings, and settings could all be wiped by one tap.)
+ */
+export function isFreshGarden(state: State): boolean {
+  const fresh = emptyState();
+  const budgetKeys = Object.keys(state.budgets ?? {});
+  const sameBudgets =
+    budgetKeys.length === Object.keys(fresh.budgets).length &&
+    budgetKeys.every((k) => state.budgets[k] === fresh.budgets[k]);
+  const inv = state.invest ?? DEFAULT_INVEST;
+  const sameSettings = (["monthly", "ret", "birthYear", "retireAge", "wr", "retireSpend"] as const)
+    .every((k) => inv[k] === DEFAULT_INVEST[k]);
+  return (
+    onlyKnown(state, KNOWN_FIELDS) &&
+    onlyKnown(inv, KNOWN_INVEST) &&
+    onlyKnown(state.streak, KNOWN_STREAK) &&
+    state.transactions.length === 0 &&
+    // The barrel always exists; "untouched" = never set up, holding $0.
+    state.goals.every((g) => g.isEmergency && g.target === 0 && g.saved === 0 && onlyKnown(g, KNOWN_GOAL)) &&
+    (state.commitments ?? []).length === 0 &&
+    (inv.holdings ?? []).length === 0 &&
+    state.income === 0 &&
+    sameBudgets &&
+    sameSettings &&
+    state.streak.count === 0
+  );
+}
+
 /** Realistic example numbers for first-time visitors ("Plant sample data"). */
 export function sampleState(now: Date = new Date()): State {
   const y = now.getFullYear(), m = now.getMonth();

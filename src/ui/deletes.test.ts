@@ -35,8 +35,13 @@ const onClickBodies = (src: string): string[] => {
   }
 };
 
-const DESTRUCTIVE = /\b(delete|remove)[A-Z]\w*\(/;
-const CLEARS_ARMED = /\bdisarm\(\)|\bsetConfirm\w*\(null\)/;
+// Deletes, plus whole-garden replacements (start fresh / sample data) —
+// the replacement kind is how a one-tap "Plant sample data" wipe hid.
+const DESTRUCTIVE = /\b(delete|remove)[A-Z]\w*\(|\bsetStateSafe\((sampleState|emptyState)\(/;
+const CLEARS_ARMED = /\bdisarm\(\)|\bsetConfirm\w*\((null|false)\)/;
+// Limits, stated plainly: only INLINE handler bodies are scanned. A handler
+// passed by name (onClick={plantSampleData}) isn't — such a function must
+// enforce its own guard (plantSampleData re-checks isFreshGarden).
 
 describe("destructive taps are two-step", () => {
   it("the scanner itself flags a one-tap delete and passes a confirm button", () => {
@@ -46,6 +51,12 @@ describe("destructive taps are two-step", () => {
     );
     expect(DESTRUCTIVE.test(oneTap) && !CLEARS_ARMED.test(oneTap)).toBe(true);
     expect(CLEARS_ARMED.test(confirm)).toBe(true);
+    const [wipe, confirmedWipe] = onClickBodies(
+      `<button onClick={() => { setStateSafe(sampleState()); setViewYm(null); }}>Plant</button>
+       <button onClick={() => { setStateSafe(emptyState()); setConfirmReset(false); }}>Really?</button>`,
+    );
+    expect(DESTRUCTIVE.test(wipe) && !CLEARS_ARMED.test(wipe)).toBe(true);
+    expect(DESTRUCTIVE.test(confirmedWipe) && CLEARS_ARMED.test(confirmedWipe)).toBe(true);
   });
 
   for (const path of tsxFiles(uiDir)) {

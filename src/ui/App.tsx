@@ -9,7 +9,7 @@ import { DEFAULT_INVEST, STORAGE_KEY, UNREADABLE_KEY_PREFIX } from "../engine/ty
 import { fmt, monthKey, monthLabel, uid, todayISO } from "../engine/format";
 import { derive, deriveMonthView, weatherFor } from "../engine/stats";
 import { monthRange } from "../engine/trends";
-import { bumpStreak, canRemoveTransaction, deleteGoal as engineDeleteGoal, emptyState, insertGoal, linkedAmountBounds, loadSaved, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
+import { bumpStreak, canRemoveTransaction, deleteGoal as engineDeleteGoal, emptyState, insertGoal, isFreshGarden, linkedAmountBounds, loadSaved, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
 import { buildBackup, parseBackup, type ImportPreview } from "../engine/backup";
 import { store } from "./store";
 import { downloadText } from "./download";
@@ -402,10 +402,18 @@ export function MoneyGarden() {
   const canNext = viewYm !== null;
   const goToMonth = (ym: string) => setViewYm(ym === currentYm ? null : ym);
 
-  // "Fresh soil" = nothing logged and nothing but the untouched barrel-in-setup
-  // (the barrel always exists since v0.12.0, so goals is never []).
-  const isEmpty = state.transactions.length === 0 &&
-    state.goals.every((g) => g.isEmergency && g.target === 0 && g.saved === 0);
+  // "Fresh soil" = nothing entered at all — not just no entries and goals,
+  // but no income, budgets, commitments, holdings, settings, or streak
+  // either (engine isFreshGarden). It decides between the one-tap "Plant
+  // sample data" card and the shed's two-step replant.
+  const isEmpty = isFreshGarden(state);
+  // Passed by name, so it guards itself rather than trusting the card's
+  // visibility: replace the garden ONLY if there's nothing to lose.
+  const plantSampleData = () => {
+    if (!isFreshGarden(state)) return;
+    setStateSafe(sampleState());
+    setViewYm(null);
+  };
   const weather = weatherFor(derived.health);
   const navBtnStyle = (enabled: boolean) => ({
     border: "none", background: "transparent", cursor: enabled ? "pointer" : "default",
@@ -480,7 +488,7 @@ export function MoneyGarden() {
               <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 20 }}>Fresh soil 🌱</div>
               <div style={{ color: C.inkSoft, fontSize: 14 }}>Log your first expense or plant a goal — or explore with sample data first.</div>
             </div>
-            <button className="mg-btn" onClick={() => { setStateSafe(sampleState()); setViewYm(null); }}
+            <button className="mg-btn" onClick={plantSampleData}
               style={{ background: C.leaf, color: C.inkContrast, border: "none", borderRadius: 12, padding: "10px 18px", fontWeight: 700, cursor: "pointer" }}>
               Plant sample data
             </button>
