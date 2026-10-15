@@ -11,7 +11,9 @@ leaves on that trunk; the engine could be transplanted into another frontend
 ┌────────────────────────────────────────────────────────────────────────┐
 │  UI  (src/ui/ — React, all styling inline off theme.ts + global.css)   │
 │                                                                        │
-│  main.tsx ─ mounts <MoneyGarden/>, registers the service worker        │
+│  main.tsx ─ mounts <ErrorBoundary><MoneyGarden/>, registers the SW     │
+│      │     (ErrorBoundary: a render crash shows a rescue screen with a │
+│      │     raw-data download instead of a blank page; never writes)    │
 │      │                                                                 │
 │  App.tsx ─ owns ALL state + every action handler; header (weather,     │
 │      │     streak, month switcher ‹ › ), tab router, footer "shed"     │
@@ -21,12 +23,15 @@ leaves on that trunk; the engine could be transplanted into another frontend
 │  tabs/       Overview  Log  Budgets  Garden  Orchard  Seasons  Advice  │
 │  charts/     SvgPace  SvgDonut  SvgProjection  SvgSeasons (×4)         │
 │  art/        Plant (5 stages)  OrchardTree (freedom tree)              │
+│  Recovery.tsx  shown INSTEAD of the garden when the save is unreadable │
 │  bits.tsx    Stat  CardTitle  Empty  Field  PlantMini                  │
 │  hooks.ts    useReveal (entry anims)  useNearest/svgX (tooltips)       │
+│  store.ts    the one shared storage-adapter instance                   │
+│  download.ts downloadText() — backups and rescued raw data             │
 └───────────────┬────────────────────────────────────────────────────────┘
                 │  plain function calls, plain data back
 ┌───────────────▼────────────────────────────────────────────────────────┐
-│  ENGINE  (src/engine/ — pure TypeScript, no React/DOM, 195 tests)      │
+│  ENGINE  (src/engine/ — pure TypeScript, no React/DOM, unit-tested)    │
 │                                                                        │
 │   types.ts ◄──────────── everyone (State shape, CATEGORIES, defaults)  │
 │   format.ts ◄─────────── everyone (fmt, dates — LOCAL calendar)        │
@@ -52,14 +57,21 @@ leaves on that trunk; the engine could be transplanted into another frontend
 │               in goals[], target 0 = "not set up yet"; deleteGoal      │
 │               refuses it, setupEmergencyFund gives it target+opening   │
 │               balance once (no transaction — not a monthly flow)       │
+│               loadSaved(raw) → fresh | ok | unreadable (never throws;  │
+│               only "fresh" may be overwritten)                         │
+│               linkedAmountBounds()/canRemoveTransaction(): how far a   │
+│               goal-linked entry may move and stay exactly reversible   │
+│   validate.ts findStateProblems() — reports (never repairs) damage     │
+│               that would crash the app or corrupt its sums; gates both │
+│               loadSaved and parseBackup (depends on types.ts only)     │
 │   backup.ts   buildBackup(), parseBackup() → seed-vault envelope       │
 │               (imports run through migrate, so barrel-less backups     │
-│               gain the barrel on import too)                           │
+│               gain the barrel on import too; damaged files refused)    │
 │   storage.ts  createStore() → three-tier adapter (below)               │
 └───────────────┬────────────────────────────────────────────────────────┘
                 │  one JSON string, key "money-garden:state-v1"
 ┌───────────────▼────────────────────────────────────────────────────────┐
-│  STORAGE  (per-call fallback; active tier disclosed in the footer)     │
+│  STORAGE  (per-call fallback; active tier reported by store.mode())    │
 │     platform storage (injected host iface, e.g. future native shell)   │
 │       → browser localStorage                                           │
 │         → in-memory (session only — UI toasts a warning once)          │
@@ -81,9 +93,20 @@ commitments), `deriveMonthView(state, viewYm)` when browsing a past month,
 plain data (`d`, `view`, callbacks) and render it; `MonthView`'s field names
 mirror `Derived`'s so tabs read `view ?? d`.
 
-On load: `store.get(key)` → `deserialize` = `JSON.parse` + `migrate()`
-(fills missing fields from defaults, **never drops unknown fields**). Backup
-import runs the same `migrate()` — one migration path for both doors.
+On load (since v0.17.4): `store.get(key)` → `loadSaved(raw)` = `JSON.parse`
+→ fill missing top-level fields from a fresh state → `migrate()` (fills
+missing fields from defaults, **never drops unknown fields**) →
+`findStateProblems()`. The verdict decides everything: **fresh** (nothing
+saved) initializes an empty garden; **ok** adopts it; **unreadable** shows
+`Recovery.tsx` and writes *nothing* — the save stays byte-for-byte intact
+until the user downloads it and/or chooses a two-step "Start fresh", which
+first copies the raw string to its own timestamped key,
+`money-garden:unreadable-save:<ISO time>` (never overwriting an earlier copy). (Before
+v0.17.4 a parse failure fell through to "fresh" and overwrote the only copy.)
+Backup import runs the same fill → `migrate()` → `findStateProblems()`
+sequence and refuses damaged files before the confirm card — one gate for
+both doors. The gate's bar is "would crash or corrupt the sums", never
+"looks unusual": every shape the app has ever written must pass.
 
 ## Engine module dependencies (arrows = imports)
 
@@ -93,6 +116,7 @@ types ◄── format ◄── commitments ◄── stats ◄── trends
   │          │            │            └── advice   (also ← commitments, format)
   │          │            └── fire ◄── stats
   │          └── state ◄── backup
+  ├── validate ◄── state, backup
   └── storage (standalone; host access via globalThis only)
 ```
 

@@ -182,3 +182,52 @@ describe("parseBackup — rejection paths", () => {
     );
   });
 });
+
+describe("parseBackup — entry-level damage is refused before anything is replaced", () => {
+  const withTx = (tx: unknown) => JSON.stringify({ app: "money-garden", schema: 1, exportedAt: "2026-06-15", state: { ...emptyState(), transactions: [tx] } });
+  const refuse = (raw: string, fragment: string) => {
+    const result = parseBackup(raw, june15);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain(fragment);
+    expect(result.error).toContain("Nothing was changed");
+  };
+
+  it("refuses numeric-string amounts (they'd glue together instead of adding)", () => {
+    refuse(withTx({ id: "a", type: "expense", amount: "100", category: "dining", note: "x", date: "2026-06-01" }),
+      'transaction #1 has an amount that isn\'t a valid number ("100")');
+  });
+
+  it("refuses null entries and entries with no date (both crashed every render)", () => {
+    refuse(withTx(null), "transaction #1 is empty or not an entry");
+    refuse(withTx({ id: "c", type: "expense", amount: 5, category: "x", note: "n" }), "transaction #1 has no date");
+  });
+
+  it("refuses a damaged streak", () => {
+    refuse(JSON.stringify({ ...emptyState(), streak: null }), "the logging streak is damaged");
+  });
+
+  it("summarizes many problems instead of listing them all", () => {
+    const bad = { ...emptyState(), income: "lots", streak: null };
+    refuse(JSON.stringify(bad), "(and 1 more problem)");
+  });
+
+  it("still accepts the Orchard's cleared-box sentinel in a real export", () => {
+    const s = sampleState(june15);
+    const withBlank = { ...s, invest: { ...s.invest, monthly: "" as unknown as number } };
+    const result = parseBackup(buildBackup(withBlank, june15).json, june15);
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe("parseBackup — never throws (verifier round 2 / screenshot review)", () => {
+  it("turns a file migrate can't start on into a message, not an exception", () => {
+    // ensureEmergencyGoal reads g.isEmergency on each goal — a null goal throws.
+    const raw = JSON.stringify({ budgets: {}, goals: [null] });
+    expect(() => parseBackup(raw, june15)).not.toThrow();
+    const result = parseBackup(raw, june15);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain("Nothing was changed");
+  });
+});

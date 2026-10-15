@@ -7,6 +7,7 @@
 import type { Commitment, Goal, Invest, State, Streak, Transaction } from "./types";
 import { CATEGORIES, DEFAULT_INVEST } from "./types";
 import { toLocalISO, todayISO, uid } from "./format";
+import { describeProblems, findStateProblems } from "./validate";
 
 /**
  * The rain-barrel invariant (v0.12.0): exactly one emergency goal always
@@ -173,6 +174,91 @@ export const serialize = (state: State): string => JSON.stringify(state);
 export function deserialize(raw: string, now: Date = new Date()): State {
   return migrate(JSON.parse(raw), now);
 }
+
+/**
+ * What loading the saved garden found. A tagged union — like a Python
+ * Enum whose members carry data — so the caller must handle every case:
+ * "fresh" (nothing saved yet), "ok", or "unreadable" (something IS saved
+ * but can't be used safely; `reason` says why, in plain words).
+ */
+export type LoadResult =
+  | { kind: "fresh" }
+  | { kind: "ok"; state: State }
+  | { kind: "unreadable"; reason: string };
+
+/**
+ * Turn the raw saved string into a garden, never throwing. The crucial
+ * distinction is fresh vs unreadable: only "fresh" may be overwritten with
+ * an empty garden. An unreadable save is the user's only copy of their
+ * data — the caller must leave it untouched (CLAUDE.md safety rail).
+ * Missing top-level fields are filled from a fresh state first, exactly as
+ * backup import does, then the result must pass findStateProblems.
+ */
+export function loadSaved(raw: string | null | undefined, now: Date = new Date()): LoadResult {
+  if (raw == null || raw === "") return { kind: "fresh" };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { kind: "unreadable", reason: "the saved data isn't valid JSON" };
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return { kind: "unreadable", reason: `the saved data isn't a garden (it's ${Array.isArray(parsed) ? "a list" : String(parsed)})` };
+  }
+  // Name the common structural damage plainly before migrate trips over it
+  // (it would otherwise surface as a cryptic "e.findIndex is not a function").
+  // null passes here on purpose: migrate already reads a null goals or
+  // commitments as "none" (`|| []`), and a null transactions is caught below.
+  for (const field of ["transactions", "goals", "commitments"] as const) {
+    const v = (parsed as Record<string, unknown>)[field];
+    if (v != null && !Array.isArray(v)) {
+      return { kind: "unreadable", reason: `"${field}" isn't a list` };
+    }
+  }
+  let state: State;
+  try {
+    state = migrate({ ...emptyState(), ...parsed }, now);
+  } catch (e) {
+    // Anything else migrate can't start on (e.g. a null inside "goals").
+    return { kind: "unreadable", reason: `part of the saved data couldn't be upgraded (technical detail: ${e instanceof Error ? e.message : String(e)})` };
+  }
+  const problems = findStateProblems(state);
+  if (problems.length > 0) return { kind: "unreadable", reason: describeProblems(problems) };
+  return { kind: "ok", state };
+}
+
+/** Round to whole cents — float sums (0.1 + 0.2 = 0.30000000000000004)
+ * must never block an exact reversal by a sub-cent sliver. */
+const toCents = (n: number): number => Math.round(n * 100) / 100;
+
+/** The amounts a linked journal entry may be edited to (inclusive). */
+export interface AmountBounds {
+  min: number;
+  max: number;
+}
+
+/**
+ * How far a goal-linked entry's amount can move while every link stays
+ * exactly reversible (CLAUDE.md: cap at what the link can give back —
+ * never clamp a balance after the fact).
+ * - A draw (expense + goalId) can grow only by what the goal still holds.
+ * - A watering (saving + goalId) can shrink only by what the goal still
+ *   holds: if some of it was since drawn, that money is spent, and taking
+ *   it back would clamp the goal at 0 — after which undoing the draw would
+ *   re-water money that never came back (a phantom balance).
+ * Unlinked entries, holding waterings (manual revaluations win), and
+ * dangling links (goal deleted) are unconstrained: {0, Infinity}.
+ */
+export function linkedAmountBounds(state: State, t: Transaction): AmountBounds {
+  const goal = t.goalId ? state.goals.find((g) => g.id === t.goalId) : undefined;
+  if (!goal) return { min: 0, max: Infinity };
+  if (t.type === "expense") return { min: 0, max: toCents(t.amount + goal.saved) };
+  return { min: Math.max(0, toCents(t.amount - goal.saved)), max: Infinity };
+}
+
+/** Deleting = editing the amount to 0, so it's allowed exactly when 0 is in bounds. */
+export const canRemoveTransaction = (state: State, t: Transaction): boolean =>
+  linkedAmountBounds(state, t).min === 0;
 
 /**
  * Move a linked goal's balance by delta, floored at 0. No target cap:

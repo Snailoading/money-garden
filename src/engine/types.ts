@@ -171,6 +171,11 @@ export const PLANT_KINDS: PlantKind[] = [
 ];
 
 export const STORAGE_KEY = "money-garden:state-v1";
+/** Prefix for where an unreadable save is tucked away before the user
+ * chooses to start fresh over it — so even that choice never destroys the
+ * only copy. Each copy gets its own timestamped key (`<prefix>:<ISO time>`),
+ * so a second incident can never overwrite the first one's copy. */
+export const UNREADABLE_KEY_PREFIX = "money-garden:unreadable-save";
 
 export const DEFAULT_INVEST: Invest = {
   holdings: [], monthly: 0, ret: 7, birthYear: 0, retireAge: 65, wr: 4, retireSpend: 0,

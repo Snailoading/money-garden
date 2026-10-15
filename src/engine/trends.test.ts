@@ -163,3 +163,16 @@ describe("monthlyTrends · left (unplanted surplus)", () => {
     expect(cur.left).toBe(1500);
   });
 });
+
+describe("monthRange — malformed dates can't collapse the navigation range", () => {
+  it("ignores entries whose date isn't YYYY-MM-DD (e.g. \"\" from a cleared date box)", () => {
+    const blank: Transaction = { ...tx("2026-04", "expense", 10), date: "" };
+    const range = monthRange(state([blank, tx("2026-04", "expense", 10)]), now);
+    expect(range).toEqual(["2026-04", "2026-05", "2026-06"]);
+  });
+
+  it("is still just the current month when every date is malformed", () => {
+    const blank: Transaction = { ...tx("2026-04", "expense", 10), date: "" };
+    expect(monthRange(state([blank]), now)).toEqual([currentYm]);
+  });
+});

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { State, Transaction } from "./types";
 import { CATEGORIES, DEFAULT_INVEST } from "./types";
-import { bumpStreak, deleteGoal, deserialize, emptyState, ensureEmergencyGoal, insertGoal, migrate, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "./state";
+import { bumpStreak, canRemoveTransaction, deleteGoal, deserialize, emptyState, ensureEmergencyGoal, insertGoal, linkedAmountBounds, loadSaved, migrate, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "./state";
 import { derive } from "./stats";
 import { todayISO } from "./format";
 
@@ -433,5 +433,170 @@ describe("bumpStreak", () => {
   it("resets to 1 after a gap or on the first ever log", () => {
     expect(bumpStreak({ count: 9, lastDate: "2026-06-01" }, now)).toEqual({ count: 1, lastDate: today });
     expect(bumpStreak({ count: 0, lastDate: null }, now)).toEqual({ count: 1, lastDate: today });
+  });
+});
+
+describe("loadSaved — only a truly empty save may become a fresh garden", () => {
+  const NOW = new Date(2026, 5, 15, 12);
+
+  it("treats nothing saved as fresh", () => {
+    expect(loadSaved(null, NOW)).toEqual({ kind: "fresh" });
+    expect(loadSaved(undefined, NOW)).toEqual({ kind: "fresh" });
+    expect(loadSaved("", NOW)).toEqual({ kind: "fresh" });
+  });
+
+  it("loads a normal save exactly", () => {
+    const s = sampleState(NOW);
+    expect(loadSaved(serialize(s), NOW)).toEqual({ kind: "ok", state: s });
+  });
+
+  it("still runs migrations on load (pre-0.12 barrel, legacy age)", () => {
+    const old = { income: 0, budgets: {}, transactions: [], goals: [], invest: { age: 40 }, streak: { count: 0, lastDate: null } };
+    const r = loadSaved(JSON.stringify(old), NOW);
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect(r.state.goals[0]).toMatchObject({ isEmergency: true, target: 0 });
+    expect(r.state.invest.birthYear).toBe(1986); // 2026 − 40
+  });
+
+  it("fills missing top-level fields and keeps unknown ones, like backup import", () => {
+    const r = loadSaved(JSON.stringify({ budgets: { housing: 500 }, futureFeature: { x: 1 } }), NOW);
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect(r.state.transactions).toEqual([]);
+    expect(r.state.streak).toEqual({ count: 0, lastDate: null });
+    expect(r.state.budgets).toEqual({ housing: 500 }); // the saved map wins whole, not merged
+    expect((r.state as unknown as { futureFeature: unknown }).futureFeature).toEqual({ x: 1 });
+  });
+
+  it("reports invalid JSON as unreadable — never as fresh", () => {
+    const r = loadSaved('{"income": 42, "transa', NOW);
+    expect(r.kind).toBe("unreadable");
+    if (r.kind !== "unreadable") return;
+    expect(r.reason).toContain("isn't valid JSON");
+  });
+
+  it("reports valid JSON that isn't a garden object as unreadable", () => {
+    for (const raw of ["null", "42", "true", '"text"', "[1,2]"]) {
+      expect(loadSaved(raw, NOW).kind).toBe("unreadable");
+    }
+    const r = loadSaved("[1,2]", NOW);
+    if (r.kind === "unreadable") expect(r.reason).toContain("a list");
+  });
+
+  it("names a non-list collection plainly (goals as an object made the old load path throw → overwrite)", () => {
+    expect(loadSaved('{"goals": {}}', NOW)).toEqual({ kind: "unreadable", reason: '"goals" isn\'t a list' });
+    expect(loadSaved('{"transactions": "oops"}', NOW)).toEqual({ kind: "unreadable", reason: '"transactions" isn\'t a list' });
+  });
+
+  it("reports anything else migrate can't start on as unreadable, without throwing", () => {
+    // A null goal: ensureEmergencyGoal reads g.isEmergency on it and throws.
+    const r = loadSaved('{"goals": [null]}', NOW);
+    expect(r.kind).toBe("unreadable");
+    if (r.kind !== "unreadable") return;
+    expect(r.reason).toContain("couldn't be upgraded");
+  });
+
+  it("still reads a null goals/commitments as 'none', as migrate always has", () => {
+    const r = loadSaved('{"goals": null, "commitments": null}', NOW);
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect(r.state.commitments).toEqual([]);
+    expect(r.state.goals[0]).toMatchObject({ isEmergency: true, target: 0 }); // barrel injected
+  });
+
+  it("reports entry-level damage as unreadable, naming the problem", () => {
+    const s = { ...emptyState(), transactions: [{ id: "a", type: "expense", amount: "100", category: "dining", note: "", date: "2026-06-01" }] };
+    const r = loadSaved(JSON.stringify(s), NOW);
+    expect(r).toEqual({ kind: "unreadable", reason: 'transaction #1 has an amount that isn\'t a valid number ("100")' });
+  });
+
+  it("never throws, whatever is in storage", () => {
+    for (const raw of ["{", "}", "undefined", '{"transactions":[null]}', '{"streak":null}', '{"invest":"x"}', "{}"]) {
+      expect(() => loadSaved(raw, NOW)).not.toThrow();
+    }
+  });
+});
+
+describe("linkedAmountBounds / canRemoveTransaction — exact reversibility", () => {
+  const goal = (saved: number) => ({ id: "g1", name: "Trip", plant: "tulip", target: 500, saved, isEmergency: false });
+  const water: Transaction = { id: "w", type: "saving", amount: 100, category: "other", note: "→ Trip", date: "2026-10-01", goalId: "g1" };
+  const draw: Transaction = { id: "d", type: "expense", amount: 70, category: "fun", note: "Tickets", date: "2026-10-02", goalId: "g1" };
+  // Watered 100 then drew 70 → the goal holds 30.
+  const afterBoth = (): State => ({ ...emptyState(), goals: [goal(30)], transactions: [draw, water] });
+
+  it("blocks removing a watering whose money was since drawn (the phantom-balance bug)", () => {
+    const s = afterBoth();
+    expect(linkedAmountBounds(s, water)).toEqual({ min: 70, max: Infinity }); // can shrink by 30 at most
+    expect(canRemoveTransaction(s, water)).toBe(false);
+  });
+
+  it("allows undoing the draw first; then the watering is removable, ending at exactly 0", () => {
+    let s = afterBoth();
+    expect(linkedAmountBounds(s, draw)).toEqual({ min: 0, max: 100 }); // 70 + 30 still held
+    expect(canRemoveTransaction(s, draw)).toBe(true);
+    s = removeTransaction(s, "d");
+    expect(s.goals[0].saved).toBe(100); // 30 + 70 re-watered
+    expect(canRemoveTransaction(s, water)).toBe(true);
+    s = removeTransaction(s, "w");
+    expect(s.goals[0].saved).toBe(0); // empty journal ↔ empty goal — no phantom
+    expect(s.transactions).toEqual([]);
+  });
+
+  it("caps a draw's growth at what the goal still holds", () => {
+    const s: State = { ...emptyState(), goals: [goal(2000)], transactions: [{ ...draw, amount: 500 }] };
+    expect(linkedAmountBounds(s, s.transactions[0])).toEqual({ min: 0, max: 2500 });
+  });
+
+  it("leaves unlinked entries, holding waterings, and dangling links unconstrained", () => {
+    const s = afterBoth();
+    const plain: Transaction = { id: "p", type: "expense", amount: 5, category: "fun", note: "", date: "2026-10-03" };
+    const orchard: Transaction = { id: "o", type: "saving", amount: 400, category: "other", note: "", date: "2026-10-03", holdingId: "h1" };
+    const dangling: Transaction = { ...water, goalId: "deleted-goal" };
+    for (const t of [plain, orchard, dangling]) {
+      expect(linkedAmountBounds(s, t)).toEqual({ min: 0, max: Infinity });
+      expect(canRemoveTransaction(s, t)).toBe(true);
+    }
+  });
+
+  it("ignores sub-cent float drift but still blocks a real one-cent shortfall", () => {
+    const w = (amount: number): Transaction => ({ ...water, amount });
+    const withSaved = (saved: number): State => ({ ...emptyState(), goals: [goal(saved)] });
+    expect(canRemoveTransaction(withSaved(0.1 + 0.2), w(0.3))).toBe(true);           // saved 0.30000000000000004
+    expect(canRemoveTransaction(withSaved(0.19999999999999998), w(0.2))).toBe(true); // 2e-17 short: drift, not money
+    expect(canRemoveTransaction(withSaved(0.19), w(0.2))).toBe(false);               // a real cent is gone
+    expect(linkedAmountBounds(withSaved(0.19), w(0.2)).min).toBe(0.01);
+  });
+});
+
+describe("loadSaved — gardens that work today must never be locked out (verifier round 1)", () => {
+  const NOW = new Date(2026, 5, 15, 12);
+
+  it("loads a save holding an empty date and 1e400-turned-null numbers", () => {
+    // Clearing the Log's date box saves date ""; typing 1e400 into a number
+    // box stores Infinity, which JSON writes as null. Both load fine today.
+    const s = sampleState(NOW);
+    const raw = serialize(s)
+      .replace(`"date":"${s.transactions[0].date}"`, '"date":""')
+      .replace('"income":4200', '"income":null')
+      .replace(/"dining":\d+/, '"dining":null');
+    const r = loadSaved(raw, NOW);
+    expect(r.kind).toBe("ok");
+    if (r.kind !== "ok") return;
+    expect(r.state.transactions[0].date).toBe("");
+    expect(r.state.income).toBeNull();
+    expect(derive(r.state, NOW).spent).toBeGreaterThan(0); // and the engine still reads it
+  });
+
+  it("treats a whitespace-only save as unreadable, not fresh (the safe direction)", () => {
+    expect(loadSaved("   ", NOW).kind).toBe("unreadable");
+  });
+});
+
+describe("linkedAmountBounds — non-expense goal links count as waterings", () => {
+  it("bounds an income entry carrying a goalId like a watering (linkSign treats it +1)", () => {
+    const s: State = { ...emptyState(), goals: [{ id: "g1", name: "Trip", plant: "tulip", target: 500, saved: 60, isEmergency: false }] };
+    const odd: Transaction = { id: "i", type: "income", amount: 100, category: "other", note: "", date: "2026-10-01", goalId: "g1" };
+    expect(linkedAmountBounds(s, odd)).toEqual({ min: 40, max: Infinity }); // 100 − 60
   });
 });
