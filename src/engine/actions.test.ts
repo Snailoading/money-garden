@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { State, Transaction } from "./types";
 import { emptyState, removeTransaction, sampleState } from "./state";
-import { logEntry, markNoSpendDay } from "./actions";
+import { drawFromGoal, logEntry, markNoSpendDay, waterGoal } from "./actions";
 
 const NOW = new Date(2026, 5, 15, 12); // June 15, 2026 — local noon
 const TODAY = "2026-06-15";
@@ -90,5 +90,93 @@ describe("markNoSpendDay — tending without an entry (moved from App.tsx)", () 
     const r = markNoSpendDay(s, NOW);
     expect(r.state).toBe(s); // the UI reads "unchanged" as "already tended"
     expect(r.events).toEqual([]);
+  });
+});
+
+/** A garden with the barrel plus a Trip goal at `saved` of 500. */
+const withTrip = (saved: number): State => ({
+  ...emptyState(),
+  goals: [
+    { id: "barrel", name: "Emergency fund", plant: "sunflower", target: 0, saved: 0, isEmergency: true },
+    { id: "trip", name: "Trip", plant: "tulip", target: 500, saved, isEmergency: false },
+  ],
+  streak: { count: 4, lastDate: "2026-06-14" },
+});
+const trip = (s: State) => s.goals.find((g) => g.id === "trip")!;
+
+describe("waterGoal — moved from App.tsx, behavior unchanged", () => {
+  it("adds the amount to the goal and logs a linked saving entry", () => {
+    const s = withTrip(100);
+    const r = waterGoal(s, "trip", 60, NOW);
+    expect(trip(r.state).saved).toBe(160);
+    expect(r.state.goals[0]).toBe(s.goals[0]); // the barrel is untouched (same object)
+    const [tx] = r.state.transactions;
+    expect(tx).toMatchObject({ type: "saving", amount: 60, category: "other", note: "→ Trip", date: TODAY, goalId: "trip" });
+    expect(r.state.streak).toEqual({ count: 5, lastDate: TODAY });
+  });
+
+  it("reports a bloom only when this watering crosses the target", () => {
+    expect(waterGoal(withTrip(450), "trip", 60, NOW).events).toContainEqual({ kind: "bloomed", goalName: "Trip" }); // 450 → 510
+    expect(waterGoal(withTrip(450), "trip", 50, NOW).events).toContainEqual({ kind: "bloomed", goalName: "Trip" }); // exactly 500
+    expect(waterGoal(withTrip(100), "trip", 50, NOW).events.some((e) => e.kind === "bloomed")).toBe(false); // 150, not there
+    expect(waterGoal(withTrip(510), "trip", 60, NOW).events.some((e) => e.kind === "bloomed")).toBe(false); // already bloomed
+  });
+
+  it("lets a goal overflow its target (v0.7.0: truthful, and keeps the entry reversible)", () => {
+    expect(trip(waterGoal(withTrip(510), "trip", 60, NOW).state).saved).toBe(570);
+  });
+
+  it("never 'blooms' the un-set-up barrel (target 0)", () => {
+    const r = waterGoal(withTrip(0), "barrel", 50, NOW);
+    expect(r.state.goals[0].saved).toBe(50);
+    expect(r.events.some((e) => e.kind === "bloomed")).toBe(false);
+  });
+
+  it("is exactly reversible by deleting its entry", () => {
+    const s = withTrip(450);
+    expectReversible(s, waterGoal(s, "trip", 60, NOW).state);
+  });
+});
+
+describe("drawFromGoal — moved from App.tsx, behavior unchanged", () => {
+  it("drains the goal and logs a linked expense with the default note", () => {
+    const s = withTrip(510);
+    const r = drawFromGoal(s, "trip", 100, "fun", "   ", NOW);
+    expect(trip(r.state).saved).toBe(410);
+    expect(r.state.transactions[0]).toMatchObject({ type: "expense", amount: 100, category: "fun", note: 'From "Trip"', date: TODAY, goalId: "trip" });
+    expect(r.state.streak).toEqual({ count: 5, lastDate: TODAY });
+  });
+
+  it("keeps a custom note, trimmed", () => {
+    expect(drawFromGoal(withTrip(510), "trip", 100, "fun", "  Concert  ", NOW).state.transactions[0].note).toBe("Concert");
+  });
+
+  it("can draw the whole balance, down to exactly 0", () => {
+    expect(trip(drawFromGoal(withTrip(510), "trip", 510, "fun", "", NOW).state).saved).toBe(0);
+  });
+
+  it("is a same-reference no-op beyond the balance, for non-positive amounts, or an unknown goal", () => {
+    const s = withTrip(510);
+    for (const amount of [510.01, 0, -5, NaN]) {
+      expect(drawFromGoal(s, "trip", amount, "fun", "", NOW).state).toBe(s);
+    }
+    expect(drawFromGoal(s, "no-such-goal", 10, "fun", "", NOW).state).toBe(s);
+  });
+
+  it("is exactly reversible by deleting its entry", () => {
+    const s = withTrip(510);
+    expectReversible(s, drawFromGoal(s, "trip", 100, "fun", "", NOW).state);
+  });
+});
+
+describe("water → draw → undo both (newest first) — the full linked story", () => {
+  it("returns every balance to where it started", () => {
+    const start = withTrip(450);
+    const watered = waterGoal(start, "trip", 60, NOW).state;            // 510
+    const drawn = drawFromGoal(watered, "trip", 100, "fun", "", NOW).state; // 410
+    const [drawTx, waterTx] = drawn.transactions;
+    const undone = removeTransaction(removeTransaction(drawn, drawTx.id), waterTx.id);
+    expect(trip(undone).saved).toBe(450);
+    expect({ ...undone, streak: start.streak }).toEqual(start);
   });
 });

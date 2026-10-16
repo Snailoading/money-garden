@@ -321,33 +321,22 @@ export function MoneyGarden() {
     showToast("🛟 Rain barrel set up — water it whenever you can");
   };
 
-  // Spend from a goal: one journal expense entry that also drains the goal
-  // via its goalId. Draws are budget-basis EXCLUDED (isDraw in stats.ts) —
-  // they spend the goal's pool, not the month's income, surfacing as the
-  // 🌸 harvest story instead of inside Spent. The UI caps the amount at the
-  // balance so the entry stays exactly reversible.
+  // Spend from a goal (engine drawFromGoal): a linked expense that drains the
+  // goal, budget-basis excluded — the 🌸 harvest story. The engine refuses
+  // invalid draws (beyond the balance, non-positive/NaN, unknown goal) by
+  // handing the same state back, so no toast then.
   const drawFromGoal = (id: string, amount: number, category: string, note: string) => {
-    const goal = state.goals.find((g) => g.id === id);
-    if (!goal || !(amount > 0) || amount > goal.saved) return;
-    const tx: Transaction = { id: uid(), type: "expense", amount, category, note: note.trim() || `From "${goal.name}"`, date: todayISO(), goalId: id };
-    const goals = state.goals.map((g) => (g.id === id ? { ...g, saved: g.saved - amount } : g));
-    setStateSafe({ ...state, goals, transactions: [tx, ...state.transactions], streak: bumpStreak(state.streak) });
-    showToast(`🪣 ${fmt(amount)} drawn from "${goal.name}"`);
+    const r = actions.drawFromGoal(state, id, amount, category, note, new Date());
+    if (r.state === state) return;
+    commit(r);
+    showToast(`🪣 ${fmt(amount)} drawn from "${state.goals.find((g) => g.id === id)?.name}"`);
   };
 
+  // Water a goal (engine waterGoal): linked saving entry, no target cap.
   const waterGoal = (id: string, amount: number) => {
-    const goals = state.goals.map((g) => {
-      if (g.id !== id) return g;
-      // No target cap (v0.7.0): overflowing is truthful, and it keeps the
-      // journal entry exactly reversible.
-      const saved = g.saved + amount;
-      // Safe for a target-0 barrel too: `g.saved < g.target` is 0 < 0 → false.
-      if (saved >= g.target && g.saved < g.target) showToast(`🌸 "${g.name}" is in full bloom — goal reached!`);
-      return { ...g, saved };
-    });
-    // goalId links the entry so later edits/deletes can adjust the goal too.
-    const tx: Transaction = { id: uid(), type: "saving", amount, category: "other", note: `→ ${state.goals.find((g) => g.id === id)?.name}`, date: todayISO(), goalId: id };
-    setStateSafe({ ...state, goals, transactions: [tx, ...state.transactions], streak: bumpStreak(state.streak) });
+    for (const e of commit(actions.waterGoal(state, id, amount, new Date()))) {
+      if (e.kind === "bloomed") showToast(`🌸 "${e.goalName}" is in full bloom — goal reached!`);
+    }
   };
 
   // Engine-guarded: deleting the permanent barrel is a silent no-op there.
