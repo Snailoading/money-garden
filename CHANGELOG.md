@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.18.0 — 2026-10-17 · *Steady hands* 🤲
+
+### Fixed
+
+- **Impossible numbers can't sneak into your garden anymore.** A number too
+  big for the app to hold — typed in a browser that allows it, or two huge
+  waterings added together — used to be saved as nothing, so it quietly
+  became $0 the next time you opened the app. Now the change is refused on
+  the spot with a short note: "That number is out of range — nothing was
+  changed." This covers every box that takes money: entries and their
+  edits, goals and the rain barrel, the orchard, vines and the trellis,
+  plots and income.
+- **A refused change never claims success.** Notes like "Entry updated" or
+  "Rain barrel set up" now appear only once the change has been accepted.
+
+### Changed
+
+- **Every action that moves money now lives in the garden's tested core**,
+  right beside the steps that undo it — so each one is proven to reverse
+  exactly when you delete its entry. The app looks and behaves the same;
+  this is groundwork that keeps the numbers trustworthy as new features
+  arrive.
+- **Saves happen one at a time, newest first.** Today's browser storage
+  already works this way; the future phone app's storage won't, and this
+  makes sure an older garden can never overwrite a newer one there (with
+  that slower storage, quick bursts of typing will also skip saving the
+  in-between versions).
+
 ## 0.17.5 — 2026-10-16 · *Two taps, and honest soil* 🧺
 
 ### Fixed

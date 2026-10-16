@@ -15,8 +15,10 @@ leaves on that trunk; the engine could be transplanted into another frontend
 │      │     (ErrorBoundary: a render crash shows a rescue screen with a │
 │      │     raw-data download instead of a blank page; never writes)    │
 │      │                                                                 │
-│  App.tsx ─ owns ALL state + every action handler; header (weather,     │
-│      │     streak, month switcher ‹ › ), tab router, footer "shed"     │
+│  App.tsx ─ owns ALL state; every money change is an engine call        │
+│      │     (actions.ts, or state.ts for the rest), saved through ONE   │
+│      │     path: setStateSafe = save gate + save queue. Also: header   │
+│      │     (weather, streak, month ‹ ›), tab router, footer "shed"     │
 │      │     (backup, import + confirm card, sample data, 2-step reset), │
 │      │     toast                                                       │
 │      ▼                                                                 │
@@ -45,13 +47,19 @@ leaves on that trunk; the engine could be transplanted into another frontend
 │               (budget basis: goal draws — isDraw — excluded from every │
 │               budget number; surfaced separately as `drawn`)           │
 │      ├── fire.ts         deriveFire(inv, exp, now) → FIRE/Coast/proj.  │
-│      │                    (age derives from birthYear at compute time)  │
-│      │                    deriveWatering() → the can's journal status   │
+│      │                    (age derives from birthYear at compute time) │
+│      │                    deriveWatering() → the can's journal status  │
 │      └── commitments.ts  deriveCommitments(), nextDueDate(), …         │
 │   trends.ts   monthRange(), monthlyTrends() → Seasons + nav bounds     │
 │   advice.ts   buildAdvice(state, derived) → prioritized Tip[]          │
 │   journal.ts  filterTransactions(), matchesFilter(), isFilterActive()  │
 │               (Log search/filter; depends on types.ts only)            │
+│   actions.ts  the forward money actions, pure: (state, args, now) →    │
+│               { state, events } — logEntry, waterGoal,                 │
+│               drawFromGoal, waterHolding, payCommitment, plans…;       │
+│               same state back = refused/no-op; impossible numbers      │
+│               refused (v0.18.0). The forward half of every linked      │
+│               entry; removeTransaction/updateTransaction the reverse   │
 │   state.ts    emptyState, sampleState, migrate, serialize, bumpStreak  │
 │               (update/removeTransaction exactly reverse the goalId,    │
 │               holdingId, and commitmentId linkage side-effects)        │
@@ -72,7 +80,8 @@ leaves on that trunk; the engine could be transplanted into another frontend
 │   backup.ts   buildBackup(), parseBackup() → seed-vault envelope       │
 │               (imports run through migrate, so barrel-less backups     │
 │               gain the barrel on import too; damaged files refused)    │
-│   storage.ts  createStore() → three-tier adapter (below)               │
+│   storage.ts  createStore() → three-tier adapter (below);              │
+│               createSaveQueue() → one write in flight, newest wins     │
 └───────────────┬────────────────────────────────────────────────────────┘
                 │  one JSON string, key "money-garden:state-v1"
 ┌───────────────▼────────────────────────────────────────────────────────┐
@@ -87,11 +96,31 @@ leaves on that trunk; the engine could be transplanted into another frontend
 
 ## The two data flows
 
-**Write path** (every user action): tab component calls a handler in
-`App.tsx` → handler builds the next `State` immutably (stamping ids/dates via
-`format.ts`, advancing the streak via `bumpStreak`) → `setStateSafe(next)`
-sets React state *and* persists `serialize(next)` through the storage
-adapter. There is exactly one writer; components never touch storage.
+**Write path** (every user action, since v0.18.0): tab component calls a
+handler in `App.tsx` → the handler calls an engine action in `actions.ts`
+(`actions.waterGoal(state, id, amount, now)` …), which builds the next
+`State` immutably — ids, dates, streak, linked balances — and returns
+`{ state, events }` (events are facts like "bloomed", turned into toasts by
+the App; the same state back means refused or no-op) → `commit` →
+`setStateSafe(next)`, the ONE save path, which:
+
+1. **gates** the change: `findStateProblems(next)` — the same inspector as
+   load and import — refuses damage (in practice an impossible number like
+   Infinity, which JSON would write as null = $0) before it touches
+   anything, and reports acceptance so success toasts wait;
+2. sets React state;
+3. hands the garden to the **save queue** (`createSaveQueue`): one write in
+   flight, the newest pending garden wins, a failed write never wedges it —
+   so with an async store an older garden can't overwrite a newer one.
+
+There is exactly one writer; components never touch storage. The rest of the
+changes call `state.ts` engine functions directly (they predate `actions.ts`
+and were already tested there): entry edits and deletes (`updateTransaction`,
+`removeTransaction`), planting/editing/deleting goals and barrel setup
+(`insertGoal`, `updateGoal`, `deleteGoal`, `setupEmergencyFund`), commitment
+edits (`updateCommitment`), and whole-garden replacements (sample data,
+start fresh, the initial empty garden — or a backup already checked by
+`parseBackup`). All of them go through the same gate and queue.
 
 **Read path** (every render): `App.tsx` derives everything from `state` in
 `useMemo`s — `derive(state)` for "today" (monthly stats, health, FIRE,
@@ -122,7 +151,7 @@ types ◄── format ◄── commitments ◄── stats ◄── trends
   ▲          ▲            ▲            ▲
   │          │            │            └── advice   (also ← commitments, format)
   │          │            └── fire ◄── stats
-  │          └── state ◄── backup
+  │          └── state ◄── backup, actions (also ← format, types)
   ├── validate ◄── state, backup
   └── storage (standalone; host access via globalThis only)
 ```
@@ -138,6 +167,12 @@ to assemble `Derived`.
   injected `now` (tests pin the calendar; UI passes the real clock).
 - **Money math ships with tests** — every engine module has a colocated
   `*.test.ts` (Vitest, plain Node, no jsdom).
+- **Every money change is an engine function** — the forward actions in
+  `actions.ts` (since v0.18.0) and the rest in `state.ts`. Each action that
+  creates a journal entry has a reversibility test: deleting that entry
+  restores every balance exactly (only the streak stays — it records that you
+  tended the garden). The App calls them and turns their results into
+  toasts; it never builds a garden itself.
 - **Persistence compatibility**: the key `money-garden:state-v1` and
   `migrate()` are load-bearing; schema changes must keep old localStorage
   data *and* old backup files importable.
@@ -212,4 +247,6 @@ Never hand-write a root-absolute asset path (`src="/x.png"`); use relative or
   `fire.ts`; `advice.ts` gains rules; schema change → extend `migrate()` and
   bump the backup `SCHEMA_VERSION` only if the envelope itself changes.
 - **Native (Expo)**: implement the `PlatformStorage` interface in
-  `storage.ts` — the adapter's first tier exists exactly for this.
+  `storage.ts` — the adapter's first tier exists exactly for this. Its async
+  writes are already sequenced by `createSaveQueue` (v0.18.0), so an older
+  garden can never land after a newer one.
