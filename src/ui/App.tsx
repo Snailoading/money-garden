@@ -19,7 +19,7 @@ import type { ActionEvent, ActionResult } from "../engine/actions";
 import { store } from "./store";
 import { downloadText } from "./download";
 import { Recovery } from "./Recovery";
-import type { StorageMode } from "../engine/storage";
+import { createSaveQueue, type SaveQueue, type SetResult, type StorageMode } from "../engine/storage";
 import { checkPersistentStorage, requestPersistentStorage, storageNote } from "./storageNote";
 import { C, INSTALL_HINT_KEY, isIOS, isStandalone, isTouchDevice, resolveTheme, THEME_COLOR, THEME_KEY, type ThemeMode } from "./theme";
 import { Overview } from "./tabs/Overview";
@@ -69,6 +69,13 @@ export function MoneyGarden() {
    */
   const [installPref, setInstallPref] = useState<"show" | "dismissed" | "muted">("muted");
   const memoryFallback = useRef(false);
+  /** The initial write of a fresh garden skips the memory toast (the banner covers it). */
+  const quietNextWrite = useRef(false);
+  /** The garden's save queue — created once per mount, on first use (a lazy
+   * useRef: like caching an attribute the first time it's read in Python). */
+  const saveQueueRef = useRef<SaveQueue<State> | null>(null);
+  const saveQueue = (): SaveQueue<State> =>
+    (saveQueueRef.current ??= createSaveQueue(store, STORAGE_KEY, serialize, (r) => onWritten(r)));
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const importInput = useRef<HTMLInputElement>(null);
 
@@ -159,20 +166,26 @@ export function MoneyGarden() {
       return false;
     }
     setState(next);
-    void (async () => {
-      const r = await store.set(STORAGE_KEY, serialize(next));
-      // Follows every save: a mid-session quota failure drops to memory
-      // (banner appears), and a later successful write brings it back.
-      setStorageMode(r.mode);
-      // The memory tier reports persisted: false — also toast it once, like
-      // the reference's one-time "session only" toast.
-      if (!r.persisted && !memoryFallback.current && !skipToastOnFail) {
-        memoryFallback.current = true;
-        showToast("Saving is unavailable here — changes live in this session only.");
-      }
-    })();
+    if (skipToastOnFail) quietNextWrite.current = true;
+    // Through the save queue (engine storage.ts): one write at a time,
+    // newest wins — an older garden can never overwrite a newer one.
+    saveQueue().save(next);
     return true;
   };
+  /** Runs after each real write: track the tier, disclose a memory fallback. */
+  function onWritten(r: SetResult) {
+    // Follows every save: a mid-session quota failure drops to memory
+    // (banner appears), and a later successful write brings it back.
+    setStorageMode(r.mode);
+    const quiet = quietNextWrite.current;
+    quietNextWrite.current = false;
+    // The memory tier reports persisted: false — also toast it once, like
+    // the reference's one-time "session only" toast.
+    if (!r.persisted && !memoryFallback.current && !quiet) {
+      memoryFallback.current = true;
+      showToast("Saving is unavailable here — changes live in this session only.");
+    }
+  }
 
   const showToast = (msg: string) => {
     setToast(msg);

@@ -61,6 +61,75 @@ const defaultEnv = (): StoreEnv => ({
   },
 });
 
+export interface SaveQueue<T> {
+  /** Queue `value` to be written. Writes run one at a time, in order; if
+   * newer values arrive while a write is in flight, only the newest is
+   * written next (the overtaken ones are never serialized at all). */
+  save(value: T): void;
+  /** Resolves once everything queued so far has been written. */
+  idle(): Promise<void>;
+}
+
+/**
+ * One writer per key, newest wins — so an older garden can never overwrite
+ * a newer one. With an async store (a future Expo shell), two quick saves
+ * started side by side could finish in either order; this queue never has
+ * more than one write in flight. Like a single-worker asyncio queue that
+ * keeps only the latest item.
+ *
+ * With localStorage the first save still lands synchronously, as before; a
+ * save made while one is still "in flight" lands a microtask later — still
+ * inside the same browser task, so a closing page can't interrupt it.
+ * `onWritten` receives each real write's result (tier + persisted flag).
+ */
+export function createSaveQueue<T>(
+  store: Store,
+  key: string,
+  serialize: (value: T) => string,
+  onWritten: (result: SetResult) => void,
+): SaveQueue<T> {
+  // Boxed in an object so any T (even null/undefined) counts as "pending".
+  let pending: { value: T } | null = null;
+  // Two separate variables on purpose. `busy` is set BEFORE drain() starts
+  // and cleared in its `finally`; `drained` is just the promise idle() hands
+  // out. One combined variable broke: when a drain finished without ever
+  // awaiting (serialize threw first), its cleanup ran INSIDE the call, and
+  // the assignment of drain()'s promise then re-marked the queue as busy —
+  // forever.
+  let busy = false;
+  let drained: Promise<void> = Promise.resolve();
+
+  const drain = async () => {
+    try {
+      while (pending) {
+        const { value } = pending;
+        pending = null;
+        // Each write is isolated: a failure (a store that rejects, a value
+        // that won't serialize) is reported to the console and the queue
+        // moves on — it must never wedge and silently drop later saves.
+        // (Like try/except inside a Python worker loop.)
+        try {
+          onWritten(await store.set(key, serialize(value)));
+        } catch (e) {
+          console.warn("Money Garden: a save failed; the next change will try again.", e);
+        }
+      }
+    } finally {
+      busy = false;
+    }
+  };
+
+  return {
+    save(value) {
+      pending = { value };
+      if (busy) return; // the running drain picks this up (newest wins)
+      busy = true;
+      drained = drain();
+    },
+    idle: () => drained,
+  };
+}
+
 export function createStore(env: StoreEnv = defaultEnv()): Store {
   // Module-scoped dict in the reference; instance-scoped here so tests are isolated.
   const mem: Record<string, string> = {};
