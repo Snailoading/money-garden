@@ -11,6 +11,10 @@ import { derive, deriveMonthView, weatherFor } from "../engine/stats";
 import { monthRange } from "../engine/trends";
 import { bumpStreak, canRemoveTransaction, deleteGoal as engineDeleteGoal, emptyState, insertGoal, isFreshGarden, linkedAmountBounds, loadSaved, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
 import { buildBackup, parseBackup, type ImportPreview } from "../engine/backup";
+// A namespace import — like `import actions` in Python, then actions.x():
+// keeps engine actions distinct from the App handlers that share their names.
+import * as actions from "../engine/actions";
+import type { ActionEvent, ActionResult } from "../engine/actions";
 import { store } from "./store";
 import { downloadText } from "./download";
 import { Recovery } from "./Recovery";
@@ -242,13 +246,21 @@ export function MoneyGarden() {
   }
 
   /* ---------- actions ---------- */
-  const addTransaction = (tx: Omit<Transaction, "id">) => {
-    const next: State = { ...state, transactions: [{ ...tx, id: uid() }, ...state.transactions] };
-    next.streak = bumpStreak(state.streak);
-    if (next.streak.count > state.streak.count && next.streak.count > 1) {
-      showToast(`🔥 ${next.streak.count}-day logging streak — keep it growing!`);
+  // Engine actions (src/engine/actions.ts) return { state, events }; commit
+  // saves the new state if anything changed and hands back the events for
+  // the handler's toast. An unchanged state (same object) is a no-op.
+  const commit = (r: ActionResult): ActionEvent[] => {
+    if (r.state !== state) setStateSafe(r.state);
+    return r.events;
+  };
+  const streakToast = (events: ActionEvent[]) => {
+    for (const e of events) {
+      if (e.kind === "streakGrew" && e.count > 1) showToast(`🔥 ${e.count}-day logging streak — keep it growing!`);
     }
-    setStateSafe(next);
+  };
+
+  const addTransaction = (tx: Omit<Transaction, "id">) => {
+    streakToast(commit(actions.logEntry(state, tx, new Date())));
   };
 
   // removeTransaction/updateTransaction also water/drain a linked goal when
@@ -387,14 +399,14 @@ export function MoneyGarden() {
   };
 
   // A tended garden isn't always a watered one — no-spend days keep the
-  // streak alive without inventing a journal entry.
+  // streak alive without inventing a journal entry (engine markNoSpendDay).
   const markNoSpendDay = () => {
-    const bumped = bumpStreak(state.streak);
-    if (bumped === state.streak) {
+    const r = actions.markNoSpendDay(state, new Date());
+    if (r.state === state) {
       showToast("🌱 Today's already tended — see you tomorrow.");
       return;
     }
-    setStateSafe({ ...state, streak: bumped });
+    commit(r);
     showToast("🌵 A no-spend day — the garden rests.");
   };
 
