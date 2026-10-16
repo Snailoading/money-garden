@@ -6,15 +6,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Commitment, Goal, Invest, State, Transaction } from "../engine/types";
 import { DEFAULT_INVEST, STORAGE_KEY, UNREADABLE_KEY_PREFIX } from "../engine/types";
-import { fmt, monthKey, monthLabel, uid, todayISO } from "../engine/format";
+import { fmt, monthKey, monthLabel, uid } from "../engine/format";
 import { derive, deriveMonthView, weatherFor } from "../engine/stats";
 import { monthRange } from "../engine/trends";
-import { bumpStreak, canRemoveTransaction, deleteGoal as engineDeleteGoal, emptyState, insertGoal, isFreshGarden, linkedAmountBounds, loadSaved, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
+import { canRemoveTransaction, deleteGoal as engineDeleteGoal, emptyState, insertGoal, isFreshGarden, linkedAmountBounds, loadSaved, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
 import { buildBackup, parseBackup, type ImportPreview } from "../engine/backup";
+import { findStateProblems } from "../engine/validate";
+// A namespace import — like `import actions` in Python, then actions.x():
+// keeps engine actions distinct from the App handlers that share their names.
+import * as actions from "../engine/actions";
+import type { ActionEvent, ActionResult } from "../engine/actions";
 import { store } from "./store";
 import { downloadText } from "./download";
 import { Recovery } from "./Recovery";
-import type { StorageMode } from "../engine/storage";
+import { createSaveQueue, type SaveQueue, type SetResult, type StorageMode } from "../engine/storage";
 import { checkPersistentStorage, requestPersistentStorage, storageNote } from "./storageNote";
 import { C, INSTALL_HINT_KEY, isIOS, isStandalone, isTouchDevice, resolveTheme, THEME_COLOR, THEME_KEY, type ThemeMode } from "./theme";
 import { Overview } from "./tabs/Overview";
@@ -24,6 +29,9 @@ import { Garden } from "./tabs/Garden";
 import { Orchard } from "./tabs/Orchard";
 import { Seasons } from "./tabs/Seasons";
 import { Advice } from "./tabs/Advice";
+
+/** The one message for a refused impossible number (engine or save gate). */
+const OUT_OF_RANGE = "🚫 That number is out of range — nothing was changed.";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: "🌤️" },
@@ -61,6 +69,13 @@ export function MoneyGarden() {
    */
   const [installPref, setInstallPref] = useState<"show" | "dismissed" | "muted">("muted");
   const memoryFallback = useRef(false);
+  /** The initial write of a fresh garden skips the memory toast (the banner covers it). */
+  const quietNextWrite = useRef(false);
+  /** The garden's save queue — created once per mount, on first use (a lazy
+   * useRef: like caching an attribute the first time it's read in Python). */
+  const saveQueueRef = useRef<SaveQueue<State> | null>(null);
+  const saveQueue = (): SaveQueue<State> =>
+    (saveQueueRef.current ??= createSaveQueue(store, STORAGE_KEY, serialize, (r) => onWritten(r)));
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const importInput = useRef<HTMLInputElement>(null);
 
@@ -126,29 +141,51 @@ export function MoneyGarden() {
     if (!unreadable) return false;
     const kept = await store.set(`${UNREADABLE_KEY_PREFIX}:${new Date().toISOString()}`, unreadable.raw);
     if (!kept.persisted && !downloaded) return false;
+    if (!setStateSafe(emptyState())) return false; // can't happen — a fresh garden passes the gate
     setUnreadable(null);
-    setStateSafe(emptyState());
     showToast(kept.persisted
       ? "🌱 Fresh soil — the unreadable data was set aside, not erased."
       : "🌱 Fresh soil — your downloaded file is the copy of the old data.");
     return true;
   };
 
-  const setStateSafe = (next: State, skipToastOnFail = false) => {
+  /**
+   * The ONE way a garden gets saved. Since v0.18 it is also a gate: the
+   * same inspector that checks a save on load and a backup on import
+   * (findStateProblems) checks every change on the way OUT, so damage —
+   * in practice an impossible number like Infinity, which JSON would turn
+   * into null = $0 — is refused before it touches state or storage.
+   * Returns whether the change was accepted, so success toasts can wait.
+   */
+  const setStateSafe = (next: State, skipToastOnFail = false): boolean => {
+    const problems = findStateProblems(next);
+    if (problems.length > 0) {
+      // Local console only — no analytics (CLAUDE.md). Helps diagnose a bug.
+      console.warn("Money Garden refused to save a damaged change:", problems);
+      showToast(OUT_OF_RANGE);
+      return false;
+    }
     setState(next);
-    void (async () => {
-      const r = await store.set(STORAGE_KEY, serialize(next));
-      // Follows every save: a mid-session quota failure drops to memory
-      // (banner appears), and a later successful write brings it back.
-      setStorageMode(r.mode);
-      // The memory tier reports persisted: false — also toast it once, like
-      // the reference's one-time "session only" toast.
-      if (!r.persisted && !memoryFallback.current && !skipToastOnFail) {
-        memoryFallback.current = true;
-        showToast("Saving is unavailable here — changes live in this session only.");
-      }
-    })();
+    if (skipToastOnFail) quietNextWrite.current = true;
+    // Through the save queue (engine storage.ts): one write at a time,
+    // newest wins — an older garden can never overwrite a newer one.
+    saveQueue().save(next);
+    return true;
   };
+  /** Runs after each real write: track the tier, disclose a memory fallback. */
+  function onWritten(r: SetResult) {
+    // Follows every save: a mid-session quota failure drops to memory
+    // (banner appears), and a later successful write brings it back.
+    setStorageMode(r.mode);
+    const quiet = quietNextWrite.current;
+    quietNextWrite.current = false;
+    // The memory tier reports persisted: false — also toast it once, like
+    // the reference's one-time "session only" toast.
+    if (!r.persisted && !memoryFallback.current && !quiet) {
+      memoryFallback.current = true;
+      showToast("Saving is unavailable here — changes live in this session only.");
+    }
+  }
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -242,13 +279,38 @@ export function MoneyGarden() {
   }
 
   /* ---------- actions ---------- */
-  const addTransaction = (tx: Omit<Transaction, "id">) => {
-    const next: State = { ...state, transactions: [{ ...tx, id: uid() }, ...state.transactions] };
-    next.streak = bumpStreak(state.streak);
-    if (next.streak.count > state.streak.count && next.streak.count > 1) {
-      showToast(`🔥 ${next.streak.count}-day logging streak — keep it growing!`);
+  // Engine actions (src/engine/actions.ts) return { state, events }; commit
+  // saves the new state if anything changed and hands back the events for
+  // the handler's toast. An unchanged state (same object) is a no-op; null
+  // means the save gate refused the change (it has already said why).
+  const commit = (r: ActionResult): ActionEvent[] | null => {
+    if (r.state === state) return r.events;
+    return setStateSafe(r.state) ? r.events : null;
+  };
+  /**
+   * For actions that ALWAYS change the garden when their input is valid
+   * (log, water, plant, set a plot…): the same state back means the engine
+   * refused the input — an impossible number like 1e400 — so say so instead
+   * of letting the tap vanish. Returns null when refused.
+   * Callers write `if (commitOrRefuse(r)) …` — careful, Python reader: in
+   * JS an EMPTY array is truthy (unlike Python's []), so an accepted action
+   * with no events still passes; only the null refusal is falsy.
+   */
+  const commitOrRefuse = (r: ActionResult): ActionEvent[] | null => {
+    if (r.state === state) {
+      showToast(OUT_OF_RANGE);
+      return null;
     }
-    setStateSafe(next);
+    return commit(r);
+  };
+  const streakToast = (events: ActionEvent[] | null) => {
+    for (const e of events ?? []) {
+      if (e.kind === "streakGrew" && e.count > 1) showToast(`🔥 ${e.count}-day logging streak — keep it growing!`);
+    }
+  };
+
+  const addTransaction = (tx: Omit<Transaction, "id">) => {
+    streakToast(commitOrRefuse(actions.logEntry(state, tx, new Date())));
   };
 
   // removeTransaction/updateTransaction also water/drain a linked goal when
@@ -263,7 +325,7 @@ export function MoneyGarden() {
       return;
     }
     const drainedGoal = existing.goalId ? state.goals.find((g) => g.id === existing.goalId) : undefined;
-    setStateSafe(removeTransaction(state, id));
+    if (!setStateSafe(removeTransaction(state, id))) return;
     showToast(drainedGoal ? `🍂 Entry deleted — "${drainedGoal.name}" adjusted too` : "🍂 Entry deleted");
   };
 
@@ -285,7 +347,7 @@ export function MoneyGarden() {
       existing.goalId && patch.amount !== undefined && patch.amount !== existing.amount
         ? state.goals.find((g) => g.id === existing.goalId)
         : undefined;
-    setStateSafe(updateTransaction(state, id, patch));
+    if (!setStateSafe(updateTransaction(state, id, patch))) return;
     showToast(adjustedGoal ? `✏️ Entry updated — "${adjustedGoal.name}" adjusted too` : "✏️ Entry updated");
   };
 
@@ -297,105 +359,82 @@ export function MoneyGarden() {
 
   const editGoal = (id: string, patch: Partial<Omit<Goal, "id" | "saved" | "isEmergency">>) => {
     if (!state.goals.some((x) => x.id === id)) return;
-    setStateSafe(updateGoal(state, id, patch));
-    showToast("✏️ Goal updated");
+    if (setStateSafe(updateGoal(state, id, patch))) showToast("✏️ Goal updated");
   };
 
   // One-time barrel setup — target plus the money already set aside for it.
   // Deliberately no transaction: an opening balance is a starting fact, not
   // one of this month's flows (see setupEmergencyFund in the engine).
   const setupBarrel = (target: number, openingBalance: number) => {
-    setStateSafe(setupEmergencyFund(state, target, openingBalance));
-    showToast("🛟 Rain barrel set up — water it whenever you can");
+    if (setStateSafe(setupEmergencyFund(state, target, openingBalance))) showToast("🛟 Rain barrel set up — water it whenever you can");
   };
 
-  // Spend from a goal: one journal expense entry that also drains the goal
-  // via its goalId. Draws are budget-basis EXCLUDED (isDraw in stats.ts) —
-  // they spend the goal's pool, not the month's income, surfacing as the
-  // 🌸 harvest story instead of inside Spent. The UI caps the amount at the
-  // balance so the entry stays exactly reversible.
+  // Spend from a goal (engine drawFromGoal): a linked expense that drains the
+  // goal, budget-basis excluded — the 🌸 harvest story. The engine refuses
+  // invalid draws (beyond the balance, non-positive/NaN, unknown goal) by
+  // handing the same state back, so no toast then.
   const drawFromGoal = (id: string, amount: number, category: string, note: string) => {
-    const goal = state.goals.find((g) => g.id === id);
-    if (!goal || !(amount > 0) || amount > goal.saved) return;
-    const tx: Transaction = { id: uid(), type: "expense", amount, category, note: note.trim() || `From "${goal.name}"`, date: todayISO(), goalId: id };
-    const goals = state.goals.map((g) => (g.id === id ? { ...g, saved: g.saved - amount } : g));
-    setStateSafe({ ...state, goals, transactions: [tx, ...state.transactions], streak: bumpStreak(state.streak) });
-    showToast(`🪣 ${fmt(amount)} drawn from "${goal.name}"`);
+    const r = actions.drawFromGoal(state, id, amount, category, note, new Date());
+    if (r.state === state || !commit(r)) return;
+    showToast(`🪣 ${fmt(amount)} drawn from "${state.goals.find((g) => g.id === id)?.name}"`);
   };
 
+  // Water a goal (engine waterGoal): linked saving entry, no target cap.
   const waterGoal = (id: string, amount: number) => {
-    const goals = state.goals.map((g) => {
-      if (g.id !== id) return g;
-      // No target cap (v0.7.0): overflowing is truthful, and it keeps the
-      // journal entry exactly reversible.
-      const saved = g.saved + amount;
-      // Safe for a target-0 barrel too: `g.saved < g.target` is 0 < 0 → false.
-      if (saved >= g.target && g.saved < g.target) showToast(`🌸 "${g.name}" is in full bloom — goal reached!`);
-      return { ...g, saved };
-    });
-    // goalId links the entry so later edits/deletes can adjust the goal too.
-    const tx: Transaction = { id: uid(), type: "saving", amount, category: "other", note: `→ ${state.goals.find((g) => g.id === id)?.name}`, date: todayISO(), goalId: id };
-    setStateSafe({ ...state, goals, transactions: [tx, ...state.transactions], streak: bumpStreak(state.streak) });
+    for (const e of commitOrRefuse(actions.waterGoal(state, id, amount, new Date())) ?? []) {
+      if (e.kind === "bloomed") showToast(`🌸 "${e.goalName}" is in full bloom — goal reached!`);
+    }
   };
 
   // Engine-guarded: deleting the permanent barrel is a silent no-op there.
   const deleteGoal = (id: string) => setStateSafe(engineDeleteGoal(state, id));
-  const setBudget = (catId: string, v: string) => setStateSafe({ ...state, budgets: { ...state.budgets, [catId]: Number(v) || 0 } });
-  const setIncome = (v: string) => setStateSafe({ ...state, income: Number(v) || 0 });
+  // The boxes hand us text; the engine takes numbers (NaN → 0 there).
+  const setBudget = (catId: string, v: string) => commitOrRefuse(actions.setBudget(state, catId, Number(v)));
+  const setIncome = (v: string) => commitOrRefuse(actions.setIncome(state, Number(v)));
 
-  const setInvest = (patch: Partial<Invest>) => setStateSafe({ ...state, invest: { ...(state.invest || DEFAULT_INVEST), ...patch } });
+  // The orchard (engine actions: updateInvest, addHolding, revalueHolding,
+  // removeHolding, waterHolding).
+  const setInvest = (patch: Partial<Omit<Invest, "holdings">>) => commitOrRefuse(actions.updateInvest(state, patch));
   const addHolding = (h: { name: string; value: number }) => {
-    setInvest({ holdings: [...((state.invest || DEFAULT_INVEST).holdings || []), { ...h, id: uid() }] });
-    showToast(`🌳 "${h.name}" planted in the orchard`);
+    if (commitOrRefuse(actions.addHolding(state, h))) showToast(`🌳 "${h.name}" planted in the orchard`);
   };
-  const updateHolding = (id: string, value: string) =>
-    setInvest({ holdings: (state.invest || DEFAULT_INVEST).holdings.map((h) => (h.id === id ? { ...h, value: Math.max(0, Number(value) || 0) } : h)) });
-  const deleteHolding = (id: string) =>
-    setInvest({ holdings: (state.invest || DEFAULT_INVEST).holdings.filter((h) => h.id !== id) });
+  // The value box hands us text; the engine takes a number (junk → 0 there).
+  const updateHolding = (id: string, value: string) => commitOrRefuse(actions.revalueHolding(state, id, Number(value)));
+  const deleteHolding = (id: string) => commit(actions.removeHolding(state, id));
 
   const waterOrchard = (id: string, amount: number) => {
-    const inv = state.invest || DEFAULT_INVEST;
-    const target = inv.holdings.find((h) => h.id === id);
-    if (!target || !(amount > 0)) return;
-    const holdings = inv.holdings.map((h) => (h.id === id ? { ...h, value: (Number(h.value) || 0) + amount } : h));
-    // holdingId links the entry so later edits/deletes can adjust the holding too.
-    const tx: Transaction = { id: uid(), type: "saving", amount, category: "other", note: `→ Orchard: ${target.name}`, date: todayISO(), holdingId: id };
-    setStateSafe({ ...state, invest: { ...inv, holdings }, transactions: [tx, ...state.transactions], streak: bumpStreak(state.streak) });
-    showToast(`💧 ${fmt(amount)} watered into "${target.name}"`);
+    const target = (state.invest || DEFAULT_INVEST).holdings.find((h) => h.id === id);
+    if (!target) return;
+    if (commitOrRefuse(actions.waterHolding(state, id, amount, new Date()))) showToast(`💧 ${fmt(amount)} watered into "${target.name}"`);
   };
 
+  // Vines & trellis (engine actions: addCommitment, removeCommitment,
+  // payCommitment — the payment is a linked, exactly reversible entry).
   const addCommitment = (c: Omit<Commitment, "id">) => {
-    setStateSafe({ ...state, commitments: [...(state.commitments || []), { ...c, id: uid() }] });
-    showToast(c.kind === "inst" ? `🪜 "${c.name}" staked to the trellis` : `🌿 "${c.name}" vine planted`);
+    if (commitOrRefuse(actions.addCommitment(state, c))) {
+      showToast(c.kind === "inst" ? `🪜 "${c.name}" staked to the trellis` : `🌿 "${c.name}" vine planted`);
+    }
   };
-  const deleteCommitment = (id: string) =>
-    setStateSafe({ ...state, commitments: (state.commitments || []).filter((c) => c.id !== id) });
+  const deleteCommitment = (id: string) => commit(actions.removeCommitment(state, id));
   const logCommitmentPayment = (id: string) => {
     const c = (state.commitments || []).find((x) => x.id === id);
     if (!c) return;
-    // commitmentId links the entry: the next-due date derives from it and
-    // deleting it reverts the payment (incl. installment paidCount).
-    const tx: Transaction = { id: uid(), type: "expense", amount: Number(c.amount) || 0, category: c.category || "subs", note: `${c.kind === "inst" ? "Installment" : "Subscription"}: ${c.name}`, date: todayISO(), commitmentId: c.id };
-    const commitments = (state.commitments || []).map((x) => (x.id === id && x.kind === "inst" ? { ...x, paidCount: (x.paidCount || 0) + 1 } : x));
-    setStateSafe({ ...state, commitments, transactions: [tx, ...state.transactions], streak: bumpStreak(state.streak) });
-    showToast(`💸 ${fmt(c.amount)} logged for "${c.name}"`);
+    if (commit(actions.payCommitment(state, id, new Date()))) showToast(`💸 ${fmt(c.amount)} logged for "${c.name}"`);
   };
 
   const editCommitment = (id: string, patch: Partial<Omit<Commitment, "id">>) => {
-    setStateSafe(updateCommitment(state, id, patch));
-    showToast("✏️ Commitment updated");
+    if (setStateSafe(updateCommitment(state, id, patch))) showToast("✏️ Commitment updated");
   };
 
   // A tended garden isn't always a watered one — no-spend days keep the
-  // streak alive without inventing a journal entry.
+  // streak alive without inventing a journal entry (engine markNoSpendDay).
   const markNoSpendDay = () => {
-    const bumped = bumpStreak(state.streak);
-    if (bumped === state.streak) {
+    const r = actions.markNoSpendDay(state, new Date());
+    if (r.state === state) {
       showToast("🌱 Today's already tended — see you tomorrow.");
       return;
     }
-    setStateSafe({ ...state, streak: bumped });
-    showToast("🌵 A no-spend day — the garden rests.");
+    if (commit(r)) showToast("🌵 A no-spend day — the garden rests.");
   };
 
   /* ---------- backup: export & import ---------- */
@@ -418,7 +457,9 @@ export function MoneyGarden() {
   const confirmImport = () => {
     if (!pendingImport) return;
     const { counts } = pendingImport;
-    setStateSafe(pendingImport.state);
+    // parseBackup already ran the same inspector, so this always passes —
+    // but if it ever didn't, keep the card up and say nothing was restored.
+    if (!setStateSafe(pendingImport.state)) return;
     setPendingImport(null);
     setViewYm(null);
     setTab("overview");
@@ -442,8 +483,7 @@ export function MoneyGarden() {
   // Passed by name, so it guards itself rather than trusting the card's
   // visibility: replace the garden ONLY if there's nothing to lose.
   const plantSampleData = () => {
-    if (!isFreshGarden(state)) return;
-    setStateSafe(sampleState());
+    if (!isFreshGarden(state) || !setStateSafe(sampleState())) return;
     setViewYm(null);
   };
   const weather = weatherFor(derived.health);
@@ -589,7 +629,7 @@ export function MoneyGarden() {
             {/* Replanting overwrites the whole garden, so it two-steps like
                 Start fresh (arm → 4s window → tomato confirm). */}
             {!isEmpty && (confirmReplant ? (
-              <button className="mg-btn" onClick={() => { setStateSafe(sampleState()); setConfirmReplant(false); setConfirmReset(false); setViewYm(null); showToast("🌼 Sample garden replanted"); }}
+              <button className="mg-btn" onClick={() => { if (!setStateSafe(sampleState())) return; setConfirmReplant(false); setConfirmReset(false); setViewYm(null); showToast("🌼 Sample garden replanted"); }}
                 style={{ background: C.tomato, border: `1.5px solid ${C.tomato}`, borderRadius: 10, padding: "7px 14px", fontWeight: 700, fontSize: 13, color: C.inkContrast, cursor: "pointer" }}>
                 Really replace everything with sample data?
               </button>
@@ -600,7 +640,7 @@ export function MoneyGarden() {
               </button>
             ))}
             {confirmReset ? (
-              <button className="mg-btn" onClick={() => { setStateSafe(emptyState()); setConfirmReset(false); setViewYm(null); setTab("overview"); showToast("🍂 Fresh soil — everything cleared"); }}
+              <button className="mg-btn" onClick={() => { if (!setStateSafe(emptyState())) return; setConfirmReset(false); setViewYm(null); setTab("overview"); showToast("🍂 Fresh soil — everything cleared"); }}
                 style={{ background: C.tomato, border: `1.5px solid ${C.tomato}`, borderRadius: 10, padding: "7px 14px", fontWeight: 700, fontSize: 13, color: C.inkContrast, cursor: "pointer" }}>
                 Really erase everything?
               </button>

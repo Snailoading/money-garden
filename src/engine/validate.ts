@@ -131,6 +131,17 @@ export function findStateProblems(state: State): string[] {
       if (!isStr(c.name)) add(`${at} has no name`);
       if (!isStr(c.kind) || !COMMITMENT_KINDS.has(c.kind)) add(`${at} has an unknown kind (${show(c.kind)})`);
       if (!isNonNegMoney(c.amount)) add(`${at} has an amount that isn't a number (${show(c.amount)})`);
+      // Counts and pay days: old saves hold "", null, or nothing here, and
+      // all of that is fine. Only a NUMBER that isn't finite is damage. The
+      // app never writes one (JSON.stringify turns Infinity into null), so
+      // this catches a bad change in memory before it's saved — and, like
+      // the amount rule, a HAND-EDITED file holding 1e400 (JSON.parse reads
+      // it back as Infinity), which then opens Recovery instead of loading.
+      for (const key of ["totalPayments", "paidCount", "payDay", "payMonth"] as const) {
+        if (typeof c[key] === "number" && !Number.isFinite(c[key])) {
+          add(`${at} has a count or pay day that isn't a finite number (${key})`);
+        }
+      }
     });
   }
 

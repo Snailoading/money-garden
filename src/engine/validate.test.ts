@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { State } from "./types";
-import { emptyState, sampleState } from "./state";
+import { emptyState, loadSaved, sampleState, serialize } from "./state";
 import { describeProblems, findStateProblems } from "./validate";
 
 const june15 = new Date(2026, 5, 15, 12);
@@ -168,5 +168,41 @@ describe("describeProblems", () => {
     expect(describeProblems(["a"])).toBe("a");
     expect(describeProblems(["a", "b"])).toBe("a (and 1 more problem)");
     expect(describeProblems(["a", "b", "c"])).toBe("a (and 2 more problems)");
+  });
+});
+
+describe("findStateProblems — impossible numbers in commitments (v0.18 save gate)", () => {
+  // The App's save gate runs this on every change; these rules close the
+  // last ways an impossible number could be written (a 309-digit count
+  // typed into a commitment's edit panel parses to Infinity).
+  it("catches non-finite installment counts and pay days", () => {
+    expect(problemsAfter((s) => { s.commitments[0].totalPayments = Infinity; }))
+      .toEqual(["commitment #1 has a count or pay day that isn't a finite number (totalPayments)"]);
+    expect(problemsAfter((s) => { s.commitments[0].paidCount = NaN; })).toHaveLength(1);
+    expect(problemsAfter((s) => { s.commitments[0].payDay = -Infinity; })).toHaveLength(1);
+    expect(problemsAfter((s) => { s.commitments[0].payMonth = Infinity; })).toHaveLength(1);
+  });
+
+  it("still allows the shapes old saves really hold: absent, \"\", and null", () => {
+    expect(problemsAfter((s) => {
+      s.commitments[0].totalPayments = "";     // legacy reference-era form value
+      s.commitments[0].paidCount = null;        // JSON's spelling of a lost Infinity
+      delete s.commitments[0].payMonth;
+      s.commitments[0].payDay = "";
+    })).toEqual([]);
+  });
+
+  it("never locks out a garden the app saved: it writes impossible numbers as null, which load accepts", () => {
+    // In memory, every impossible number the gate refuses…
+    const s = structuredClone(good()) as unknown as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    s.income = Infinity;
+    s.transactions[0].amount = Infinity;
+    s.goals[1].target = Infinity;
+    s.invest.holdings[0].value = NaN;
+    s.commitments[0].totalPayments = Infinity;
+    expect(findStateProblems(s as unknown as State).length).toBeGreaterThan(0);
+    // …becomes null on the way to disk, and null is always accepted on load.
+    const loaded = loadSaved(serialize(s as unknown as State));
+    expect(loaded.kind).toBe("ok");
   });
 });

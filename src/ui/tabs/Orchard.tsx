@@ -23,7 +23,8 @@ const numField = (v: string): number => (v === "" ? ("" as unknown as number) : 
 export function Orchard({ state, d, setInvest, addHolding, updateHolding, deleteHolding, waterOrchard }: {
   state: State;
   d: Derived;
-  setInvest: (patch: Partial<Invest>) => void;
+  /** Growing conditions only — holdings have their own handlers. */
+  setInvest: (patch: Partial<Omit<Invest, "holdings">>) => void;
   addHolding: (h: Omit<Holding, "id">) => void;
   updateHolding: (id: string, value: string) => void;
   deleteHolding: (id: string) => void;
