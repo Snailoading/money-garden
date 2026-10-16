@@ -344,24 +344,22 @@ export function MoneyGarden() {
   const setBudget = (catId: string, v: string) => setStateSafe({ ...state, budgets: { ...state.budgets, [catId]: Number(v) || 0 } });
   const setIncome = (v: string) => setStateSafe({ ...state, income: Number(v) || 0 });
 
-  const setInvest = (patch: Partial<Invest>) => setStateSafe({ ...state, invest: { ...(state.invest || DEFAULT_INVEST), ...patch } });
+  // The orchard (engine actions: updateInvest, addHolding, revalueHolding,
+  // removeHolding, waterHolding).
+  const setInvest = (patch: Partial<Invest>) => commit(actions.updateInvest(state, patch));
   const addHolding = (h: { name: string; value: number }) => {
-    setInvest({ holdings: [...((state.invest || DEFAULT_INVEST).holdings || []), { ...h, id: uid() }] });
+    commit(actions.addHolding(state, h));
     showToast(`🌳 "${h.name}" planted in the orchard`);
   };
-  const updateHolding = (id: string, value: string) =>
-    setInvest({ holdings: (state.invest || DEFAULT_INVEST).holdings.map((h) => (h.id === id ? { ...h, value: Math.max(0, Number(value) || 0) } : h)) });
-  const deleteHolding = (id: string) =>
-    setInvest({ holdings: (state.invest || DEFAULT_INVEST).holdings.filter((h) => h.id !== id) });
+  // The value box hands us text; the engine takes a number (junk → 0 there).
+  const updateHolding = (id: string, value: string) => commit(actions.revalueHolding(state, id, Number(value)));
+  const deleteHolding = (id: string) => commit(actions.removeHolding(state, id));
 
   const waterOrchard = (id: string, amount: number) => {
-    const inv = state.invest || DEFAULT_INVEST;
-    const target = inv.holdings.find((h) => h.id === id);
-    if (!target || !(amount > 0)) return;
-    const holdings = inv.holdings.map((h) => (h.id === id ? { ...h, value: (Number(h.value) || 0) + amount } : h));
-    // holdingId links the entry so later edits/deletes can adjust the holding too.
-    const tx: Transaction = { id: uid(), type: "saving", amount, category: "other", note: `→ Orchard: ${target.name}`, date: todayISO(), holdingId: id };
-    setStateSafe({ ...state, invest: { ...inv, holdings }, transactions: [tx, ...state.transactions], streak: bumpStreak(state.streak) });
+    const target = (state.invest || DEFAULT_INVEST).holdings.find((h) => h.id === id);
+    const r = actions.waterHolding(state, id, amount, new Date());
+    if (!target || r.state === state) return; // unknown holding or a bad amount — nothing watered
+    commit(r);
     showToast(`💧 ${fmt(amount)} watered into "${target.name}"`);
   };
 

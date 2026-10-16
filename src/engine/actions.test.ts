@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { State, Transaction } from "./types";
 import { emptyState, removeTransaction, sampleState } from "./state";
-import { drawFromGoal, logEntry, markNoSpendDay, waterGoal } from "./actions";
+import { addHolding, drawFromGoal, logEntry, markNoSpendDay, removeHolding, revalueHolding, updateInvest, waterGoal, waterHolding } from "./actions";
 
 const NOW = new Date(2026, 5, 15, 12); // June 15, 2026 — local noon
 const TODAY = "2026-06-15";
@@ -178,5 +178,88 @@ describe("water → draw → undo both (newest first) — the full linked story"
     const undone = removeTransaction(removeTransaction(drawn, drawTx.id), waterTx.id);
     expect(trip(undone).saved).toBe(450);
     expect({ ...undone, streak: start.streak }).toEqual(start);
+  });
+});
+
+/** A garden with one holding (Index fund, $1,000). */
+const withOrchard = (): State => ({
+  ...emptyState(),
+  invest: { ...emptyState().invest, holdings: [{ id: "h1", name: "Index fund", value: 1000 }] },
+  streak: { count: 4, lastDate: "2026-06-14" },
+});
+
+describe("waterHolding — the Orchard's one-off watering (moved from App.tsx)", () => {
+  it("adds to the holding and logs a linked saving entry", () => {
+    const s = withOrchard();
+    const r = waterHolding(s, "h1", 250, NOW);
+    expect(r.state.invest.holdings[0].value).toBe(1250);
+    expect(r.state.transactions[0]).toMatchObject({ type: "saving", amount: 250, category: "other", note: "→ Orchard: Index fund", date: TODAY, holdingId: "h1" });
+    expect(r.state.streak).toEqual({ count: 5, lastDate: TODAY });
+  });
+
+  it("treats a junk stored value as 0 before adding (as before)", () => {
+    const s = withOrchard();
+    s.invest.holdings[0].value = "" as unknown as number; // a cleared box, stored as ""
+    expect(waterHolding(s, "h1", 250, NOW).state.invest.holdings[0].value).toBe(250);
+  });
+
+  it("is a same-reference no-op for an unknown holding or a non-positive/NaN amount", () => {
+    const s = withOrchard();
+    expect(waterHolding(s, "nope", 250, NOW).state).toBe(s);
+    for (const amount of [0, -1, NaN]) expect(waterHolding(s, "h1", amount, NOW).state).toBe(s);
+  });
+
+  it("is exactly reversible by deleting its entry", () => {
+    const s = withOrchard();
+    expectReversible(s, waterHolding(s, "h1", 250, NOW).state);
+  });
+});
+
+describe("addHolding / revalueHolding / removeHolding — planting and tending trees", () => {
+  it("plants a holding at the end with a fresh id, no journal entry", () => {
+    const s = withOrchard();
+    const r = addHolding(s, { name: "Bonds", value: 800 });
+    expect(r.state.invest.holdings).toHaveLength(2);
+    expect(r.state.invest.holdings[1]).toMatchObject({ name: "Bonds", value: 800 });
+    expect(r.state.invest.holdings[1].id).not.toBe("h1");
+    expect(r.state.transactions).toBe(s.transactions);
+    expect(r.state.streak).toBe(s.streak); // planting isn't logging
+  });
+
+  it("revalues in place: a plain value edit, never below 0, junk → 0 (revaluations always win)", () => {
+    const s = withOrchard();
+    expect(revalueHolding(s, "h1", 1500).state.invest.holdings[0].value).toBe(1500);
+    expect(revalueHolding(s, "h1", -20).state.invest.holdings[0].value).toBe(0);
+    expect(revalueHolding(s, "h1", NaN).state.invest.holdings[0].value).toBe(0); // Number("abc") from the box
+    expect(revalueHolding(s, "h1", 1500).state.transactions).toBe(s.transactions);
+  });
+
+  it("removes a holding; its journal entries stay (dangling links are no-ops)", () => {
+    const watered = waterHolding(withOrchard(), "h1", 250, NOW).state;
+    const r = removeHolding(watered, "h1");
+    expect(r.state.invest.holdings).toEqual([]);
+    expect(r.state.transactions).toBe(watered.transactions);
+    // Deleting that entry later just removes the entry — nothing to drain.
+    expect(removeTransaction(r.state, watered.transactions[0].id).invest.holdings).toEqual([]);
+  });
+
+  it("revalue/remove of an unknown holding hands back the same state", () => {
+    const s = withOrchard();
+    expect(revalueHolding(s, "nope", 5).state).toBe(s);
+    expect(removeHolding(s, "nope").state).toBe(s);
+  });
+});
+
+describe("updateInvest — the growing-conditions settings", () => {
+  it("merges the patch, keeping holdings and every other setting", () => {
+    const s = withOrchard();
+    const r = updateInvest(s, { monthly: 400 });
+    expect(r.state.invest).toEqual({ ...s.invest, monthly: 400 });
+    expect(r.state.invest.holdings).toBe(s.invest.holdings);
+  });
+
+  it("keeps the Orchard's cleared-box sentinel as given (the engine coerces on read)", () => {
+    const r = updateInvest(withOrchard(), { ret: "" as unknown as number });
+    expect(r.state.invest.ret).toBe("");
   });
 });

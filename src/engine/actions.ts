@@ -15,7 +15,8 @@
  * object, so the caller can tell "no-op" by identity (`r.state === state`).
  */
 
-import type { State, Transaction } from "./types";
+import type { Holding, Invest, State, Transaction } from "./types";
+import { DEFAULT_INVEST } from "./types";
 import { todayISO, uid } from "./format";
 import { bumpStreak } from "./state";
 
@@ -103,6 +104,70 @@ export function drawFromGoal(state: State, goalId: string, amount: number, categ
     state: { ...state, goals, transactions: [tx, ...state.transactions], streak: tended.streak },
     events: tended.events,
   };
+}
+
+/* ---- the orchard ---- */
+
+/** The invest block, defaulted — states predating the Orchard may lack it. */
+const investOf = (state: State): Invest => state.invest || DEFAULT_INVEST;
+
+/**
+ * A one-off orchard watering (bonus, windfall): add `amount` to the holding
+ * and log a linked saving entry (holdingId) so later edits/deletes move the
+ * holding too. A junk stored value counts as 0 before adding. Same-state
+ * no-op for an unknown holding or a non-positive/NaN amount.
+ */
+export function waterHolding(state: State, holdingId: string, amount: number, now: Date): ActionResult {
+  const inv = investOf(state);
+  const target = inv.holdings.find((h) => h.id === holdingId);
+  if (!target || !(amount > 0)) return { state, events: [] };
+  const holdings = inv.holdings.map((h) => (h.id === holdingId ? { ...h, value: (Number(h.value) || 0) + amount } : h));
+  const tx: Transaction = {
+    id: uid(), type: "saving", amount, category: "other",
+    note: `→ Orchard: ${target.name}`, date: todayISO(now), holdingId,
+  };
+  const tended = tend(state, now);
+  return {
+    state: { ...state, invest: { ...inv, holdings }, transactions: [tx, ...state.transactions], streak: tended.streak },
+    events: tended.events,
+  };
+}
+
+/** Merge a growing-conditions patch (monthly, ret, wr, birthYear, …).
+ * Values pass through as given — incl. the Orchard's "" while a box is
+ * cleared; the FIRE math coerces on read (deriveFire). */
+export function updateInvest(state: State, patch: Partial<Invest>): ActionResult {
+  return { state: { ...state, invest: { ...investOf(state), ...patch } }, events: [] };
+}
+
+/** Plant a holding (appended, fresh id). Not a journal entry and not
+ * logging: the value is a starting fact, like a goal's opening balance.
+ * `Omit<Holding, "id">` = a Holding minus its id field — like a TypedDict
+ * copy without one key; the engine mints the id. */
+export function addHolding(state: State, holding: Omit<Holding, "id">): ActionResult {
+  const inv = investOf(state);
+  return { state: { ...state, invest: { ...inv, holdings: [...(inv.holdings || []), { ...holding, id: uid() }] } }, events: [] };
+}
+
+/**
+ * Revalue a holding — a plain value edit that always wins over the journal
+ * (markets move; waterings don't explain every dollar). Never below 0, and
+ * a non-number (a junk box) becomes 0. Unknown id → same state.
+ */
+export function revalueHolding(state: State, holdingId: string, value: number): ActionResult {
+  const inv = investOf(state);
+  if (!inv.holdings.some((h) => h.id === holdingId)) return { state, events: [] };
+  // `value || 0` turns NaN (Number("abc") from the box) into 0.
+  const holdings = inv.holdings.map((h) => (h.id === holdingId ? { ...h, value: Math.max(0, value || 0) } : h));
+  return { state: { ...state, invest: { ...inv, holdings } }, events: [] };
+}
+
+/** Fell a tree. Its journal entries stay; their holdingId links dangle and
+ * are silent no-ops on later edits/deletes. Unknown id → same state. */
+export function removeHolding(state: State, holdingId: string): ActionResult {
+  const inv = investOf(state);
+  if (!inv.holdings.some((h) => h.id === holdingId)) return { state, events: [] };
+  return { state: { ...state, invest: { ...inv, holdings: inv.holdings.filter((h) => h.id !== holdingId) } }, events: [] };
 }
 
 /**
