@@ -341,8 +341,9 @@ export function MoneyGarden() {
 
   // Engine-guarded: deleting the permanent barrel is a silent no-op there.
   const deleteGoal = (id: string) => setStateSafe(engineDeleteGoal(state, id));
-  const setBudget = (catId: string, v: string) => setStateSafe({ ...state, budgets: { ...state.budgets, [catId]: Number(v) || 0 } });
-  const setIncome = (v: string) => setStateSafe({ ...state, income: Number(v) || 0 });
+  // The boxes hand us text; the engine takes numbers (NaN → 0 there).
+  const setBudget = (catId: string, v: string) => commit(actions.setBudget(state, catId, Number(v)));
+  const setIncome = (v: string) => commit(actions.setIncome(state, Number(v)));
 
   // The orchard (engine actions: updateInvest, addHolding, revalueHolding,
   // removeHolding, waterHolding).

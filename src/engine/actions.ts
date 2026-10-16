@@ -210,6 +210,20 @@ export function removeCommitment(state: State, commitmentId: string): ActionResu
   return { state: { ...state, commitments: all.filter((c) => c.id !== commitmentId) }, events: [] };
 }
 
+/* ---- plans: plot sizes and stated income ---- */
+
+/** Size one budget plot. Plans, not logging — the streak is untouched.
+ * A junk box (NaN) becomes 0, as before; unknown/legacy categories are fine. */
+export function setBudget(state: State, categoryId: string, value: number): ActionResult {
+  return { state: { ...state, budgets: { ...state.budgets, [categoryId]: value || 0 } }, events: [] };
+}
+
+/** Set the stated monthly income (logged income replaces it — stats.ts).
+ * A junk box (NaN) becomes 0, as before. */
+export function setIncome(state: State, value: number): ActionResult {
+  return { state: { ...state, income: value || 0 }, events: [] };
+}
+
 /**
  * A no-spend day: a tended garden isn't always a watered one, so this keeps
  * the streak alive without inventing a journal entry. Same-reference no-op

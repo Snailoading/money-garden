@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { State, Transaction } from "./types";
 import { emptyState, removeTransaction, sampleState } from "./state";
-import { addCommitment, addHolding, drawFromGoal, logEntry, markNoSpendDay, payCommitment, removeCommitment, removeHolding, revalueHolding, updateInvest, waterGoal, waterHolding } from "./actions";
+import { addCommitment, addHolding, drawFromGoal, logEntry, markNoSpendDay, payCommitment, removeCommitment, removeHolding, revalueHolding, setBudget, setIncome, updateInvest, waterGoal, waterHolding } from "./actions";
 
 const NOW = new Date(2026, 5, 15, 12); // June 15, 2026 — local noon
 const TODAY = "2026-06-15";
@@ -343,5 +343,30 @@ describe("payCommitment — a legacy installment with no paidCount (verifier not
     expect(paid.commitments[1].paidCount).toBe(1);
     const undone = removeTransaction(paid, paid.transactions[0].id);
     expect(undone.commitments[1].paidCount).toBe(0); // normalized, not undefined
+  });
+});
+
+describe("setBudget / setIncome — plot sizes and stated income (moved from App.tsx)", () => {
+  it("sets one plot, keeping every other", () => {
+    const s = emptyState();
+    const r = setBudget(s, "dining", 300);
+    expect(r.state.budgets).toEqual({ ...s.budgets, dining: 300 });
+    expect(r.state.transactions).toBe(s.transactions);
+    expect(r.state.streak).toBe(s.streak); // editing plans isn't logging
+  });
+
+  it("turns a junk box (NaN) into 0, as Number(v) || 0 always did", () => {
+    expect(setBudget(emptyState(), "dining", NaN).state.budgets.dining).toBe(0);
+    expect(setIncome(emptyState(), NaN).state.income).toBe(0);
+  });
+
+  it("accepts a category the list no longer knows (legacy budgets stay editable)", () => {
+    expect(setBudget(emptyState(), "pets", 40).state.budgets.pets).toBe(40);
+  });
+
+  it("sets the stated income, nothing else", () => {
+    const s = emptyState();
+    const r = setIncome(s, 4200);
+    expect(r.state).toEqual({ ...s, income: 4200 });
   });
 });
