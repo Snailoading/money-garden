@@ -11,6 +11,7 @@ import { derive, deriveMonthView, weatherFor } from "../engine/stats";
 import { monthRange } from "../engine/trends";
 import { canRemoveTransaction, deleteGoal as engineDeleteGoal, emptyState, insertGoal, isFreshGarden, linkedAmountBounds, loadSaved, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
 import { buildBackup, parseBackup, type ImportPreview } from "../engine/backup";
+import { findStateProblems } from "../engine/validate";
 // A namespace import — like `import actions` in Python, then actions.x():
 // keeps engine actions distinct from the App handlers that share their names.
 import * as actions from "../engine/actions";
@@ -28,6 +29,9 @@ import { Garden } from "./tabs/Garden";
 import { Orchard } from "./tabs/Orchard";
 import { Seasons } from "./tabs/Seasons";
 import { Advice } from "./tabs/Advice";
+
+/** The one message for a refused impossible number (engine or save gate). */
+const OUT_OF_RANGE = "🚫 That number is out of range — nothing was changed.";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: "🌤️" },
@@ -130,15 +134,30 @@ export function MoneyGarden() {
     if (!unreadable) return false;
     const kept = await store.set(`${UNREADABLE_KEY_PREFIX}:${new Date().toISOString()}`, unreadable.raw);
     if (!kept.persisted && !downloaded) return false;
+    if (!setStateSafe(emptyState())) return false; // can't happen — a fresh garden passes the gate
     setUnreadable(null);
-    setStateSafe(emptyState());
     showToast(kept.persisted
       ? "🌱 Fresh soil — the unreadable data was set aside, not erased."
       : "🌱 Fresh soil — your downloaded file is the copy of the old data.");
     return true;
   };
 
-  const setStateSafe = (next: State, skipToastOnFail = false) => {
+  /**
+   * The ONE way a garden gets saved. Since v0.18 it is also a gate: the
+   * same inspector that checks a save on load and a backup on import
+   * (findStateProblems) checks every change on the way OUT, so damage —
+   * in practice an impossible number like Infinity, which JSON would turn
+   * into null = $0 — is refused before it touches state or storage.
+   * Returns whether the change was accepted, so success toasts can wait.
+   */
+  const setStateSafe = (next: State, skipToastOnFail = false): boolean => {
+    const problems = findStateProblems(next);
+    if (problems.length > 0) {
+      // Local console only — no analytics (CLAUDE.md). Helps diagnose a bug.
+      console.warn("Money Garden refused to save a damaged change:", problems);
+      showToast(OUT_OF_RANGE);
+      return false;
+    }
     setState(next);
     void (async () => {
       const r = await store.set(STORAGE_KEY, serialize(next));
@@ -152,6 +171,7 @@ export function MoneyGarden() {
         showToast("Saving is unavailable here — changes live in this session only.");
       }
     })();
+    return true;
   };
 
   const showToast = (msg: string) => {
@@ -248,10 +268,11 @@ export function MoneyGarden() {
   /* ---------- actions ---------- */
   // Engine actions (src/engine/actions.ts) return { state, events }; commit
   // saves the new state if anything changed and hands back the events for
-  // the handler's toast. An unchanged state (same object) is a no-op.
-  const commit = (r: ActionResult): ActionEvent[] => {
-    if (r.state !== state) setStateSafe(r.state);
-    return r.events;
+  // the handler's toast. An unchanged state (same object) is a no-op; null
+  // means the save gate refused the change (it has already said why).
+  const commit = (r: ActionResult): ActionEvent[] | null => {
+    if (r.state === state) return r.events;
+    return setStateSafe(r.state) ? r.events : null;
   };
   /**
    * For actions that ALWAYS change the garden when their input is valid
@@ -264,7 +285,7 @@ export function MoneyGarden() {
    */
   const commitOrRefuse = (r: ActionResult): ActionEvent[] | null => {
     if (r.state === state) {
-      showToast("🚫 That number is out of range — nothing was changed.");
+      showToast(OUT_OF_RANGE);
       return null;
     }
     return commit(r);
@@ -291,7 +312,7 @@ export function MoneyGarden() {
       return;
     }
     const drainedGoal = existing.goalId ? state.goals.find((g) => g.id === existing.goalId) : undefined;
-    setStateSafe(removeTransaction(state, id));
+    if (!setStateSafe(removeTransaction(state, id))) return;
     showToast(drainedGoal ? `🍂 Entry deleted — "${drainedGoal.name}" adjusted too` : "🍂 Entry deleted");
   };
 
@@ -313,7 +334,7 @@ export function MoneyGarden() {
       existing.goalId && patch.amount !== undefined && patch.amount !== existing.amount
         ? state.goals.find((g) => g.id === existing.goalId)
         : undefined;
-    setStateSafe(updateTransaction(state, id, patch));
+    if (!setStateSafe(updateTransaction(state, id, patch))) return;
     showToast(adjustedGoal ? `✏️ Entry updated — "${adjustedGoal.name}" adjusted too` : "✏️ Entry updated");
   };
 
@@ -325,16 +346,14 @@ export function MoneyGarden() {
 
   const editGoal = (id: string, patch: Partial<Omit<Goal, "id" | "saved" | "isEmergency">>) => {
     if (!state.goals.some((x) => x.id === id)) return;
-    setStateSafe(updateGoal(state, id, patch));
-    showToast("✏️ Goal updated");
+    if (setStateSafe(updateGoal(state, id, patch))) showToast("✏️ Goal updated");
   };
 
   // One-time barrel setup — target plus the money already set aside for it.
   // Deliberately no transaction: an opening balance is a starting fact, not
   // one of this month's flows (see setupEmergencyFund in the engine).
   const setupBarrel = (target: number, openingBalance: number) => {
-    setStateSafe(setupEmergencyFund(state, target, openingBalance));
-    showToast("🛟 Rain barrel set up — water it whenever you can");
+    if (setStateSafe(setupEmergencyFund(state, target, openingBalance))) showToast("🛟 Rain barrel set up — water it whenever you can");
   };
 
   // Spend from a goal (engine drawFromGoal): a linked expense that drains the
@@ -343,8 +362,7 @@ export function MoneyGarden() {
   // handing the same state back, so no toast then.
   const drawFromGoal = (id: string, amount: number, category: string, note: string) => {
     const r = actions.drawFromGoal(state, id, amount, category, note, new Date());
-    if (r.state === state) return;
-    commit(r);
+    if (r.state === state || !commit(r)) return;
     showToast(`🪣 ${fmt(amount)} drawn from "${state.goals.find((g) => g.id === id)?.name}"`);
   };
 
@@ -388,13 +406,11 @@ export function MoneyGarden() {
   const logCommitmentPayment = (id: string) => {
     const c = (state.commitments || []).find((x) => x.id === id);
     if (!c) return;
-    commit(actions.payCommitment(state, id, new Date()));
-    showToast(`💸 ${fmt(c.amount)} logged for "${c.name}"`);
+    if (commit(actions.payCommitment(state, id, new Date()))) showToast(`💸 ${fmt(c.amount)} logged for "${c.name}"`);
   };
 
   const editCommitment = (id: string, patch: Partial<Omit<Commitment, "id">>) => {
-    setStateSafe(updateCommitment(state, id, patch));
-    showToast("✏️ Commitment updated");
+    if (setStateSafe(updateCommitment(state, id, patch))) showToast("✏️ Commitment updated");
   };
 
   // A tended garden isn't always a watered one — no-spend days keep the
@@ -405,8 +421,7 @@ export function MoneyGarden() {
       showToast("🌱 Today's already tended — see you tomorrow.");
       return;
     }
-    commit(r);
-    showToast("🌵 A no-spend day — the garden rests.");
+    if (commit(r)) showToast("🌵 A no-spend day — the garden rests.");
   };
 
   /* ---------- backup: export & import ---------- */
@@ -429,7 +444,9 @@ export function MoneyGarden() {
   const confirmImport = () => {
     if (!pendingImport) return;
     const { counts } = pendingImport;
-    setStateSafe(pendingImport.state);
+    // parseBackup already ran the same inspector, so this always passes —
+    // but if it ever didn't, keep the card up and say nothing was restored.
+    if (!setStateSafe(pendingImport.state)) return;
     setPendingImport(null);
     setViewYm(null);
     setTab("overview");
@@ -453,8 +470,7 @@ export function MoneyGarden() {
   // Passed by name, so it guards itself rather than trusting the card's
   // visibility: replace the garden ONLY if there's nothing to lose.
   const plantSampleData = () => {
-    if (!isFreshGarden(state)) return;
-    setStateSafe(sampleState());
+    if (!isFreshGarden(state) || !setStateSafe(sampleState())) return;
     setViewYm(null);
   };
   const weather = weatherFor(derived.health);
@@ -600,7 +616,7 @@ export function MoneyGarden() {
             {/* Replanting overwrites the whole garden, so it two-steps like
                 Start fresh (arm → 4s window → tomato confirm). */}
             {!isEmpty && (confirmReplant ? (
-              <button className="mg-btn" onClick={() => { setStateSafe(sampleState()); setConfirmReplant(false); setConfirmReset(false); setViewYm(null); showToast("🌼 Sample garden replanted"); }}
+              <button className="mg-btn" onClick={() => { if (!setStateSafe(sampleState())) return; setConfirmReplant(false); setConfirmReset(false); setViewYm(null); showToast("🌼 Sample garden replanted"); }}
                 style={{ background: C.tomato, border: `1.5px solid ${C.tomato}`, borderRadius: 10, padding: "7px 14px", fontWeight: 700, fontSize: 13, color: C.inkContrast, cursor: "pointer" }}>
                 Really replace everything with sample data?
               </button>
@@ -611,7 +627,7 @@ export function MoneyGarden() {
               </button>
             ))}
             {confirmReset ? (
-              <button className="mg-btn" onClick={() => { setStateSafe(emptyState()); setConfirmReset(false); setViewYm(null); setTab("overview"); showToast("🍂 Fresh soil — everything cleared"); }}
+              <button className="mg-btn" onClick={() => { if (!setStateSafe(emptyState())) return; setConfirmReset(false); setViewYm(null); setTab("overview"); showToast("🍂 Fresh soil — everything cleared"); }}
                 style={{ background: C.tomato, border: `1.5px solid ${C.tomato}`, borderRadius: 10, padding: "7px 14px", fontWeight: 700, fontSize: 13, color: C.inkContrast, cursor: "pointer" }}>
                 Really erase everything?
               </button>
