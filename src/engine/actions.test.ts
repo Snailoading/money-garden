@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { State, Transaction } from "./types";
 import { emptyState, removeTransaction, sampleState } from "./state";
-import { addHolding, drawFromGoal, logEntry, markNoSpendDay, removeHolding, revalueHolding, updateInvest, waterGoal, waterHolding } from "./actions";
+import { addCommitment, addHolding, drawFromGoal, logEntry, markNoSpendDay, payCommitment, removeCommitment, removeHolding, revalueHolding, updateInvest, waterGoal, waterHolding } from "./actions";
 
 const NOW = new Date(2026, 5, 15, 12); // June 15, 2026 — local noon
 const TODAY = "2026-06-15";
@@ -261,5 +261,87 @@ describe("updateInvest — the growing-conditions settings", () => {
   it("keeps the Orchard's cleared-box sentinel as given (the engine coerces on read)", () => {
     const r = updateInvest(withOrchard(), { ret: "" as unknown as number });
     expect(r.state.invest.ret).toBe("");
+  });
+});
+
+/** A garden with one vine (Gym, $35/mo) and one trellis plan (Tax, 2 of 6 paid). */
+const withCommitments = (): State => ({
+  ...emptyState(),
+  commitments: [
+    { id: "gym", kind: "sub", name: "Gym", amount: 35, cadence: "monthly", payDay: 1, payMonth: 1, endDate: "", category: "subs" },
+    { id: "tax", kind: "inst", name: "Tax plan", amount: 240, cadence: "monthly", payDay: 20, payMonth: 1, totalPayments: 6, paidCount: 2, category: "other" },
+  ],
+  streak: { count: 4, lastDate: "2026-06-14" },
+});
+
+describe("payCommitment — 'Log payment' on a vine or trellis plan (moved from App.tsx)", () => {
+  it("logs a subscription payment as a linked expense, commitment unchanged", () => {
+    const s = withCommitments();
+    const r = payCommitment(s, "gym", NOW);
+    expect(r.state.transactions[0]).toMatchObject({ type: "expense", amount: 35, category: "subs", note: "Subscription: Gym", date: TODAY, commitmentId: "gym" });
+    expect(r.state.commitments).toEqual(s.commitments);
+    expect(r.state.streak).toEqual({ count: 5, lastDate: TODAY });
+  });
+
+  it("logs an installment payment and counts it (2 → 3 of 6)", () => {
+    const r = payCommitment(withCommitments(), "tax", NOW);
+    expect(r.state.transactions[0]).toMatchObject({ amount: 240, category: "other", note: "Installment: Tax plan", commitmentId: "tax" });
+    expect(r.state.commitments.find((c) => c.id === "tax")!.paidCount).toBe(3);
+    expect(r.state.commitments.find((c) => c.id === "gym")).toEqual(withCommitments().commitments[0]);
+  });
+
+  it("falls back to category 'subs' and amount 0 for damaged commitments (as before)", () => {
+    const s = withCommitments();
+    s.commitments[0] = { ...s.commitments[0], category: "", amount: "x" as unknown as number };
+    expect(payCommitment(s, "gym", NOW).state.transactions[0]).toMatchObject({ category: "subs", amount: 0 });
+  });
+
+  it("is a same-reference no-op for an unknown commitment", () => {
+    const s = withCommitments();
+    expect(payCommitment(s, "nope", NOW).state).toBe(s);
+  });
+
+  it("is exactly reversible by deleting its entry — incl. the installment count", () => {
+    const s = withCommitments();
+    expectReversible(s, payCommitment(s, "gym", NOW).state);
+    expectReversible(s, payCommitment(s, "tax", NOW).state);
+  });
+});
+
+describe("addCommitment / removeCommitment — planting and cutting vines", () => {
+  it("adds a commitment at the end with a fresh id, no journal entry, no streak", () => {
+    const s = withCommitments();
+    const c = { kind: "sub" as const, name: "Music", amount: 9.99, cadence: "monthly" as const, payDay: 5, payMonth: 1, endDate: "", category: "subs" };
+    const r = addCommitment(s, c);
+    expect(r.state.commitments).toHaveLength(3);
+    expect(r.state.commitments[2]).toMatchObject(c);
+    expect(["gym", "tax"]).not.toContain(r.state.commitments[2].id);
+    expect(r.state.transactions).toBe(s.transactions);
+    expect(r.state.streak).toBe(s.streak);
+  });
+
+  it("removes a commitment; its logged payments stay in the journal (dangling links are no-ops)", () => {
+    const paid = payCommitment(withCommitments(), "tax", NOW).state;
+    const r = removeCommitment(paid, "tax");
+    expect(r.state.commitments.map((c) => c.id)).toEqual(["gym"]);
+    expect(r.state.transactions).toBe(paid.transactions);
+    expect(removeTransaction(r.state, paid.transactions[0].id).commitments.map((c) => c.id)).toEqual(["gym"]);
+  });
+
+  it("removing an unknown commitment hands back the same state", () => {
+    const s = withCommitments();
+    expect(removeCommitment(s, "nope").state).toBe(s);
+  });
+});
+
+describe("payCommitment — a legacy installment with no paidCount (verifier note)", () => {
+  it("counts the payment as 1, and undoing it leaves 0 — the same 'none paid' every reader sees", () => {
+    const s = withCommitments();
+    const { paidCount: _dropped, ...legacy } = s.commitments[1];
+    s.commitments[1] = legacy; // as an old import might hold it
+    const paid = payCommitment(s, "tax", NOW).state;
+    expect(paid.commitments[1].paidCount).toBe(1);
+    const undone = removeTransaction(paid, paid.transactions[0].id);
+    expect(undone.commitments[1].paidCount).toBe(0); // normalized, not undefined
   });
 });

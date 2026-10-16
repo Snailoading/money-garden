@@ -6,10 +6,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Commitment, Goal, Invest, State, Transaction } from "../engine/types";
 import { DEFAULT_INVEST, STORAGE_KEY, UNREADABLE_KEY_PREFIX } from "../engine/types";
-import { fmt, monthKey, monthLabel, uid, todayISO } from "../engine/format";
+import { fmt, monthKey, monthLabel, uid } from "../engine/format";
 import { derive, deriveMonthView, weatherFor } from "../engine/stats";
 import { monthRange } from "../engine/trends";
-import { bumpStreak, canRemoveTransaction, deleteGoal as engineDeleteGoal, emptyState, insertGoal, isFreshGarden, linkedAmountBounds, loadSaved, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
+import { canRemoveTransaction, deleteGoal as engineDeleteGoal, emptyState, insertGoal, isFreshGarden, linkedAmountBounds, loadSaved, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
 import { buildBackup, parseBackup, type ImportPreview } from "../engine/backup";
 // A namespace import — like `import actions` in Python, then actions.x():
 // keeps engine actions distinct from the App handlers that share their names.
@@ -363,20 +363,17 @@ export function MoneyGarden() {
     showToast(`💧 ${fmt(amount)} watered into "${target.name}"`);
   };
 
+  // Vines & trellis (engine actions: addCommitment, removeCommitment,
+  // payCommitment — the payment is a linked, exactly reversible entry).
   const addCommitment = (c: Omit<Commitment, "id">) => {
-    setStateSafe({ ...state, commitments: [...(state.commitments || []), { ...c, id: uid() }] });
+    commit(actions.addCommitment(state, c));
     showToast(c.kind === "inst" ? `🪜 "${c.name}" staked to the trellis` : `🌿 "${c.name}" vine planted`);
   };
-  const deleteCommitment = (id: string) =>
-    setStateSafe({ ...state, commitments: (state.commitments || []).filter((c) => c.id !== id) });
+  const deleteCommitment = (id: string) => commit(actions.removeCommitment(state, id));
   const logCommitmentPayment = (id: string) => {
     const c = (state.commitments || []).find((x) => x.id === id);
     if (!c) return;
-    // commitmentId links the entry: the next-due date derives from it and
-    // deleting it reverts the payment (incl. installment paidCount).
-    const tx: Transaction = { id: uid(), type: "expense", amount: Number(c.amount) || 0, category: c.category || "subs", note: `${c.kind === "inst" ? "Installment" : "Subscription"}: ${c.name}`, date: todayISO(), commitmentId: c.id };
-    const commitments = (state.commitments || []).map((x) => (x.id === id && x.kind === "inst" ? { ...x, paidCount: (x.paidCount || 0) + 1 } : x));
-    setStateSafe({ ...state, commitments, transactions: [tx, ...state.transactions], streak: bumpStreak(state.streak) });
+    commit(actions.payCommitment(state, id, new Date()));
     showToast(`💸 ${fmt(c.amount)} logged for "${c.name}"`);
   };
 

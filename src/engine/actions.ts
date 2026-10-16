@@ -15,7 +15,7 @@
  * object, so the caller can tell "no-op" by identity (`r.state === state`).
  */
 
-import type { Holding, Invest, State, Transaction } from "./types";
+import type { Commitment, Holding, Invest, State, Transaction } from "./types";
 import { DEFAULT_INVEST } from "./types";
 import { todayISO, uid } from "./format";
 import { bumpStreak } from "./state";
@@ -168,6 +168,46 @@ export function removeHolding(state: State, holdingId: string): ActionResult {
   const inv = investOf(state);
   if (!inv.holdings.some((h) => h.id === holdingId)) return { state, events: [] };
   return { state: { ...state, invest: { ...inv, holdings: inv.holdings.filter((h) => h.id !== holdingId) } }, events: [] };
+}
+
+/* ---- vines & trellis (commitments) ---- */
+
+/**
+ * "Log payment": a linked expense (commitmentId) — the next-due date is
+ * derived from it (commitments.ts), so deleting the entry reverts the date;
+ * an installment also counts the payment (paidCount + 1), which deleting
+ * un-counts (removeTransaction). Damaged amounts log as 0 and a missing
+ * category as "subs", as before. Unknown commitment → same state.
+ * A legacy installment with no paidCount comes back as 0 after pay → undo
+ * — intended: every reader treats a missing count as 0 (`paidCount || 0`).
+ */
+export function payCommitment(state: State, commitmentId: string, now: Date): ActionResult {
+  const all = state.commitments || [];
+  const c = all.find((x) => x.id === commitmentId);
+  if (!c) return { state, events: [] };
+  const tx: Transaction = {
+    id: uid(), type: "expense", amount: Number(c.amount) || 0, category: c.category || "subs",
+    note: `${c.kind === "inst" ? "Installment" : "Subscription"}: ${c.name}`, date: todayISO(now), commitmentId: c.id,
+  };
+  const commitments = all.map((x) => (x.id === commitmentId && x.kind === "inst" ? { ...x, paidCount: (x.paidCount || 0) + 1 } : x));
+  const tended = tend(state, now);
+  return {
+    state: { ...state, commitments, transactions: [tx, ...state.transactions], streak: tended.streak },
+    events: tended.events,
+  };
+}
+
+/** Plant a vine or stake a trellis plan (appended, fresh id). Not logging. */
+export function addCommitment(state: State, commitment: Omit<Commitment, "id">): ActionResult {
+  return { state: { ...state, commitments: [...(state.commitments || []), { ...commitment, id: uid() }] }, events: [] };
+}
+
+/** Cut a vine. Its logged payments stay; their commitmentId links dangle
+ * and are silent no-ops on later deletes. Unknown id → same state. */
+export function removeCommitment(state: State, commitmentId: string): ActionResult {
+  const all = state.commitments || [];
+  if (!all.some((c) => c.id === commitmentId)) return { state, events: [] };
+  return { state: { ...state, commitments: all.filter((c) => c.id !== commitmentId) }, events: [] };
 }
 
 /**
