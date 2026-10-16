@@ -253,14 +253,30 @@ export function MoneyGarden() {
     if (r.state !== state) setStateSafe(r.state);
     return r.events;
   };
-  const streakToast = (events: ActionEvent[]) => {
-    for (const e of events) {
+  /**
+   * For actions that ALWAYS change the garden when their input is valid
+   * (log, water, plant, set a plot…): the same state back means the engine
+   * refused the input — an impossible number like 1e400 — so say so instead
+   * of letting the tap vanish. Returns null when refused.
+   * Callers write `if (commitOrRefuse(r)) …` — careful, Python reader: in
+   * JS an EMPTY array is truthy (unlike Python's []), so an accepted action
+   * with no events still passes; only the null refusal is falsy.
+   */
+  const commitOrRefuse = (r: ActionResult): ActionEvent[] | null => {
+    if (r.state === state) {
+      showToast("🚫 That number is out of range — nothing was changed.");
+      return null;
+    }
+    return commit(r);
+  };
+  const streakToast = (events: ActionEvent[] | null) => {
+    for (const e of events ?? []) {
       if (e.kind === "streakGrew" && e.count > 1) showToast(`🔥 ${e.count}-day logging streak — keep it growing!`);
     }
   };
 
   const addTransaction = (tx: Omit<Transaction, "id">) => {
-    streakToast(commit(actions.logEntry(state, tx, new Date())));
+    streakToast(commitOrRefuse(actions.logEntry(state, tx, new Date())));
   };
 
   // removeTransaction/updateTransaction also water/drain a linked goal when
@@ -334,7 +350,7 @@ export function MoneyGarden() {
 
   // Water a goal (engine waterGoal): linked saving entry, no target cap.
   const waterGoal = (id: string, amount: number) => {
-    for (const e of commit(actions.waterGoal(state, id, amount, new Date()))) {
+    for (const e of commitOrRefuse(actions.waterGoal(state, id, amount, new Date())) ?? []) {
       if (e.kind === "bloomed") showToast(`🌸 "${e.goalName}" is in full bloom — goal reached!`);
     }
   };
@@ -342,33 +358,31 @@ export function MoneyGarden() {
   // Engine-guarded: deleting the permanent barrel is a silent no-op there.
   const deleteGoal = (id: string) => setStateSafe(engineDeleteGoal(state, id));
   // The boxes hand us text; the engine takes numbers (NaN → 0 there).
-  const setBudget = (catId: string, v: string) => commit(actions.setBudget(state, catId, Number(v)));
-  const setIncome = (v: string) => commit(actions.setIncome(state, Number(v)));
+  const setBudget = (catId: string, v: string) => commitOrRefuse(actions.setBudget(state, catId, Number(v)));
+  const setIncome = (v: string) => commitOrRefuse(actions.setIncome(state, Number(v)));
 
   // The orchard (engine actions: updateInvest, addHolding, revalueHolding,
   // removeHolding, waterHolding).
-  const setInvest = (patch: Partial<Invest>) => commit(actions.updateInvest(state, patch));
+  const setInvest = (patch: Partial<Omit<Invest, "holdings">>) => commitOrRefuse(actions.updateInvest(state, patch));
   const addHolding = (h: { name: string; value: number }) => {
-    commit(actions.addHolding(state, h));
-    showToast(`🌳 "${h.name}" planted in the orchard`);
+    if (commitOrRefuse(actions.addHolding(state, h))) showToast(`🌳 "${h.name}" planted in the orchard`);
   };
   // The value box hands us text; the engine takes a number (junk → 0 there).
-  const updateHolding = (id: string, value: string) => commit(actions.revalueHolding(state, id, Number(value)));
+  const updateHolding = (id: string, value: string) => commitOrRefuse(actions.revalueHolding(state, id, Number(value)));
   const deleteHolding = (id: string) => commit(actions.removeHolding(state, id));
 
   const waterOrchard = (id: string, amount: number) => {
     const target = (state.invest || DEFAULT_INVEST).holdings.find((h) => h.id === id);
-    const r = actions.waterHolding(state, id, amount, new Date());
-    if (!target || r.state === state) return; // unknown holding or a bad amount — nothing watered
-    commit(r);
-    showToast(`💧 ${fmt(amount)} watered into "${target.name}"`);
+    if (!target) return;
+    if (commitOrRefuse(actions.waterHolding(state, id, amount, new Date()))) showToast(`💧 ${fmt(amount)} watered into "${target.name}"`);
   };
 
   // Vines & trellis (engine actions: addCommitment, removeCommitment,
   // payCommitment — the payment is a linked, exactly reversible entry).
   const addCommitment = (c: Omit<Commitment, "id">) => {
-    commit(actions.addCommitment(state, c));
-    showToast(c.kind === "inst" ? `🪜 "${c.name}" staked to the trellis` : `🌿 "${c.name}" vine planted`);
+    if (commitOrRefuse(actions.addCommitment(state, c))) {
+      showToast(c.kind === "inst" ? `🪜 "${c.name}" staked to the trellis` : `🌿 "${c.name}" vine planted`);
+    }
   };
   const deleteCommitment = (id: string) => commit(actions.removeCommitment(state, id));
   const logCommitmentPayment = (id: string) => {

@@ -32,6 +32,18 @@ export interface ActionResult {
   events: ActionEvent[];
 }
 
+/* ---- impossible-number guards (v0.18) ----
+ * Typing 1e400 into a number box yields Infinity, which JSON saves as null —
+ * the number silently became $0 on the next load. Every action refuses such
+ * numbers by handing back the same state ("nothing changed"). */
+
+/** A usable money amount: a real, finite number above zero. Number.isFinite
+ * rejects NaN and ±Infinity in one go (≈ Python's math.isfinite). */
+const isAmount = (n: number): boolean => Number.isFinite(n) && n > 0;
+/** ±Infinity only. NaN is deliberately NOT included: a junk box has always
+ * meant 0 for plans and revaluations, and that rule stays. */
+const isInfinite = (n: number): boolean => n === Infinity || n === -Infinity;
+
 /** The streak after tending today, plus the growth event if it grew. */
 function tend(state: State, now: Date): { streak: State["streak"]; events: ActionEvent[] } {
   const streak = bumpStreak(state.streak, now);
@@ -43,11 +55,10 @@ function tend(state: State, now: Date): { streak: State["streak"]; events: Actio
 
 /**
  * Log an entry from the Log tab: prepend it with a fresh id and tend the
- * streak. The entry's fields arrive already validated by the form (amount
- * > 0, a date) — exactly as before the move; engine-level validation comes
- * in a later, separate change.
+ * streak. Refuses an amount that isn't a finite number above 0 (same state).
  */
 export function logEntry(state: State, entry: Omit<Transaction, "id">, now: Date): ActionResult {
+  if (!isAmount(entry.amount)) return { state, events: [] };
   const { streak, events } = tend(state, now);
   return {
     state: { ...state, transactions: [{ ...entry, id: uid() }, ...state.transactions], streak },
@@ -60,10 +71,14 @@ export function logEntry(state: State, entry: Omit<Transaction, "id">, now: Date
  * (goalId) so later edits/deletes move the goal too. No target cap (v0.7.0):
  * overflowing is truthful and keeps the entry exactly reversible. Reports
  * "bloomed" when this watering crosses the target — never for the un-set-up
- * barrel, since `saved < target` is 0 < 0 → false there. Amount validation
- * stays in the form for now, as before the move.
+ * barrel, since `saved < target` is 0 < 0 → false there. Same state for an
+ * unknown goal (it used to log an entry noted "→ undefined") or an amount
+ * that isn't a finite number above 0.
  */
 export function waterGoal(state: State, goalId: string, amount: number, now: Date): ActionResult {
+  const goal = state.goals.find((g) => g.id === goalId);
+  // The sum is checked too: two finite 1e308s overflow to Infinity.
+  if (!goal || !isAmount(amount) || !Number.isFinite(goal.saved + amount)) return { state, events: [] };
   const events: ActionEvent[] = [];
   const goals = state.goals.map((g) => {
     if (g.id !== goalId) return g;
@@ -73,7 +88,7 @@ export function waterGoal(state: State, goalId: string, amount: number, now: Dat
   });
   const tx: Transaction = {
     id: uid(), type: "saving", amount, category: "other",
-    note: `→ ${state.goals.find((g) => g.id === goalId)?.name}`, date: todayISO(now), goalId,
+    note: `→ ${goal.name}`, date: todayISO(now), goalId,
   };
   const tended = tend(state, now);
   return {
@@ -91,9 +106,7 @@ export function waterGoal(state: State, goalId: string, amount: number, now: Dat
  */
 export function drawFromGoal(state: State, goalId: string, amount: number, category: string, note: string, now: Date): ActionResult {
   const goal = state.goals.find((g) => g.id === goalId);
-  // `!(amount > 0)` rather than `amount <= 0`: NaN fails every comparison,
-  // so only the negated form rejects it too (≈ also checking math.isnan).
-  if (!goal || !(amount > 0) || amount > goal.saved) return { state, events: [] };
+  if (!goal || !isAmount(amount) || amount > goal.saved) return { state, events: [] };
   const tx: Transaction = {
     id: uid(), type: "expense", amount, category,
     note: note.trim() || `From "${goal.name}"`, date: todayISO(now), goalId,
@@ -115,12 +128,13 @@ const investOf = (state: State): Invest => state.invest || DEFAULT_INVEST;
  * A one-off orchard watering (bonus, windfall): add `amount` to the holding
  * and log a linked saving entry (holdingId) so later edits/deletes move the
  * holding too. A junk stored value counts as 0 before adding. Same-state
- * no-op for an unknown holding or a non-positive/NaN amount.
+ * no-op for an unknown holding or an amount that isn't finite and above 0.
  */
 export function waterHolding(state: State, holdingId: string, amount: number, now: Date): ActionResult {
   const inv = investOf(state);
   const target = inv.holdings.find((h) => h.id === holdingId);
-  if (!target || !(amount > 0)) return { state, events: [] };
+  // The sum is checked too: two finite 1e308s overflow to Infinity.
+  if (!target || !isAmount(amount) || !Number.isFinite((Number(target.value) || 0) + amount)) return { state, events: [] };
   const holdings = inv.holdings.map((h) => (h.id === holdingId ? { ...h, value: (Number(h.value) || 0) + amount } : h));
   const tx: Transaction = {
     id: uid(), type: "saving", amount, category: "other",
@@ -135,16 +149,22 @@ export function waterHolding(state: State, holdingId: string, amount: number, no
 
 /** Merge a growing-conditions patch (monthly, ret, wr, birthYear, …).
  * Values pass through as given — incl. the Orchard's "" while a box is
- * cleared; the FIRE math coerces on read (deriveFire). */
-export function updateInvest(state: State, patch: Partial<Invest>): ActionResult {
+ * cleared; the FIRE math coerces on read (deriveFire). A numeric value that
+ * isn't finite (NaN, ±Infinity) refuses the whole patch (same state).
+ * Holdings are excluded from the patch type on purpose — trees are planted,
+ * revalued, and felled only through their own actions below. */
+export function updateInvest(state: State, patch: Partial<Omit<Invest, "holdings">>): ActionResult {
+  if (Object.values(patch).some((v) => typeof v === "number" && !Number.isFinite(v))) return { state, events: [] };
   return { state: { ...state, invest: { ...investOf(state), ...patch } }, events: [] };
 }
 
 /** Plant a holding (appended, fresh id). Not a journal entry and not
  * logging: the value is a starting fact, like a goal's opening balance.
  * `Omit<Holding, "id">` = a Holding minus its id field — like a TypedDict
- * copy without one key; the engine mints the id. */
+ * copy without one key; the engine mints the id. Refuses a value that
+ * isn't a finite number ≥ 0 ($0 trees are fine). */
 export function addHolding(state: State, holding: Omit<Holding, "id">): ActionResult {
+  if (!Number.isFinite(holding.value) || holding.value < 0) return { state, events: [] };
   const inv = investOf(state);
   return { state: { ...state, invest: { ...inv, holdings: [...(inv.holdings || []), { ...holding, id: uid() }] } }, events: [] };
 }
@@ -152,11 +172,12 @@ export function addHolding(state: State, holding: Omit<Holding, "id">): ActionRe
 /**
  * Revalue a holding — a plain value edit that always wins over the journal
  * (markets move; waterings don't explain every dollar). Never below 0, and
- * a non-number (a junk box) becomes 0. Unknown id → same state.
+ * a non-number (a junk box) becomes 0. Unknown id or an infinite value →
+ * same state.
  */
 export function revalueHolding(state: State, holdingId: string, value: number): ActionResult {
   const inv = investOf(state);
-  if (!inv.holdings.some((h) => h.id === holdingId)) return { state, events: [] };
+  if (isInfinite(value) || !inv.holdings.some((h) => h.id === holdingId)) return { state, events: [] };
   // `value || 0` turns NaN (Number("abc") from the box) into 0.
   const holdings = inv.holdings.map((h) => (h.id === holdingId ? { ...h, value: Math.max(0, value || 0) } : h));
   return { state: { ...state, invest: { ...inv, holdings } }, events: [] };
@@ -197,8 +218,15 @@ export function payCommitment(state: State, commitmentId: string, now: Date): Ac
   };
 }
 
-/** Plant a vine or stake a trellis plan (appended, fresh id). Not logging. */
+/** Plant a vine or stake a trellis plan (appended, fresh id). Not logging.
+ * Refuses an amount that isn't a finite number above 0, or installment
+ * counts (# payments, already paid) that are present but not finite —
+ * parseInt of a 309-digit count is Infinity. */
 export function addCommitment(state: State, commitment: Omit<Commitment, "id">): ActionResult {
+  const badCount = (n: number | undefined) => n !== undefined && !Number.isFinite(n);
+  if (!isAmount(commitment.amount) || badCount(commitment.totalPayments) || badCount(commitment.paidCount)) {
+    return { state, events: [] };
+  }
   return { state: { ...state, commitments: [...(state.commitments || []), { ...commitment, id: uid() }] }, events: [] };
 }
 
@@ -213,14 +241,17 @@ export function removeCommitment(state: State, commitmentId: string): ActionResu
 /* ---- plans: plot sizes and stated income ---- */
 
 /** Size one budget plot. Plans, not logging — the streak is untouched.
- * A junk box (NaN) becomes 0, as before; unknown/legacy categories are fine. */
+ * A junk box (NaN) becomes 0, as before; unknown/legacy categories are fine.
+ * An infinite value → same state. */
 export function setBudget(state: State, categoryId: string, value: number): ActionResult {
+  if (isInfinite(value)) return { state, events: [] };
   return { state: { ...state, budgets: { ...state.budgets, [categoryId]: value || 0 } }, events: [] };
 }
 
 /** Set the stated monthly income (logged income replaces it — stats.ts).
- * A junk box (NaN) becomes 0, as before. */
+ * A junk box (NaN) becomes 0, as before. An infinite value → same state. */
 export function setIncome(state: State, value: number): ActionResult {
+  if (isInfinite(value)) return { state, events: [] };
   return { state: { ...state, income: value || 0 }, events: [] };
 }
 

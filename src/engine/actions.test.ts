@@ -370,3 +370,91 @@ describe("setBudget / setIncome — plot sizes and stated income (moved from App
     expect(r.state).toEqual({ ...s, income: 4200 });
   });
 });
+
+describe("hardening — no action writes an impossible number (1e400 → Infinity, NaN)", () => {
+  // Typing 1e400 into a number box yields Infinity; JSON then saves it as
+  // null, so the number silently became $0 on the next load. Every action
+  // now refuses such numbers outright (same state back = nothing changed).
+  const entry = (amount: number): Omit<Transaction, "id"> => ({ type: "expense", amount, category: "dining", note: "", date: TODAY });
+
+  it("journal actions refuse non-finite and non-positive amounts", () => {
+    const s = { ...withTrip(450), invest: withOrchard().invest };
+    for (const bad of [Infinity, -Infinity, NaN, 0, -5]) {
+      expect(logEntry(s, entry(bad), NOW).state).toBe(s);
+      expect(waterGoal(s, "trip", bad, NOW).state).toBe(s);
+      expect(waterHolding(s, "h1", bad, NOW).state).toBe(s);
+      expect(drawFromGoal(s, "trip", bad, "fun", "", NOW).state).toBe(s);
+    }
+  });
+
+  it("watering an unknown goal is a no-op (it used to log an entry noted '→ undefined')", () => {
+    const s = withTrip(450);
+    expect(waterGoal(s, "no-such-goal", 50, NOW).state).toBe(s);
+  });
+
+  it("planting/revaluing refuses infinite values (a junk NaN box still means 0, as before)", () => {
+    const s = withOrchard();
+    expect(addHolding(s, { name: "Moon fund", value: Infinity }).state).toBe(s);
+    expect(addHolding(s, { name: "Bad", value: -1 }).state).toBe(s);
+    expect(revalueHolding(s, "h1", Infinity).state).toBe(s);
+    expect(revalueHolding(s, "h1", NaN).state.invest.holdings[0].value).toBe(0); // unchanged rule
+  });
+
+  it("commitments refuse non-finite or non-positive amounts", () => {
+    const s = withCommitments();
+    const c = (amount: number) => ({ kind: "sub" as const, name: "X", amount, cadence: "monthly" as const, payDay: 1, payMonth: 1, endDate: "", category: "subs" });
+    for (const bad of [Infinity, NaN, 0, -1]) expect(addCommitment(s, c(bad)).state).toBe(s);
+  });
+
+  it("plans refuse infinite numbers (a junk NaN box still means 0)", () => {
+    const s = emptyState();
+    expect(setBudget(s, "dining", Infinity).state).toBe(s);
+    expect(setIncome(s, -Infinity).state).toBe(s);
+    expect(setBudget(s, "dining", NaN).state.budgets.dining).toBe(0); // unchanged rule
+    expect(updateInvest(s, { monthly: Infinity }).state).toBe(s);
+    expect(updateInvest(s, { ret: NaN }).state).toBe(s);
+  });
+
+  it("still accepts every ordinary value", () => {
+    const s = { ...withTrip(450), invest: withOrchard().invest };
+    expect(logEntry(s, entry(0.01), NOW).state).not.toBe(s);
+    expect(waterGoal(s, "trip", 1e6, NOW).state).not.toBe(s);
+    expect(setBudget(s, "dining", -5).state.budgets.dining).toBe(-5); // negative plots stay as typed (pre-existing)
+    expect(updateInvest(s, { ret: "" as unknown as number }).state.invest.ret).toBe(""); // the cleared-box sentinel
+    expect(addHolding(s, { name: "Cash", value: 0 }).state).not.toBe(s); // a $0 tree is allowed
+  });
+});
+
+describe("hardening — sums that overflow to Infinity are refused too", () => {
+  // Every browser accepts 1e308 (finite) — but two of them overflow. The
+  // amount alone looks fine; the resulting balance is what must stay finite.
+  it("waterGoal refuses a watering whose new balance would be infinite", () => {
+    const s = withTrip(1e308);
+    expect(waterGoal(s, "trip", 1e308, NOW).state).toBe(s);
+    expect(trip(waterGoal(s, "trip", 1, NOW).state).saved).toBe(1e308 + 1); // a finite sum still waters
+  });
+
+  it("waterHolding refuses a watering whose new value would be infinite", () => {
+    const s = withOrchard();
+    s.invest.holdings[0].value = 1.7e308;
+    expect(waterHolding(s, "h1", 1e308, NOW).state).toBe(s);
+  });
+});
+
+describe("hardening — installment counts (verifier round on 5b)", () => {
+  // parseInt of a 309-digit "# payments" is Infinity — the amount check alone missed it.
+  const plan = (totalPayments: number, paidCount: number) => ({
+    kind: "inst" as const, name: "Plan", amount: 100, cadence: "monthly" as const, payDay: 1, payMonth: 1, totalPayments, paidCount, category: "other",
+  });
+  it("refuses an installment whose counts aren't finite", () => {
+    const s = withCommitments();
+    expect(addCommitment(s, plan(Infinity, 0)).state).toBe(s);
+    expect(addCommitment(s, plan(6, Infinity)).state).toBe(s);
+    expect(addCommitment(s, plan(NaN, 0)).state).toBe(s);
+  });
+  it("still accepts ordinary counts, and subscriptions without any", () => {
+    const s = withCommitments();
+    expect(addCommitment(s, plan(6, 2)).state).not.toBe(s);
+    expect(addCommitment(s, { kind: "sub", name: "Music", amount: 9.99, cadence: "monthly", payDay: 1, payMonth: 1, endDate: "", category: "subs" }).state).not.toBe(s);
+  });
+});
