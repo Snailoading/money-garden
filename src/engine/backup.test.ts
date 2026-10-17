@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { State, Transaction } from "./types";
-import { buildBackup, parseBackup, SCHEMA_VERSION } from "./backup";
+import {
+  BACKUP_DUE_DAYS, backupStatus, buildBackup, NO_BACKUP_META, noteBackupRestored, noteBackupSaved, noteGardenChange,
+  parseBackup, parseBackupMeta, SCHEMA_VERSION, serializeBackupMeta,
+} from "./backup";
 import { emptyState, sampleState } from "./state";
 
 const june15 = new Date(2026, 5, 15, 12);
@@ -229,5 +232,176 @@ describe("parseBackup — never throws (verifier round 2 / screenshot review)", 
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toContain("Nothing was changed");
+  });
+});
+
+/*
+ * The backup reminder's bookkeeping — kept under its
+ * own key, never inside the garden: "when was a backup last saved" and
+ * "since when has the garden held a change no backup covers".
+ */
+describe("backup reminder — bookkeeping", () => {
+  const at = (iso: string) => new Date(iso);
+
+  describe("parseBackupMeta never throws, and junk means 'nothing known'", () => {
+    // it.each runs one test per row — like pytest.mark.parametrize.
+    it.each([
+      ["nothing saved", null],
+      ["empty", ""],
+      ["not JSON", "{oops"],
+      ["a list", "[1,2]"],
+      ["a number", "7"],
+      ["null", "null"],
+    ])("%s → no backup, nothing unsaved", (_label, raw) => {
+      expect(parseBackupMeta(raw)).toEqual(NO_BACKUP_META);
+    });
+
+    it("reads a well-formed record", () => {
+      const raw = JSON.stringify({ lastAt: "2026-10-01T09:00:00.000Z", unsavedSince: "2026-10-05T10:00:00.000Z" });
+      expect(parseBackupMeta(raw)).toEqual({ lastAt: "2026-10-01T09:00:00.000Z", unsavedSince: "2026-10-05T10:00:00.000Z" });
+    });
+
+    it("drops a field that isn't a real date, keeping the other", () => {
+      const raw = JSON.stringify({ lastAt: "yesterday-ish", unsavedSince: "2026-10-05T10:00:00.000Z" });
+      expect(parseBackupMeta(raw)).toEqual({ lastAt: null, unsavedSince: "2026-10-05T10:00:00.000Z" });
+      expect(parseBackupMeta(JSON.stringify({ lastAt: 12, unsavedSince: null }))).toEqual(NO_BACKUP_META);
+    });
+
+    it("keeps fields it doesn't know (a newer build's), through every update", () => {
+      const raw = JSON.stringify({ lastAt: null, unsavedSince: null, snoozeUntil: "2026-12-01" });
+      const m = parseBackupMeta(raw);
+      expect(m.snoozeUntil).toBe("2026-12-01");
+      const changed = noteGardenChange(m, false, at("2026-10-10T08:00:00Z"));
+      const saved = noteBackupSaved(changed, at("2026-10-11T08:00:00Z"));
+      const restored = noteBackupRestored(changed);
+      for (const x of [changed, saved, restored]) {
+        expect(JSON.parse(serializeBackupMeta(x)).snoozeUntil).toBe("2026-12-01");
+      }
+    });
+
+    it("round-trips through serializeBackupMeta", () => {
+      const m = noteGardenChange(noteBackupSaved(NO_BACKUP_META, at("2026-10-01T09:00:00Z")), false, at("2026-10-02T09:00:00Z"));
+      expect(parseBackupMeta(serializeBackupMeta(m))).toEqual(m);
+    });
+  });
+
+  describe("noteGardenChange — the 'unsaved since' clock", () => {
+    it("starts the clock at the first change no backup covers", () => {
+      const m = noteGardenChange(NO_BACKUP_META, false, at("2026-10-10T08:00:00.000Z"));
+      expect(m.unsavedSince).toBe("2026-10-10T08:00:00.000Z");
+    });
+
+    it("keeps the OLDEST uncovered change — later changes don't restart it (same object back = nothing to write)", () => {
+      const first = noteGardenChange(NO_BACKUP_META, false, at("2026-10-10T08:00:00Z"));
+      const later = noteGardenChange(first, false, at("2026-10-20T08:00:00Z"));
+      expect(later).toBe(first);
+    });
+
+    it("a fresh (empty) garden has nothing to lose: the clock stops", () => {
+      const running = noteGardenChange(NO_BACKUP_META, false, at("2026-10-10T08:00:00Z"));
+      expect(noteGardenChange(running, true, at("2026-10-12T08:00:00Z")).unsavedSince).toBeNull();
+      // …and a garden that was already fresh with no clock is left alone.
+      expect(noteGardenChange(NO_BACKUP_META, true, at("2026-10-12T08:00:00Z"))).toBe(NO_BACKUP_META);
+    });
+
+    it("after starting fresh, the next real change starts a NEW clock (not the erased garden's)", () => {
+      const old = noteGardenChange(NO_BACKUP_META, false, at("2026-09-01T08:00:00Z"));
+      const erased = noteGardenChange(old, true, at("2026-10-10T08:00:00Z"));
+      const anew = noteGardenChange(erased, false, at("2026-10-11T08:00:00Z"));
+      expect(anew.unsavedSince).toBe(new Date("2026-10-11T08:00:00Z").toISOString());
+    });
+
+    it("restarts a clock left 'in the future' by a device clock that was ahead", () => {
+      const ahead = noteGardenChange(NO_BACKUP_META, false, at("2027-01-10T08:00:00Z")); // clock wrong
+      const fixed = noteGardenChange(ahead, false, at("2026-10-12T08:00:00.000Z")); // clock corrected
+      expect(fixed.unsavedSince).toBe("2026-10-12T08:00:00.000Z");
+      // …so the reminder isn't silenced until January: 14 days on, it's due.
+      expect(backupStatus(fixed, false, at("2026-10-27T08:00:00Z")).kind).toBe("due");
+    });
+
+    it("never touches lastAt", () => {
+      const saved = noteBackupSaved(NO_BACKUP_META, at("2026-10-01T09:00:00Z"));
+      expect(noteGardenChange(saved, false, at("2026-10-02T09:00:00Z")).lastAt).toBe(saved.lastAt);
+    });
+  });
+
+  describe("noteBackupSaved / noteBackupRestored", () => {
+    it("saving a backup records when, and covers every change so far", () => {
+      const running = noteGardenChange(NO_BACKUP_META, false, at("2026-10-01T08:00:00Z"));
+      const saved = noteBackupSaved(running, at("2026-10-20T18:30:00.000Z"));
+      expect(saved).toEqual({ lastAt: "2026-10-20T18:30:00.000Z", unsavedSince: null });
+    });
+
+    it("restoring a backup covers the garden (it IS that file) but isn't a new backup", () => {
+      const saved = noteBackupSaved(NO_BACKUP_META, at("2026-09-01T09:00:00Z"));
+      const running = noteGardenChange(saved, false, at("2026-09-05T09:00:00Z"));
+      const restored = noteBackupRestored(running);
+      expect(restored.unsavedSince).toBeNull();
+      expect(restored.lastAt).toBe(saved.lastAt); // the shed must not claim a backup was saved today
+    });
+
+    it("restoring with nothing uncovered is a no-op (same object back)", () => {
+      expect(noteBackupRestored(NO_BACKUP_META)).toBe(NO_BACKUP_META);
+    });
+  });
+
+  describe("backupStatus — what the shed says", () => {
+    // Local-calendar times (no Z): day counting is by the user's calendar.
+    const changedOn = (y: number, mo: number, d: number, h = 9) =>
+      noteGardenChange(NO_BACKUP_META, false, new Date(y, mo, d, h));
+
+    it("says nothing for a fresh garden — there's nothing to back up", () => {
+      expect(backupStatus(changedOn(2026, 8, 1), true, new Date(2026, 9, 17))).toEqual({ kind: "hidden" });
+    });
+
+    it("'never' when no backup was ever saved and nothing is overdue", () => {
+      expect(backupStatus(NO_BACKUP_META, false, new Date(2026, 9, 17))).toEqual({ kind: "never" });
+      expect(backupStatus(changedOn(2026, 9, 10), false, new Date(2026, 9, 17))).toEqual({ kind: "never" });
+    });
+
+    it("'saved' with the date of the last backup while nothing is overdue", () => {
+      const saved = noteBackupSaved(NO_BACKUP_META, new Date(2026, 9, 3, 20));
+      const s = backupStatus(saved, false, new Date(2026, 9, 17));
+      expect(s.kind).toBe("saved");
+      expect(s.kind === "saved" && s.lastAt.getTime()).toBe(new Date(2026, 9, 3, 20).getTime());
+    });
+
+    it(`is due once the oldest uncovered change is ${BACKUP_DUE_DAYS} calendar days old — not a day sooner`, () => {
+      const m = changedOn(2026, 9, 1, 23); // Oct 1, late evening
+      expect(backupStatus(m, false, new Date(2026, 9, 14, 23, 59))).toEqual({ kind: "never" }); // 13 days
+      expect(backupStatus(m, false, new Date(2026, 9, 15, 0, 1))).toEqual({ kind: "due", days: 14, lastAt: null }); // 14
+    });
+
+    it("counts calendar days, not 24-hour blocks (an early-morning check still counts the day)", () => {
+      const m = changedOn(2026, 9, 1, 23); // Oct 1, 23:00
+      expect(backupStatus(m, false, new Date(2026, 9, 20, 0, 30))).toEqual({ kind: "due", days: 19, lastAt: null });
+    });
+
+    it("carries the last backup's date when due", () => {
+      const saved = noteBackupSaved(NO_BACKUP_META, new Date(2026, 8, 1, 9));
+      const m = noteGardenChange(saved, false, new Date(2026, 8, 2, 9));
+      const s = backupStatus(m, false, new Date(2026, 9, 17, 9));
+      expect(s.kind).toBe("due");
+      expect(s.kind === "due" && s.lastAt?.getTime()).toBe(new Date(2026, 8, 1, 9).getTime());
+      expect(s.kind === "due" && s.days).toBe(45);
+    });
+
+    it("a clock set backwards (change 'in the future') is simply not due", () => {
+      const m = changedOn(2026, 11, 25);
+      expect(backupStatus(m, false, new Date(2026, 9, 17)).kind).toBe("never");
+    });
+
+    describe("across daylight saving (real zone)", () => {
+      // vi.stubEnv sets process.env.TZ for one test, like pytest's
+      // monkeypatch.setenv; unstubAllEnvs puts it back.
+      afterEach(() => { vi.unstubAllEnvs(); });
+      it("a 23-hour spring-forward day still counts as one day (New York, Mar 8 2026)", () => {
+        vi.stubEnv("TZ", "America/New_York");
+        const m = changedOn(2026, 1, 23, 12); // Feb 23 noon
+        // Mar 9 is 14 calendar days later, but midnight-to-midnight spans
+        // only 13d 23h (one day had 23 hours) — flooring ms/86400000 says 13.
+        expect(backupStatus(m, false, new Date(2026, 2, 9, 0, 30))).toEqual({ kind: "due", days: 14, lastAt: null });
+      });
+    });
   });
 });

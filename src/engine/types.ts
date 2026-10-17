@@ -176,6 +176,9 @@ export const STORAGE_KEY = "money-garden:state-v1";
  * only copy. Each copy gets its own timestamped key (`<prefix>:<ISO time>`),
  * so a second incident can never overwrite the first one's copy. */
 export const UNREADABLE_KEY_PREFIX = "money-garden:unreadable-save";
+/** The backup reminder's bookkeeping (engine backup.ts BackupMeta) — its
+ * own key, deliberately outside the garden and its schema. */
+export const BACKUP_META_KEY = "money-garden:backup-reminder";
 
 export const DEFAULT_INVEST: Invest = {
   holdings: [], monthly: 0, ret: 7, birthYear: 0, retireAge: 65, wr: 4, retireSpend: 0,

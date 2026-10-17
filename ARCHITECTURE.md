@@ -79,7 +79,8 @@ leaves on that trunk; the engine could be transplanted into another frontend
 │               loadSaved and parseBackup (depends on types.ts only)     │
 │   backup.ts   buildBackup(), parseBackup() → seed-vault envelope       │
 │               (imports run through migrate, so barrel-less backups     │
-│               gain the barrel on import too; damaged files refused)    │
+│               gain the barrel on import too; damaged files refused);   │
+│               BackupMeta + backupStatus() → the shed's backup line     │
 │   storage.ts  createStore() → three-tier adapter (below);              │
 │               createSaveQueue() → one write in flight, newest wins;    │
 │               store.subscribe() → hear other tabs' saves (read-only)   │
@@ -112,7 +113,9 @@ the App; the same state back means refused or no-op) → `commit` →
 2. sets React state;
 3. hands the garden to the **save queue** (`createSaveQueue`): one write in
    flight, the newest pending garden wins, a failed write never wedges it —
-   so with an async store an older garden can't overwrite a newer one.
+   so with an async store an older garden can't overwrite a newer one;
+4. notes the change for the backup reminder (`noteGardenChange`, written
+   to its own key only when the clock actually starts or stops).
 
 There is exactly one writer; components never touch storage. The rest of the
 changes call `state.ts` engine functions directly (they predate `actions.ts`
@@ -176,6 +179,22 @@ drafts — only the garden they're handed changes. It is last-writer-wins
 `subscribe` only hears localStorage: with platform storage present it
 ignores local events, and a host without them (no `addEventListener`) gets
 a no-op.
+
+**Backup reminder** (since v0.18.1): a second key,
+`money-garden:backup-reminder`, holds `BackupMeta` (engine `backup.ts`) —
+`lastAt` (last Save backup) and `unsavedSince` (the oldest change no backup
+covers). It lives outside the garden on purpose: no schema change, and a
+backup file never carries "when was I backed up". `setStateSafe` notes each
+accepted change (`noteGardenChange` — starts the clock once; an emptied
+garden stops it), Save backup calls `noteBackupSaved`, a confirmed import
+`noteBackupRestored` (covered, but not a new backup). Each update is written
+only when it changed something, through its own save queue; other tabs adopt
+it via `subscribe` (except while that tab's own saves are failing — its
+changes exist nowhere else). A start time in the future (device clock was
+ahead) restarts the clock. The shed renders `backupStatus` as a passive line
+— "No backup saved from this browser yet." / "Last backup: Oct 3." / amber
+once the oldest uncovered change is 14 calendar days old. A damaged record
+reads as "nothing known".
 
 ## Engine module dependencies (arrows = imports)
 

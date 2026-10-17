@@ -139,3 +139,102 @@ export function parseBackup(raw: string, now: Date = new Date()): ParseResult {
     },
   };
 }
+
+/* ------------------------------------------------------------------ *
+ * The backup reminder's bookkeeping. Kept under its own storage key
+ * (BACKUP_META_KEY), never inside the garden: it's about this browser's
+ * copy, not the money — and a backup file shouldn't carry "when was I
+ * last backed up". The UI shows the result in the shed (a passive line,
+ * amber when due); nothing here ever interrupts.
+ * ------------------------------------------------------------------ */
+
+/** Due once the oldest change no backup covers is this many calendar days old. */
+export const BACKUP_DUE_DAYS = 14;
+
+/**
+ * What's known about backups in this browser. ISO timestamps; null =
+ * never / nothing. The index signature keeps fields a newer build may add
+ * (like a dict's extra keys) through every update — never silently dropped.
+ */
+export interface BackupMeta {
+  /** When a backup file was last saved from this browser. */
+  lastAt: string | null;
+  /** When the garden first changed after the last backup (or ever, if
+   * none) — the age of the oldest change that exists only in the browser. */
+  unsavedSince: string | null;
+  [extra: string]: unknown;
+}
+
+// Frozen (like a frozen dataclass): every update returns a new object, and
+// a stray in-place write to this shared default would throw instead.
+export const NO_BACKUP_META: BackupMeta = Object.freeze({ lastAt: null, unsavedSince: null });
+
+/** An ISO-ish string that parses to a real moment, or null. */
+const asMoment = (v: unknown): string | null =>
+  typeof v === "string" && Number.isFinite(Date.parse(v)) ? v : null;
+
+/** Never throws: anything unreadable means "nothing known" (the reminder
+ * then simply starts over — it guards data, it isn't data). */
+export function parseBackupMeta(raw: string | null | undefined): BackupMeta {
+  if (!raw) return NO_BACKUP_META;
+  let v: unknown;
+  try { v = JSON.parse(raw); } catch { return NO_BACKUP_META; }
+  if (typeof v !== "object" || v === null || Array.isArray(v)) return NO_BACKUP_META;
+  const o = v as Record<string, unknown>;
+  return { ...o, lastAt: asMoment(o.lastAt), unsavedSince: asMoment(o.unsavedSince) };
+}
+
+export const serializeBackupMeta = (m: BackupMeta): string => JSON.stringify(m);
+
+/**
+ * The garden was just saved. Starts the "unsaved since" clock if it isn't
+ * running — later changes never restart it, so it always dates the OLDEST
+ * uncovered change. A fresh (empty) garden has nothing to lose, so the
+ * clock stops (after "Start fresh", the next real change starts a new one).
+ * A start time in the future (the device clock was ahead) restarts it.
+ * Returns the same object when nothing changed — the caller skips the write,
+ * like the engine actions' "same state back = no-op".
+ */
+export function noteGardenChange(m: BackupMeta, gardenIsFresh: boolean, now: Date): BackupMeta {
+  if (gardenIsFresh) return m.unsavedSince === null ? m : { ...m, unsavedSince: null };
+  // A clock that was running ahead (since corrected) left a start time in
+  // the "future": keeping it would hide the reminder until that date comes
+  // round — possibly months. Restart from now instead.
+  const running = m.unsavedSince !== null && Date.parse(m.unsavedSince) <= now.getTime();
+  return running ? m : { ...m, unsavedSince: now.toISOString() };
+}
+
+/** A backup file was just saved: every change so far is covered. */
+export const noteBackupSaved = (m: BackupMeta, now: Date): BackupMeta =>
+  ({ ...m, lastAt: now.toISOString(), unsavedSince: null });
+
+/** A backup was just restored: the garden now IS that file, so nothing is
+ * uncovered — but no new backup was saved, so lastAt stays as it was. */
+export const noteBackupRestored = (m: BackupMeta): BackupMeta =>
+  m.unsavedSince === null ? m : { ...m, unsavedSince: null };
+
+export type BackupStatus =
+  | { kind: "hidden" } // fresh garden — nothing to back up, say nothing
+  | { kind: "never" } // no backup yet, nothing overdue
+  | { kind: "saved"; lastAt: Date } // last backup date, nothing overdue
+  | { kind: "due"; days: number; lastAt: Date | null }; // oldest uncovered change is `days` old
+
+/** Whole local-calendar days from `from`'s date to `to`'s date. Midnight to
+ * midnight, ROUNDED: a daylight-saving day of 23 or 25 hours still counts
+ * as one (flooring would lose a day across spring-forward). */
+const calendarDaysBetween = (from: Date, to: Date): number =>
+  Math.round(
+    (new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime() -
+      new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime()) / 86_400_000,
+  );
+
+export function backupStatus(m: BackupMeta, gardenIsFresh: boolean, now: Date): BackupStatus {
+  if (gardenIsFresh) return { kind: "hidden" };
+  const lastAt = m.lastAt ? new Date(m.lastAt) : null;
+  if (m.unsavedSince) {
+    const days = calendarDaysBetween(new Date(m.unsavedSince), now);
+    // A clock set backwards makes `days` negative — simply not due.
+    if (days >= BACKUP_DUE_DAYS) return { kind: "due", days, lastAt };
+  }
+  return lastAt ? { kind: "saved", lastAt } : { kind: "never" };
+}
