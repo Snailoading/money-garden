@@ -43,6 +43,16 @@ export const toLocalISO = (d: Date): string =>
 /** Today as YYYY-MM-DD, local calendar. */
 export const todayISO = (now: Date = new Date()): string => toLocalISO(now);
 
+/**
+ * Milliseconds from `now` until the next local day begins — when "today"
+ * turns over. Built from the calendar (`new Date(y, m, d + 1)` = the next
+ * day's first instant), not `now + 24h`, so daylight-saving days of 23 or
+ * 25 hours land exactly; month/year overflow is handled by Date itself
+ * (day 32 of October = November 1). Always > 0.
+ */
+export const msUntilNextDay = (now: Date): number =>
+  new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime() - now.getTime();
+
 /** Current month as YYYY-MM, local calendar. */
 export const monthKey = (d: Date = new Date()): string =>
   toLocalISO(d).slice(0, 7);

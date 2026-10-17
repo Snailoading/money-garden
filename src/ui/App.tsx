@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Commitment, Goal, Invest, State, Transaction } from "../engine/types";
 import { DEFAULT_INVEST, STORAGE_KEY, UNREADABLE_KEY_PREFIX } from "../engine/types";
-import { fmt, monthKey, monthLabel, uid } from "../engine/format";
+import { fmt, monthLabel, uid } from "../engine/format";
 import { derive, deriveMonthView, weatherFor } from "../engine/stats";
 import { monthRange } from "../engine/trends";
 import { canRemoveTransaction, deleteGoal as engineDeleteGoal, emptyState, insertGoal, isFreshGarden, linkedAmountBounds, loadSaved, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
@@ -20,6 +20,7 @@ import { store } from "./store";
 import { downloadText } from "./download";
 import { Recovery } from "./Recovery";
 import { createSaveQueue, type SaveQueue, type SetResult, type StorageMode } from "../engine/storage";
+import { useToday } from "./hooks";
 import { checkPersistentStorage, requestPersistentStorage, storageNote } from "./storageNote";
 import { C, INSTALL_HINT_KEY, isIOS, isStandalone, isTouchDevice, resolveTheme, THEME_COLOR, THEME_KEY, type ThemeMode } from "./theme";
 import { Overview } from "./tabs/Overview";
@@ -306,9 +307,21 @@ export function MoneyGarden() {
   }, [installPref]);
 
   /* ---------- derived numbers (engine) ---------- */
-  const derived = useMemo(() => (state ? derive(state) : null), [state]);
+  const today = useToday();
+  // A month picked a moment before `today` caught up with midnight (e.g.
+  // tapping the brand-new month's Seasons bar at 00:00:00.5) would become
+  // "browsing the current month" — stuck in history mode. Once the day
+  // turns over, that month IS today: drop back to the live view.
+  useEffect(() => {
+    setViewYm((v) => (v === today.slice(0, 7) ? null : v));
+  }, [today]);
+  // `today` is a cache key, not an input: derive() reads the clock itself,
+  // and keying on the date makes it re-read it when the day turns over —
+  // before, these only refreshed on the next save, so a garden left open
+  // overnight kept yesterday's pace, due dates and month.
+  const derived = useMemo(() => (state ? derive(state) : null), [state, today]);
   const monthView = useMemo(() => (state && viewYm ? deriveMonthView(state, viewYm) : null), [state, viewYm]);
-  const months = useMemo(() => (state ? monthRange(state) : []), [state]);
+  const months = useMemo(() => (state ? monthRange(state) : []), [state, today]);
 
   if (unreadable) {
     return <Recovery raw={unreadable.raw} reason={unreadable.reason} onStartFresh={onStartFreshOverUnreadable} />;
@@ -514,7 +527,9 @@ export function MoneyGarden() {
   };
 
   /* ---------- month navigation ---------- */
-  const currentYm = monthKey();
+  // From `today`, not the clock: the same date the memos above are keyed
+  // on, so the header's month never runs ahead of the numbers beneath it.
+  const currentYm = today.slice(0, 7);
   const shownYm = viewYm ?? currentYm;
   const shownIdx = months.indexOf(shownYm);
   const canPrev = shownIdx > 0;
@@ -622,11 +637,11 @@ export function MoneyGarden() {
         )}
 
         {tab === "overview" && <Overview state={state} d={derived} view={monthView} setIncome={setIncome} goTo={(t) => switchTab(t as TabId)} goToDraws={goToDraws} />}
-        {tab === "log" && <Log state={state} d={derived} view={monthView} addTransaction={addTransaction} deleteTransaction={deleteTransaction} updateTransaction={editTransaction} markNoSpend={markNoSpendDay} initialFilter={logPreset} />}
-        {tab === "budgets" && <Budgets state={state} d={derived} view={monthView} setBudget={setBudget} addCommitment={addCommitment} deleteCommitment={deleteCommitment} logCommitmentPayment={logCommitmentPayment} updateCommitment={editCommitment} />}
+        {tab === "log" && <Log state={state} d={derived} view={monthView} today={today} addTransaction={addTransaction} deleteTransaction={deleteTransaction} updateTransaction={editTransaction} markNoSpend={markNoSpendDay} initialFilter={logPreset} />}
+        {tab === "budgets" && <Budgets state={state} d={derived} view={monthView} today={today} setBudget={setBudget} addCommitment={addCommitment} deleteCommitment={deleteCommitment} logCommitmentPayment={logCommitmentPayment} updateCommitment={editCommitment} />}
         {tab === "garden" && <Garden state={state} monthlyExpenses={derived.monthlyExpenses} expensesBasis={derived.expensesBasis} addGoal={addGoal} waterGoal={waterGoal} deleteGoal={deleteGoal} updateGoal={editGoal} drawFromGoal={drawFromGoal} setupEmergencyFund={setupBarrel} />}
         {tab === "orchard" && <Orchard state={state} d={derived} setInvest={setInvest} addHolding={addHolding} updateHolding={updateHolding} deleteHolding={deleteHolding} waterOrchard={waterOrchard} />}
-        {tab === "seasons" && <Seasons state={state} goToMonth={(ym) => { goToMonth(ym); setTab("overview"); }} />}
+        {tab === "seasons" && <Seasons state={state} today={today} goToMonth={(ym) => { goToMonth(ym); setTab("overview"); }} />}
         {tab === "advice" && <Advice state={state} d={derived} showInstallTip={installPref !== "muted"} onMuteInstallTip={muteInstallTip} />}
 
         {/* ===== import confirm card ===== */}

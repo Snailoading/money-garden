@@ -130,6 +130,18 @@ commitments), `deriveMonthView(state, viewYm)` when browsing a past month,
 plain data (`d`, `view`, callbacks) and render it; `MonthView`'s field names
 mirror `Derived`'s so tabs read `view ?? d`.
 
+Those memos also key on **today's date** (since v0.18.1): `useToday()` in
+`src/ui/hooks.ts` holds the local `YYYY-MM-DD`, re-checked by a timer at the
+next local midnight (`msUntilNextDay` in engine `format.ts`, DST-exact),
+whenever the tab is shown or focused (a sleeping phone misses timers), and
+once a minute as a safety net. The engine still reads the clock itself; the
+date is only a cache key, so a garden left open overnight turns over to the
+new day/month without waiting for a save. The header's current month reads
+the same `today`, so it never disagrees with the numbers. Form dates that
+default to today (the Log's new entry, a new fortnightly vine's anchor) use
+`useDateDefault(today)`: they follow the day while still showing the old
+default; a different date the user picked is never moved.
+
 On load (since v0.17.4): `store.get(key)` → `loadSaved(raw)` = `JSON.parse`
 → fill missing top-level fields from a fresh state → `migrate()` (fills
 missing fields from defaults, **never drops unknown fields**) →
