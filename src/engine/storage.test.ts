@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { STORAGE_KEY } from "./types";
-import { createSaveQueue, createStore, type PlatformStorage, type SetResult, type StoreEnv } from "./storage";
+import { createSaveQueue, createStore, type LocalChange, type PlatformStorage, type SetResult, type StoreEnv } from "./storage";
 
 // Fake hosts injected instead of globalThis — like passing a fake filesystem
 // into a Python function under test.
@@ -227,5 +227,169 @@ describe("createSaveQueue — one failed write must never stop later saves (veri
     q.save("good");
     await q.idle();
     expect(local.data.k).toBe("good");
+  });
+});
+
+/**
+ * A fake "other tabs": `emit` plays a change another tab made to local
+ * storage, the way the browser's `storage` event would deliver it. Counts
+ * live listeners so tests can see unsubscribe really let go.
+ */
+const fakeWatch = () => {
+  const listeners = new Set<(c: LocalChange) => void>();
+  return {
+    emit: (c: LocalChange) => { for (const l of [...listeners]) l(c); },
+    live: () => listeners.size,
+    watchLocal: (l: (c: LocalChange) => void) => {
+      listeners.add(l);
+      return () => { listeners.delete(l); };
+    },
+  };
+};
+
+describe("subscribe — hear saves made by other tabs", () => {
+  const watched = (platform: PlatformStorage | null = null) => {
+    const w = fakeWatch();
+    const store = createStore({ ...env(platform, fakeLocal()), watchLocal: w.watchLocal });
+    return { w, store };
+  };
+
+  it("passes on the new value when another tab saves the watched key", () => {
+    const { w, store } = watched();
+    const heard: (string | null)[] = [];
+    store.subscribe(STORAGE_KEY, (v) => heard.push(v));
+    w.emit({ key: STORAGE_KEY, newValue: "newer garden" });
+    expect(heard).toEqual(["newer garden"]);
+  });
+
+  it("ignores other keys (the theme, the install hint…)", () => {
+    const { w, store } = watched();
+    const heard: (string | null)[] = [];
+    store.subscribe(STORAGE_KEY, (v) => heard.push(v));
+    w.emit({ key: "money-garden:theme", newValue: "night" });
+    expect(heard).toEqual([]);
+  });
+
+  it("reports a removed key as null", () => {
+    const { w, store } = watched();
+    const heard: (string | null)[] = [];
+    store.subscribe(STORAGE_KEY, (v) => heard.push(v));
+    w.emit({ key: STORAGE_KEY, newValue: null });
+    expect(heard).toEqual([null]);
+  });
+
+  it("reports a cleared store (key: null) as null for every subscriber", () => {
+    const { w, store } = watched();
+    const garden: (string | null)[] = [];
+    const theme: (string | null)[] = [];
+    store.subscribe(STORAGE_KEY, (v) => garden.push(v));
+    store.subscribe("money-garden:theme", (v) => theme.push(v));
+    w.emit({ key: null, newValue: null });
+    expect(garden).toEqual([null]);
+    expect(theme).toEqual([null]);
+  });
+
+  it("stops listening after unsubscribe", () => {
+    const { w, store } = watched();
+    const heard: (string | null)[] = [];
+    const stop = store.subscribe(STORAGE_KEY, (v) => heard.push(v));
+    expect(w.live()).toBe(1);
+    stop();
+    expect(w.live()).toBe(0);
+    w.emit({ key: STORAGE_KEY, newValue: "after stop" });
+    expect(heard).toEqual([]);
+  });
+
+  it("ignores local changes while platform storage holds the data", () => {
+    const { w, store } = watched(fakePlatform());
+    const heard: (string | null)[] = [];
+    store.subscribe(STORAGE_KEY, (v) => heard.push(v));
+    w.emit({ key: STORAGE_KEY, newValue: "a stray local write" });
+    expect(heard).toEqual([]);
+  });
+
+  it("never writes and never moves the reported tier", async () => {
+    const local = fakeLocal();
+    const w = fakeWatch();
+    const store = createStore({ ...env(null, local), watchLocal: w.watchLocal });
+    await store.set(STORAGE_KEY, "mine");
+    store.subscribe(STORAGE_KEY, () => {});
+    w.emit({ key: STORAGE_KEY, newValue: "theirs" });
+    expect(local.data[STORAGE_KEY]).toBe("mine"); // hearing is not saving
+    expect(store.mode()).toBe("local");
+  });
+
+  it("is a harmless no-op on a host that can't watch (memory-only, native shells)", () => {
+    const store = createStore(env(null, null));
+    const stop = store.subscribe(STORAGE_KEY, () => { throw new Error("must never fire"); });
+    expect(() => stop()).not.toThrow();
+  });
+});
+
+describe("subscribe — the default browser host (the real `storage` event wiring)", () => {
+  // vi.stubGlobal swaps globalThis.x for one test, like
+  // unittest.mock.patch("builtins.x"); unstubAllGlobals puts it back.
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  /** Stubs globalThis as a browser page: a localStorage plus storage events. */
+  const browserHost = () => {
+    const local = fakeLocal();
+    const session = fakeLocal();
+    const listeners = new Set<(e: unknown) => void>();
+    vi.stubGlobal("localStorage", local);
+    vi.stubGlobal("addEventListener", (type: string, l: (e: unknown) => void) => {
+      if (type === "storage") listeners.add(l);
+    });
+    vi.stubGlobal("removeEventListener", (type: string, l: (e: unknown) => void) => {
+      if (type === "storage") listeners.delete(l);
+    });
+    const fire = (e: { key: string | null; newValue: string | null; storageArea: unknown }) => {
+      for (const l of [...listeners]) l(e);
+    };
+    return { local, session, listeners, fire };
+  };
+
+  it("hears a localStorage change made by another tab", () => {
+    const host = browserHost();
+    const heard: (string | null)[] = [];
+    createStore().subscribe(STORAGE_KEY, (v) => heard.push(v));
+    host.fire({ key: STORAGE_KEY, newValue: "theirs", storageArea: host.local });
+    expect(heard).toEqual(["theirs"]);
+  });
+
+  it("ignores sessionStorage changes (same event, different storage area)", () => {
+    const host = browserHost();
+    const heard: (string | null)[] = [];
+    createStore().subscribe(STORAGE_KEY, (v) => heard.push(v));
+    host.fire({ key: STORAGE_KEY, newValue: "session only", storageArea: host.session });
+    expect(heard).toEqual([]);
+  });
+
+  it("removes its browser listener on unsubscribe", () => {
+    const host = browserHost();
+    const stop = createStore().subscribe(STORAGE_KEY, () => {});
+    expect(host.listeners.size).toBe(1);
+    stop();
+    expect(host.listeners.size).toBe(0);
+  });
+
+  it("ignores the event, without throwing, when localStorage itself is blocked", () => {
+    const host = browserHost();
+    // Some browsers throw a SecurityError just for READING the localStorage
+    // property when site data is blocked.
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      get() { throw new Error("SecurityError"); },
+    });
+    const heard: (string | null)[] = [];
+    createStore().subscribe(STORAGE_KEY, (v) => heard.push(v));
+    expect(() => host.fire({ key: STORAGE_KEY, newValue: "x", storageArea: host.local })).not.toThrow();
+    expect(heard).toEqual([]);
+  });
+
+  it("is a no-op where there are no events to listen to (plain Node)", () => {
+    vi.stubGlobal("addEventListener", undefined);
+    const stop = createStore().subscribe(STORAGE_KEY, () => {});
+    expect(() => stop()).not.toThrow();
   });
 });

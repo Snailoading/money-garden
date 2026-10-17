@@ -81,7 +81,8 @@ leaves on that trunk; the engine could be transplanted into another frontend
 │               (imports run through migrate, so barrel-less backups     │
 │               gain the barrel on import too; damaged files refused)    │
 │   storage.ts  createStore() → three-tier adapter (below);              │
-│               createSaveQueue() → one write in flight, newest wins     │
+│               createSaveQueue() → one write in flight, newest wins;    │
+│               store.subscribe() → hear other tabs' saves (read-only)   │
 └───────────────┬────────────────────────────────────────────────────────┘
                 │  one JSON string, key "money-garden:state-v1"
 ┌───────────────▼────────────────────────────────────────────────────────┐
@@ -143,6 +144,26 @@ Backup import runs the same fill → `migrate()` → `findStateProblems()`
 sequence and refuses damaged files before the confirm card — one gate for
 both doors. The gate's bar is "would crash or corrupt the sums", never
 "looks unusual": every shape the app has ever written must pass.
+
+**Other tabs** (since v0.18.1): a second tab of the app holds its own copy
+of the garden in memory, so before this a stale background tab's next edit
+saved its old garden over everything done elsewhere. Now `App.tsx`
+subscribes (`store.subscribe(STORAGE_KEY, …)`, wrapping the browser's
+`storage` event, which fires only in the OTHER tabs) and runs each incoming
+save through the same `loadSaved` verdict as startup: **ok** → adopt it
+with a plain `setState` — a read, never a write, so tabs can't echo saves
+at each other (a visible tab also toasts "updated from another tab");
+**unreadable** → `Recovery.tsx`, writing nothing; **fresh** (the key was
+removed, e.g. from devtools) → keep the garden on screen, and the tab's
+next change saves it again. One exception comes first: while this tab's
+OWN latest save fell through to memory (quota, privacy mode), its screen
+holds the only copy of its recent changes, so nothing is adopted — a toast
+says another tab saved and suggests a backup. Half-typed forms keep their
+drafts — only the garden they're handed changes. It is last-writer-wins
+(no merging); a single person editing one tab at a time never notices.
+`subscribe` only hears localStorage: with platform storage present it
+ignores local events, and a host without them (no `addEventListener`) gets
+a no-op.
 
 ## Engine module dependencies (arrows = imports)
 

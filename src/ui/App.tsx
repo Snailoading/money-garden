@@ -69,6 +69,10 @@ export function MoneyGarden() {
    */
   const [installPref, setInstallPref] = useState<"show" | "dismissed" | "muted">("muted");
   const memoryFallback = useRef(false);
+  /** This tab's latest own save fell through to memory (quota, privacy
+   * mode) — while true, saves from other tabs are NOT adopted. A ref, not
+   * state, so the cross-tab listener (made once) always reads it fresh. */
+  const ownWritesFailing = useRef(false);
   /** The initial write of a fresh garden skips the memory toast (the banner covers it). */
   const quietNextWrite = useRef(false);
   /** The garden's save queue — created once per mount, on first use (a lazy
@@ -107,6 +111,48 @@ export function MoneyGarden() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /**
+   * Another tab saved the garden: show that one instead. Without this, a
+   * tab left open in the background keeps its OLD garden in memory, and its
+   * next edit saves the old garden over everything done in the other tab.
+   * Adopting is a read, never a write (plain setState, not setStateSafe) —
+   * writing back would make the tabs echo saves at each other. Editors keep
+   * their typed drafts: only the garden they're handed changes.
+   */
+  // (The arrow's return value — subscribe's unsubscribe function — is the
+  // effect's cleanup, run on unmount: like a context manager's __exit__.)
+  useEffect(() => store.subscribe(STORAGE_KEY, (raw) => {
+    // This tab's own saves are failing (quota → memory): its garden on
+    // screen is the ONLY copy of its recent changes. Never swap it out
+    // unasked — keep it, and say so.
+    if (ownWritesFailing.current) {
+      showToast("⚠️ Another tab saved changes — this tab's unsaved garden is kept. Save a backup before reloading.");
+      return;
+    }
+    const loaded = loadSaved(raw);
+    if (loaded.kind === "ok") {
+      setUnreadable(null); // the other tab settled a damaged save (e.g. started fresh)
+      setState(loaded.state);
+      // The setter's function form reads the CURRENT value — this handler
+      // was created on the first render, so a plain `storageMode` here
+      // would be that render's stale value. Only fill in a missing tier
+      // (this tab was on Recovery or still loading).
+      setStorageMode((m) => m ?? "local");
+      // Browsing a month the new garden doesn't reach (it was replaced or
+      // cleared over there)? Come back to today, as a same-tab replace does.
+      setViewYm((v) => (v && !monthRange(loaded.state).includes(v) ? null : v));
+      // A background tab adopts quietly; a visible one (side-by-side
+      // windows) says why the screen just changed under the user.
+      if (document.visibilityState === "visible") showToast("🔄 Garden updated from another tab");
+    } else if (loaded.kind === "unreadable") {
+      // Same rule as on startup: show Recovery and write nothing over it.
+      setUnreadable({ raw: raw ?? "", reason: loaded.reason });
+    }
+    // "fresh" — the save was removed (devtools, cleared site data): keep
+    // the garden on screen; this tab's next change saves it again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
 
   /**
    * Where the garden actually lives — the tier that handled the latest
@@ -177,6 +223,7 @@ export function MoneyGarden() {
     // Follows every save: a mid-session quota failure drops to memory
     // (banner appears), and a later successful write brings it back.
     setStorageMode(r.mode);
+    ownWritesFailing.current = !r.persisted;
     const quiet = quietNextWrite.current;
     quietNextWrite.current = false;
     // The memory tier reports persisted: false — also toast it once, like
