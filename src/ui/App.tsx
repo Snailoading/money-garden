@@ -62,6 +62,10 @@ export function MoneyGarden() {
   const [viewYm, setViewYm] = useState<string | null>(null);
   /** ☀️ day / 🌙 night / 🌗 auto (follows the clock, day 7am–7pm). */
   const [themeMode, setThemeMode] = useState<ThemeMode>("auto");
+  /** The saved mode has been read. Until then the index.html boot script's
+   * pre-paint stamp stands — applying the "auto" placeholder above would
+   * flash a 🌙 night user's garden to day (or a ☀️ day user's to night). */
+  const [themeLoaded, setThemeLoaded] = useState(false);
   /**
    * Install-hint preference: "show" → overlay + Advice-tab tip · "dismissed"
    * (overlay closed) → Advice tip only, in case it was closed hastily ·
@@ -285,10 +289,19 @@ export function MoneyGarden() {
       const res = await store.get(THEME_KEY);
       const v = res?.value;
       if (v === "day" || v === "night" || v === "auto") setThemeMode(v);
+      // Both updates land in ONE render: React 18 batches state updates
+      // made in the same tick (collect the changes, redraw once). And the
+      // order is safe even without that — mode first, then "loaded" — so
+      // the first apply always uses the saved mode. (No tap can come first
+      // with localStorage/memory: the toggle appears only once the garden
+      // has loaded, after this read. An async platform store could
+      // reorder that — revisit with the Expo shell.)
+      setThemeLoaded(true);
     })();
   }, []);
 
   useEffect(() => {
+    if (!themeLoaded) return; // the boot script's stamp is already right
     const apply = () => {
       const t = resolveTheme(themeMode);
       document.documentElement.dataset.theme = t;
@@ -305,7 +318,7 @@ export function MoneyGarden() {
       clearInterval(iv);
       document.removeEventListener("visibilitychange", apply);
     };
-  }, [themeMode]);
+  }, [themeMode, themeLoaded]);
 
   const cycleTheme = () => {
     const next: ThemeMode = themeMode === "day" ? "night" : themeMode === "night" ? "auto" : "day";

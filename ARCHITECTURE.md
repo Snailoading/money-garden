@@ -242,7 +242,10 @@ flip on `<html>`. A boot script in `index.html` stamps the theme *before
 first paint* (direct localStorage read — the documented exception to the
 adapter rule); `App.tsx` owns the ☀️/🌙/🌗 mode (persisted under
 `money-garden:theme` via the adapter) and re-resolves auto mode (clock-based,
-day 7am–7pm) on a timer. SVG colors go through `style=`, never presentation
+day 7am–7pm) on a timer. App leaves the boot script's stamp alone until the
+saved mode has loaded (since v0.18.1) — applying its "auto" placeholder
+first briefly flipped a 🌙 night user to day (or a ☀️ day user to night)
+on every launch. SVG colors go through `style=`, never presentation
 attributes, because the latter don't resolve `var()`.
 
 Cold starts paint a static splash (since v0.14.4): inline `<style>` + inlined
