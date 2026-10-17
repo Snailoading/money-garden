@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.18.1 — 2026-10-17 · *Every tab, every morning* 🌅
+
+### Fixed
+
+- **Two open tabs no longer undo each other.** A garden left open in a
+  second tab (or window) kept its own old copy, so its next change saved
+  that old copy over everything you'd done elsewhere. Now every open tab
+  follows the latest save the moment it happens — a visible tab says
+  "Garden updated from another tab" — and anything half-typed in a form
+  stays put. If a tab can't save at all (storage full), it keeps its own
+  garden rather than swap out changes that exist only on its screen.
+- **The garden turns over at midnight.** Left open overnight, it used to
+  stay on yesterday — the month in the header, the daily pace, due dates,
+  the Seasons charts — until you changed something. Worse, the Log's date
+  stayed on yesterday too, so the morning's first coffee was logged on the
+  wrong day (and, on the 1st, in the wrong month). Now it all moves to the
+  new day at midnight, or the moment the app wakes up. A different date
+  you picked yourself (say, backdating a receipt) stays put.
+- **No more flash of the wrong garden at startup.** If you'd chosen 🌙
+  night and opened the app during the day (or ☀️ day at night), the
+  garden blinked to the other colours for an instant before settling.
+  It now opens in your colours from the first frame.
+
+### Added
+
+- **The shed keeps track of your backups.** It shows when you last saved
+  one — "Last backup: Oct 3." (or, until you do, "No backup saved from
+  this browser yet.") — and once a change has gone two weeks without a
+  backup, that line turns amber: "Your garden has changes from 16 days ago
+  that aren't in a backup yet." Nothing pops up or gets in the way; it
+  just makes sure you'd notice. The two weeks count from your first change
+  after updating. Restoring a backup counts as covered, starting fresh
+  clears it.
+
 ## 0.18.0 — 2026-10-17 · *Steady hands* 🤲
 
 ### Fixed
