@@ -33,13 +33,17 @@ function Legend({ items }: { items: [label: string, swatch: string, kind?: "emoj
   );
 }
 
-export function Seasons({ state, goToMonth }: {
+export function Seasons({ state, today, goToMonth }: {
   state: State;
+  /** Today's local date (App's useToday): a memo key, so the window moves with the month. */
+  today: string;
   goToMonth: (ym: string) => void;
 }) {
   const [offset, setOffset] = useState(0);
-  const rangeLen = useMemo(() => monthRange(state).length, [state]);
-  const trends = useMemo(() => monthlyTrends(state, new Date(), WINDOW, offset), [state, offset]);
+  // `today` isn't read inside — it's a cache key (see useToday): a new
+  // month must add a bar even when nothing in the garden changed.
+  const rangeLen = useMemo(() => monthRange(state).length, [state, today]);
+  const trends = useMemo(() => monthlyTrends(state, new Date(), WINDOW, offset), [state, offset, today]);
   const canOlder = offset < rangeLen - WINDOW;
   const canNewer = offset > 0;
   const pagerBtn = (enabled: boolean) => ({

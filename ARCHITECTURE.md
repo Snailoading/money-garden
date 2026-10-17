@@ -79,9 +79,11 @@ leaves on that trunk; the engine could be transplanted into another frontend
 │               loadSaved and parseBackup (depends on types.ts only)     │
 │   backup.ts   buildBackup(), parseBackup() → seed-vault envelope       │
 │               (imports run through migrate, so barrel-less backups     │
-│               gain the barrel on import too; damaged files refused)    │
+│               gain the barrel on import too; damaged files refused);   │
+│               BackupMeta + backupStatus() → the shed's backup line     │
 │   storage.ts  createStore() → three-tier adapter (below);              │
-│               createSaveQueue() → one write in flight, newest wins     │
+│               createSaveQueue() → one write in flight, newest wins;    │
+│               store.subscribe() → hear other tabs' saves (read-only)   │
 └───────────────┬────────────────────────────────────────────────────────┘
                 │  one JSON string, key "money-garden:state-v1"
 ┌───────────────▼────────────────────────────────────────────────────────┐
@@ -111,7 +113,9 @@ the App; the same state back means refused or no-op) → `commit` →
 2. sets React state;
 3. hands the garden to the **save queue** (`createSaveQueue`): one write in
    flight, the newest pending garden wins, a failed write never wedges it —
-   so with an async store an older garden can't overwrite a newer one.
+   so with an async store an older garden can't overwrite a newer one;
+4. notes the change for the backup reminder (`noteGardenChange`, written
+   to its own key only when the clock actually starts or stops).
 
 There is exactly one writer; components never touch storage. The rest of the
 changes call `state.ts` engine functions directly (they predate `actions.ts`
@@ -129,6 +133,18 @@ commitments), `deriveMonthView(state, viewYm)` when browsing a past month,
 plain data (`d`, `view`, callbacks) and render it; `MonthView`'s field names
 mirror `Derived`'s so tabs read `view ?? d`.
 
+Those memos also key on **today's date** (since v0.18.1): `useToday()` in
+`src/ui/hooks.ts` holds the local `YYYY-MM-DD`, re-checked by a timer at the
+next local midnight (`msUntilNextDay` in engine `format.ts`, DST-exact),
+whenever the tab is shown or focused (a sleeping phone misses timers), and
+once a minute as a safety net. The engine still reads the clock itself; the
+date is only a cache key, so a garden left open overnight turns over to the
+new day/month without waiting for a save. The header's current month reads
+the same `today`, so it never disagrees with the numbers. Form dates that
+default to today (the Log's new entry, a new fortnightly vine's anchor) use
+`useDateDefault(today)`: they follow the day while still showing the old
+default; a different date the user picked is never moved.
+
 On load (since v0.17.4): `store.get(key)` → `loadSaved(raw)` = `JSON.parse`
 → fill missing top-level fields from a fresh state → `migrate()` (fills
 missing fields from defaults, **never drops unknown fields**) →
@@ -143,6 +159,42 @@ Backup import runs the same fill → `migrate()` → `findStateProblems()`
 sequence and refuses damaged files before the confirm card — one gate for
 both doors. The gate's bar is "would crash or corrupt the sums", never
 "looks unusual": every shape the app has ever written must pass.
+
+**Other tabs** (since v0.18.1): a second tab of the app holds its own copy
+of the garden in memory, so before this a stale background tab's next edit
+saved its old garden over everything done elsewhere. Now `App.tsx`
+subscribes (`store.subscribe(STORAGE_KEY, …)`, wrapping the browser's
+`storage` event, which fires only in the OTHER tabs) and runs each incoming
+save through the same `loadSaved` verdict as startup: **ok** → adopt it
+with a plain `setState` — a read, never a write, so tabs can't echo saves
+at each other (a visible tab also toasts "updated from another tab");
+**unreadable** → `Recovery.tsx`, writing nothing; **fresh** (the key was
+removed, e.g. from devtools) → keep the garden on screen, and the tab's
+next change saves it again. One exception comes first: while this tab's
+OWN latest save fell through to memory (quota, privacy mode), its screen
+holds the only copy of its recent changes, so nothing is adopted — a toast
+says another tab saved and suggests a backup. Half-typed forms keep their
+drafts — only the garden they're handed changes. It is last-writer-wins
+(no merging); a single person editing one tab at a time never notices.
+`subscribe` only hears localStorage: with platform storage present it
+ignores local events, and a host without them (no `addEventListener`) gets
+a no-op.
+
+**Backup reminder** (since v0.18.1): a second key,
+`money-garden:backup-reminder`, holds `BackupMeta` (engine `backup.ts`) —
+`lastAt` (last Save backup) and `unsavedSince` (the oldest change no backup
+covers). It lives outside the garden on purpose: no schema change, and a
+backup file never carries "when was I backed up". `setStateSafe` notes each
+accepted change (`noteGardenChange` — starts the clock once; an emptied
+garden stops it), Save backup calls `noteBackupSaved`, a confirmed import
+`noteBackupRestored` (covered, but not a new backup). Each update is written
+only when it changed something, through its own save queue; other tabs adopt
+it via `subscribe` (except while that tab's own saves are failing — its
+changes exist nowhere else). A start time in the future (device clock was
+ahead) restarts the clock. The shed renders `backupStatus` as a passive line
+— "No backup saved from this browser yet." / "Last backup: Oct 3." / amber
+once the oldest uncovered change is 14 calendar days old. A damaged record
+reads as "nothing known".
 
 ## Engine module dependencies (arrows = imports)
 
@@ -190,7 +242,10 @@ flip on `<html>`. A boot script in `index.html` stamps the theme *before
 first paint* (direct localStorage read — the documented exception to the
 adapter rule); `App.tsx` owns the ☀️/🌙/🌗 mode (persisted under
 `money-garden:theme` via the adapter) and re-resolves auto mode (clock-based,
-day 7am–7pm) on a timer. SVG colors go through `style=`, never presentation
+day 7am–7pm) on a timer. App leaves the boot script's stamp alone until the
+saved mode has loaded (since v0.18.1) — applying its "auto" placeholder
+first briefly flipped a 🌙 night user to day (or a ☀️ day user to night)
+on every launch. SVG colors go through `style=`, never presentation
 attributes, because the latter don't resolve `var()`.
 
 Cold starts paint a static splash (since v0.14.4): inline `<style>` + inlined

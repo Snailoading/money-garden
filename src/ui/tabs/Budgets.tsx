@@ -10,13 +10,15 @@ import { fmt, MONTH_NAMES, monthLabel, shortDate, todayISO } from "../../engine/
 import { commitmentEnded, daysUntil, nextDueWithPayments } from "../../engine/commitments";
 import { C, inputStyle } from "../theme";
 import { CardTitle, Field } from "../bits";
-import { useArmed } from "../hooks";
+import { useArmed, useDateDefault } from "../hooks";
 
-export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommitment, logCommitmentPayment, updateCommitment }: {
+export function Budgets({ state, d, view, today, setBudget, addCommitment, deleteCommitment, logCommitmentPayment, updateCommitment }: {
   state: State;
   d: Derived;
   /** A browsed past month; null/undefined = today. Affects the plots only. */
   view?: MonthView | null;
+  /** Today's local date (App's useToday) — a new fortnightly vine's anchor follows it. */
+  today: string;
   setBudget: (catId: string, v: string) => void;
   addCommitment: (c: Omit<Commitment, "id">) => void;
   deleteCommitment: (id: string) => void;
@@ -32,7 +34,7 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
   const [cMonth, setCMonth] = useState<number | string>(1);
   // Fortnightly cycles count from a real payment date, not a day-of-month;
   // today is a sensible seed (any known payment date works, past or future).
-  const [cAnchor, setCAnchor] = useState(todayISO());
+  const [cAnchor, setCAnchor] = useDateDefault(today);
   const [cEnd, setCEnd] = useState("");
   const [cTotal, setCTotal] = useState("");
   const [cPaid, setCPaid] = useState("");
@@ -395,7 +397,7 @@ export function Budgets({ state, d, view, setBudget, addCommitment, deleteCommit
             ) : (
               <div style={{ flex: "0 1 150px" }}>
                 <Field label="End date (optional)">
-                  <input type="date" value={cEnd} min={todayISO()} onChange={(e) => setCEnd(e.target.value)} style={inputStyle} />
+                  <input type="date" value={cEnd} min={today} onChange={(e) => setCEnd(e.target.value)} style={inputStyle} />
                 </Field>
               </div>
             )}

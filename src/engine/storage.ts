@@ -22,10 +22,22 @@ interface LocalStorageLike {
   setItem(key: string, value: string): void;
 }
 
+/** A change ANOTHER tab made to local storage (a browser only tells the
+ * other tabs, never the one that wrote). key null = the whole store was
+ * cleared; newValue null = the key was removed. */
+export interface LocalChange {
+  key: string | null;
+  newValue: string | null;
+}
+
 export interface StoreEnv {
   /** Returns the platform storage iface if the host provides one. */
   platform: () => PlatformStorage | null;
   local: () => LocalStorageLike | null;
+  /** Calls `listener` for each local-storage change made by another tab;
+   * returns a function that stops listening. Optional — a host without
+   * tabs (or a test that doesn't care) simply leaves it out. */
+  watchLocal?: (listener: (change: LocalChange) => void) => () => void;
 }
 
 export interface GetResult {
@@ -44,6 +56,13 @@ export interface Store {
   set(key: string, value: string): Promise<SetResult>;
   /** The tier that handled the most recent operation. */
   mode(): StorageMode;
+  /**
+   * Hear saves of `key` made in another tab: `onChange` gets the new value
+   * (null when it was removed or the store was cleared). Only reads — it
+   * never writes, so two tabs can't echo saves back and forth. Returns an
+   * unsubscribe function (handy as a React effect's cleanup).
+   */
+  subscribe(key: string, onChange: (value: string | null) => void): () => void;
 }
 
 const defaultEnv = (): StoreEnv => ({
@@ -58,6 +77,22 @@ const defaultEnv = (): StoreEnv => ({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const g = globalThis as any;
     return g.localStorage ?? null;
+  },
+  watchLocal: (listener) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const g = globalThis as any;
+    if (typeof g.addEventListener !== "function") return () => {};
+    // The browser's `storage` event fires in every OTHER tab of this site.
+    // sessionStorage changes fire the same event, so check the area.
+    const onStorage = (e: { key: string | null; newValue: string | null; storageArea: unknown }) => {
+      let isLocal = false;
+      try {
+        isLocal = e.storageArea === g.localStorage;
+      } catch { /* blocked site data: reading localStorage throws — not ours */ }
+      if (isLocal) listener({ key: e.key, newValue: e.newValue });
+    };
+    g.addEventListener("storage", onStorage);
+    return () => g.removeEventListener("storage", onStorage);
   },
 });
 
@@ -83,7 +118,9 @@ export interface SaveQueue<T> {
  * `onWritten` receives each real write's result (tier + persisted flag).
  */
 export function createSaveQueue<T>(
-  store: Store,
+  // Only set() is used — Pick asks for just that (like a typing.Protocol
+  // with one method), so any writer will do, not only a full Store.
+  store: Pick<Store, "set">,
   key: string,
   serialize: (value: T) => string,
   onWritten: (result: SetResult) => void,
@@ -182,5 +219,20 @@ export function createStore(env: StoreEnv = defaultEnv()): Store {
     },
 
     mode: () => lastMode,
+
+    subscribe(key, onChange) {
+      if (!env.watchLocal) return () => {};
+      return env.watchLocal((change) => {
+        // With platform storage the data doesn't live in localStorage, so a
+        // local change isn't news about it. (Checked per change — a host's
+        // tiers can come and go, like the per-call fallback above.)
+        try {
+          if (env.platform()) return;
+        } catch { /* same fall-through as get/set */ }
+        // key null = another tab cleared the whole store: the key is gone too.
+        if (change.key === key) onChange(change.newValue);
+        else if (change.key === null) onChange(null);
+      });
+    },
   };
 }

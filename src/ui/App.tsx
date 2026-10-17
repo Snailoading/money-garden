@@ -5,12 +5,12 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Commitment, Goal, Invest, State, Transaction } from "../engine/types";
-import { DEFAULT_INVEST, STORAGE_KEY, UNREADABLE_KEY_PREFIX } from "../engine/types";
-import { fmt, monthKey, monthLabel, uid } from "../engine/format";
+import { BACKUP_META_KEY, DEFAULT_INVEST, STORAGE_KEY, UNREADABLE_KEY_PREFIX } from "../engine/types";
+import { fmt, monthLabel, shortDate, uid } from "../engine/format";
 import { derive, deriveMonthView, weatherFor } from "../engine/stats";
 import { monthRange } from "../engine/trends";
 import { canRemoveTransaction, deleteGoal as engineDeleteGoal, emptyState, insertGoal, isFreshGarden, linkedAmountBounds, loadSaved, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
-import { buildBackup, parseBackup, type ImportPreview } from "../engine/backup";
+import { backupStatus, buildBackup, NO_BACKUP_META, noteBackupRestored, noteBackupSaved, noteGardenChange, parseBackup, parseBackupMeta, serializeBackupMeta, type BackupMeta, type ImportPreview } from "../engine/backup";
 import { findStateProblems } from "../engine/validate";
 // A namespace import — like `import actions` in Python, then actions.x():
 // keeps engine actions distinct from the App handlers that share their names.
@@ -20,6 +20,7 @@ import { store } from "./store";
 import { downloadText } from "./download";
 import { Recovery } from "./Recovery";
 import { createSaveQueue, type SaveQueue, type SetResult, type StorageMode } from "../engine/storage";
+import { useToday } from "./hooks";
 import { checkPersistentStorage, requestPersistentStorage, storageNote } from "./storageNote";
 import { C, INSTALL_HINT_KEY, isIOS, isStandalone, isTouchDevice, resolveTheme, THEME_COLOR, THEME_KEY, type ThemeMode } from "./theme";
 import { Overview } from "./tabs/Overview";
@@ -61,6 +62,10 @@ export function MoneyGarden() {
   const [viewYm, setViewYm] = useState<string | null>(null);
   /** ☀️ day / 🌙 night / 🌗 auto (follows the clock, day 7am–7pm). */
   const [themeMode, setThemeMode] = useState<ThemeMode>("auto");
+  /** The saved mode has been read. Until then the index.html boot script's
+   * pre-paint stamp stands — applying the "auto" placeholder above would
+   * flash a 🌙 night user's garden to day (or a ☀️ day user's to night). */
+  const [themeLoaded, setThemeLoaded] = useState(false);
   /**
    * Install-hint preference: "show" → overlay + Advice-tab tip · "dismissed"
    * (overlay closed) → Advice tip only, in case it was closed hastily ·
@@ -69,6 +74,10 @@ export function MoneyGarden() {
    */
   const [installPref, setInstallPref] = useState<"show" | "dismissed" | "muted">("muted");
   const memoryFallback = useRef(false);
+  /** This tab's latest own save fell through to memory (quota, privacy
+   * mode) — while true, saves from other tabs are NOT adopted. A ref, not
+   * state, so the cross-tab listener (made once) always reads it fresh. */
+  const ownWritesFailing = useRef(false);
   /** The initial write of a fresh garden skips the memory toast (the banner covers it). */
   const quietNextWrite = useRef(false);
   /** The garden's save queue — created once per mount, on first use (a lazy
@@ -76,6 +85,27 @@ export function MoneyGarden() {
   const saveQueueRef = useRef<SaveQueue<State> | null>(null);
   const saveQueue = (): SaveQueue<State> =>
     (saveQueueRef.current ??= createSaveQueue(store, STORAGE_KEY, serialize, (r) => onWritten(r)));
+  /**
+   * The backup reminder's bookkeeping (engine backup.ts): when a backup was
+   * last saved, and since when the garden has held a change no backup
+   * covers. The ref is the source of truth for updates made back to back
+   * (a restore right after its own save); the state copy is for rendering.
+   */
+  const backupMetaRef = useRef<BackupMeta>(NO_BACKUP_META);
+  const [backupMeta, setBackupMeta] = useState<BackupMeta>(NO_BACKUP_META);
+  const backupQueueRef = useRef<SaveQueue<BackupMeta> | null>(null);
+  /** Take a value read from storage (load, another tab) — shown, not written. */
+  const adoptBackupMeta = (m: BackupMeta) => {
+    backupMetaRef.current = m;
+    setBackupMeta(m);
+  };
+  /** Apply an engine update; written only if it actually changed something. */
+  const updateBackupMeta = (fn: (m: BackupMeta) => BackupMeta) => {
+    const next = fn(backupMetaRef.current);
+    if (next === backupMetaRef.current) return; // same object back = nothing to write
+    adoptBackupMeta(next);
+    (backupQueueRef.current ??= createSaveQueue(store, BACKUP_META_KEY, serializeBackupMeta, () => {})).save(next);
+  };
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const importInput = useRef<HTMLInputElement>(null);
 
@@ -95,6 +125,9 @@ export function MoneyGarden() {
   /* ---------- load & persist ---------- */
   useEffect(() => {
     (async () => {
+      // The reminder's bookkeeping first, so a change saved during this
+      // load (a fresh garden's first write) is noted against the real record.
+      adoptBackupMeta(parseBackupMeta((await store.get(BACKUP_META_KEY))?.value));
       // store.get never throws (each tier swallows its own errors) and
       // loadSaved never throws (it returns a verdict instead).
       const res = await store.get(STORAGE_KEY);
@@ -107,6 +140,59 @@ export function MoneyGarden() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /**
+   * Another tab saved the garden: show that one instead. Without this, a
+   * tab left open in the background keeps its OLD garden in memory, and its
+   * next edit saves the old garden over everything done in the other tab.
+   * Adopting is a read, never a write (plain setState, not setStateSafe) —
+   * writing back would make the tabs echo saves at each other. Editors keep
+   * their typed drafts: only the garden they're handed changes.
+   */
+  // (The arrow's return value — subscribe's unsubscribe function — is the
+  // effect's cleanup, run on unmount: like a context manager's __exit__.)
+  useEffect(() => store.subscribe(STORAGE_KEY, (raw) => {
+    // This tab's own saves are failing (quota → memory): its garden on
+    // screen is the ONLY copy of its recent changes. Never swap it out
+    // unasked — keep it, and say so.
+    if (ownWritesFailing.current) {
+      showToast("⚠️ Another tab saved changes — this tab's unsaved garden is kept. Save a backup before reloading.");
+      return;
+    }
+    const loaded = loadSaved(raw);
+    if (loaded.kind === "ok") {
+      setUnreadable(null); // the other tab settled a damaged save (e.g. started fresh)
+      setState(loaded.state);
+      // The setter's function form reads the CURRENT value — this handler
+      // was created on the first render, so a plain `storageMode` here
+      // would be that render's stale value. Only fill in a missing tier
+      // (this tab was on Recovery or still loading).
+      setStorageMode((m) => m ?? "local");
+      // Browsing a month the new garden doesn't reach (it was replaced or
+      // cleared over there)? Come back to today, as a same-tab replace does.
+      setViewYm((v) => (v && !monthRange(loaded.state).includes(v) ? null : v));
+      // A background tab adopts quietly; a visible one (side-by-side
+      // windows) says why the screen just changed under the user.
+      if (document.visibilityState === "visible") showToast("🔄 Garden updated from another tab");
+    } else if (loaded.kind === "unreadable") {
+      // Same rule as on startup: show Recovery and write nothing over it.
+      setUnreadable({ raw: raw ?? "", reason: loaded.reason });
+    }
+    // "fresh" — the save was removed (devtools, cleared site data): keep
+    // the garden on screen; this tab's next change saves it again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
+
+  // A backup saved (or a change noted) in another tab: show it here too, so
+  // this tab's shed doesn't keep nagging about changes that are covered.
+  // Read only, like the garden above (removed or junk → "nothing known").
+  // Not while this tab's own saves are failing: its on-screen changes exist
+  // nowhere else, so another tab's backup doesn't cover them (same rule as
+  // the garden above).
+  useEffect(() => store.subscribe(BACKUP_META_KEY, (raw) => {
+    if (!ownWritesFailing.current) adoptBackupMeta(parseBackupMeta(raw));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
 
   /**
    * Where the garden actually lives — the tier that handled the latest
@@ -170,6 +256,9 @@ export function MoneyGarden() {
     // Through the save queue (engine storage.ts): one write at a time,
     // newest wins — an older garden can never overwrite a newer one.
     saveQueue().save(next);
+    // The backup reminder's clock: starts at the first change no backup
+    // covers (a no-op for every later one); an emptied garden stops it.
+    updateBackupMeta((m) => noteGardenChange(m, isFreshGarden(next), new Date()));
     return true;
   };
   /** Runs after each real write: track the tier, disclose a memory fallback. */
@@ -177,6 +266,7 @@ export function MoneyGarden() {
     // Follows every save: a mid-session quota failure drops to memory
     // (banner appears), and a later successful write brings it back.
     setStorageMode(r.mode);
+    ownWritesFailing.current = !r.persisted;
     const quiet = quietNextWrite.current;
     quietNextWrite.current = false;
     // The memory tier reports persisted: false — also toast it once, like
@@ -199,10 +289,19 @@ export function MoneyGarden() {
       const res = await store.get(THEME_KEY);
       const v = res?.value;
       if (v === "day" || v === "night" || v === "auto") setThemeMode(v);
+      // Both updates land in ONE render: React 18 batches state updates
+      // made in the same tick (collect the changes, redraw once). And the
+      // order is safe even without that — mode first, then "loaded" — so
+      // the first apply always uses the saved mode. (No tap can come first
+      // with localStorage/memory: the toggle appears only once the garden
+      // has loaded, after this read. An async platform store could
+      // reorder that — revisit with the Expo shell.)
+      setThemeLoaded(true);
     })();
   }, []);
 
   useEffect(() => {
+    if (!themeLoaded) return; // the boot script's stamp is already right
     const apply = () => {
       const t = resolveTheme(themeMode);
       document.documentElement.dataset.theme = t;
@@ -219,7 +318,7 @@ export function MoneyGarden() {
       clearInterval(iv);
       document.removeEventListener("visibilitychange", apply);
     };
-  }, [themeMode]);
+  }, [themeMode, themeLoaded]);
 
   const cycleTheme = () => {
     const next: ThemeMode = themeMode === "day" ? "night" : themeMode === "night" ? "auto" : "day";
@@ -259,9 +358,21 @@ export function MoneyGarden() {
   }, [installPref]);
 
   /* ---------- derived numbers (engine) ---------- */
-  const derived = useMemo(() => (state ? derive(state) : null), [state]);
+  const today = useToday();
+  // A month picked a moment before `today` caught up with midnight (e.g.
+  // tapping the brand-new month's Seasons bar at 00:00:00.5) would become
+  // "browsing the current month" — stuck in history mode. Once the day
+  // turns over, that month IS today: drop back to the live view.
+  useEffect(() => {
+    setViewYm((v) => (v === today.slice(0, 7) ? null : v));
+  }, [today]);
+  // `today` is a cache key, not an input: derive() reads the clock itself,
+  // and keying on the date makes it re-read it when the day turns over —
+  // before, these only refreshed on the next save, so a garden left open
+  // overnight kept yesterday's pace, due dates and month.
+  const derived = useMemo(() => (state ? derive(state) : null), [state, today]);
   const monthView = useMemo(() => (state && viewYm ? deriveMonthView(state, viewYm) : null), [state, viewYm]);
-  const months = useMemo(() => (state ? monthRange(state) : []), [state]);
+  const months = useMemo(() => (state ? monthRange(state) : []), [state, today]);
 
   if (unreadable) {
     return <Recovery raw={unreadable.raw} reason={unreadable.reason} onStartFresh={onStartFreshOverUnreadable} />;
@@ -441,6 +552,9 @@ export function MoneyGarden() {
   const saveBackup = () => {
     const { filename, json } = buildBackup(state);
     downloadText(filename, json);
+    // The click is all a page can know — the browser doesn't say whether
+    // the file was kept. Counts as backed up; the shed shows the date.
+    updateBackupMeta((m) => noteBackupSaved(m, new Date()));
     showToast("🌾 Backup saved — keep it somewhere safe.");
   };
 
@@ -460,6 +574,8 @@ export function MoneyGarden() {
     // parseBackup already ran the same inspector, so this always passes —
     // but if it ever didn't, keep the card up and say nothing was restored.
     if (!setStateSafe(pendingImport.state)) return;
+    // The garden now IS that file — nothing uncovered (but no new backup).
+    updateBackupMeta(noteBackupRestored);
     setPendingImport(null);
     setViewYm(null);
     setTab("overview");
@@ -467,7 +583,9 @@ export function MoneyGarden() {
   };
 
   /* ---------- month navigation ---------- */
-  const currentYm = monthKey();
+  // From `today`, not the clock: the same date the memos above are keyed
+  // on, so the header's month never runs ahead of the numbers beneath it.
+  const currentYm = today.slice(0, 7);
   const shownYm = viewYm ?? currentYm;
   const shownIdx = months.indexOf(shownYm);
   const canPrev = shownIdx > 0;
@@ -480,6 +598,10 @@ export function MoneyGarden() {
   // sample data" card and the shed's two-step replant.
   const isEmpty = isFreshGarden(state);
   const note = storageNote(storageMode, persisted);
+  // The shed's backup line (engine backupStatus). Re-read each render; App
+  // re-renders when the day turns over (useToday), so "due" can't go stale.
+  const backup = backupStatus(backupMeta, isEmpty, new Date());
+  const dateWithYear = (d: Date) => (d.getFullYear() === new Date().getFullYear() ? shortDate(d) : `${shortDate(d)}, ${d.getFullYear()}`);
   // Passed by name, so it guards itself rather than trusting the card's
   // visibility: replace the garden ONLY if there's nothing to lose.
   const plantSampleData = () => {
@@ -575,11 +697,11 @@ export function MoneyGarden() {
         )}
 
         {tab === "overview" && <Overview state={state} d={derived} view={monthView} setIncome={setIncome} goTo={(t) => switchTab(t as TabId)} goToDraws={goToDraws} />}
-        {tab === "log" && <Log state={state} d={derived} view={monthView} addTransaction={addTransaction} deleteTransaction={deleteTransaction} updateTransaction={editTransaction} markNoSpend={markNoSpendDay} initialFilter={logPreset} />}
-        {tab === "budgets" && <Budgets state={state} d={derived} view={monthView} setBudget={setBudget} addCommitment={addCommitment} deleteCommitment={deleteCommitment} logCommitmentPayment={logCommitmentPayment} updateCommitment={editCommitment} />}
+        {tab === "log" && <Log state={state} d={derived} view={monthView} today={today} addTransaction={addTransaction} deleteTransaction={deleteTransaction} updateTransaction={editTransaction} markNoSpend={markNoSpendDay} initialFilter={logPreset} />}
+        {tab === "budgets" && <Budgets state={state} d={derived} view={monthView} today={today} setBudget={setBudget} addCommitment={addCommitment} deleteCommitment={deleteCommitment} logCommitmentPayment={logCommitmentPayment} updateCommitment={editCommitment} />}
         {tab === "garden" && <Garden state={state} monthlyExpenses={derived.monthlyExpenses} expensesBasis={derived.expensesBasis} addGoal={addGoal} waterGoal={waterGoal} deleteGoal={deleteGoal} updateGoal={editGoal} drawFromGoal={drawFromGoal} setupEmergencyFund={setupBarrel} />}
         {tab === "orchard" && <Orchard state={state} d={derived} setInvest={setInvest} addHolding={addHolding} updateHolding={updateHolding} deleteHolding={deleteHolding} waterOrchard={waterOrchard} />}
-        {tab === "seasons" && <Seasons state={state} goToMonth={(ym) => { goToMonth(ym); setTab("overview"); }} />}
+        {tab === "seasons" && <Seasons state={state} today={today} goToMonth={(ym) => { goToMonth(ym); setTab("overview"); }} />}
         {tab === "advice" && <Advice state={state} d={derived} showInstallTip={installPref !== "muted"} onMuteInstallTip={muteInstallTip} />}
 
         {/* ===== import confirm card ===== */}
@@ -610,7 +732,16 @@ export function MoneyGarden() {
         {/* ===== the shed — housekeeping ===== */}
         <footer style={{ marginTop: 28, paddingTop: 16, borderTop: `1.5px dashed ${C.border}`, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 12.5, color: C.inkSoft }}>
-            🧰 The shed · {note && <span style={note.warn ? { color: C.tomato, fontWeight: 600 } : undefined}>{note.text} </span>}Edit a logged entry with its ✏️, delete with its ✕.
+            🧰 The shed · {note && <span style={note.warn ? { color: C.tomato, fontWeight: 600 } : undefined}>{note.text} </span>}
+            {backup.kind === "never" && <>No backup saved from this browser yet. </>}
+            {backup.kind === "saved" && <>Last backup: {dateWithYear(backup.lastAt)}. </>}
+            {backup.kind === "due" && (
+              <span style={{ color: C.amber, fontWeight: 700 }}>
+                🌾 Your garden has changes from {backup.days} days ago that aren't in a backup yet.{" "}
+              </span>
+            )}
+            {backup.kind === "due" && backup.lastAt && <>Last backup: {dateWithYear(backup.lastAt)}. </>}
+            Edit a logged entry with its ✏️, delete with its ✕.
           </span>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button className="mg-btn" onClick={saveBackup}

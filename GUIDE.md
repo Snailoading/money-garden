@@ -37,7 +37,7 @@ The harvest is still fully visible: the Overview shows a **🌸 Spent from goals
 
 ## Backing up your garden 🏦
 
-In the footer, **⬇️ Save backup** downloads your whole garden as a single file — tuck it somewhere safe (cloud drive, email it to yourself) every so often. If you ever switch browsers or devices, or something happens to this one, **⬆️ Import backup** plants it right back. Restoring replaces what's currently in the app (it shows you exactly what's in the file, and asks first).
+In the footer, **⬇️ Save backup** downloads your whole garden as a single file — tuck it somewhere safe (cloud drive, email it to yourself) every so often. If you ever switch browsers or devices, or something happens to this one, **⬆️ Import backup** plants it right back. Restoring replaces what's currently in the app (it shows you exactly what's in the file, and asks first). The shed notes when you last saved one, and that line turns amber once a change has gone two weeks without a backup.
 
 ## The fine print (kept short)
 

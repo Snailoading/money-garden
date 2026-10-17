@@ -3,6 +3,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import type { PointerEvent, RefObject } from "react";
+import { msUntilNextDay, todayISO } from "../engine/format";
 
 /**
  * Entry-animation trigger: flips true one frame after mount so CSS
@@ -39,6 +40,73 @@ export function useArmed(ms = 4000) {
     setArmedId(null);
   };
   return { armedId, arm, disarm };
+}
+
+/**
+ * Today's local date (YYYY-MM-DD), kept current while the app stays open.
+ * Memos that depend on the clock add it as a key — like a Python
+ * lru_cache keyed on the date — so "today" numbers (daily pace, due dates,
+ * the header month) turn over at midnight instead of on the next save.
+ *
+ * Checks at the next local midnight (a timer, rescheduled each day),
+ * whenever the tab is shown or focused, and once a minute: a sleeping phone
+ * or a throttled background tab can miss the timer entirely, and waking up
+ * is exactly when a stale "today" would be seen. The value only changes
+ * when the DATE does, so these checks don't re-render anything on the same day.
+ */
+export function useToday(): string {
+  const [today, setToday] = useState(() => todayISO());
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const check = () => {
+      // Same string → React skips the re-render (setState bails out on an
+      // unchanged value, like an `if new != old` guard).
+      setToday(todayISO());
+      clearTimeout(timer);
+      // +1s past midnight: timers can fire a hair early; a too-early check
+      // just finds the same date and schedules again.
+      timer = setTimeout(check, msUntilNextDay(new Date()) + 1000);
+    };
+    const onWake = () => { if (document.visibilityState === "visible") check(); };
+    check();
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("focus", onWake);
+    // Safety net: a laptop that sleeps through midnight with this window
+    // focused gets neither event, and timers don't count time asleep — so
+    // also look once a minute. Free on an unchanged day (setState bails out).
+    const minutely = setInterval(check, 60_000);
+    return () => {
+      clearInterval(minutely);
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onWake);
+      window.removeEventListener("focus", onWake);
+    };
+  }, []);
+  return today;
+}
+
+/**
+ * A form's date field that defaults to today — and keeps following today
+ * for as long as the user hasn't picked a date of their own. A Log tab left
+ * open overnight would otherwise stamp the morning's first entry with
+ * yesterday's date. A different date the user chose (backdating a receipt)
+ * is never moved; re-picking today's date looks the same as the untouched
+ * default, so that one follows too. Returns the same [value, setter] pair
+ * as useState.
+ */
+export function useDateDefault(today: string) {
+  const [date, setDate] = useState(today);
+  // The "today" the field last followed. A ref, not state: remembering it
+  // must not itself cause a render (like a plain attribute on self).
+  const followed = useRef(today);
+  useEffect(() => {
+    // Still showing the old default → move to the new day; anything else
+    // was picked by the user and stays. (Function form: read the CURRENT
+    // field value, not the one from the render that scheduled this.)
+    setDate((d) => (d === followed.current ? today : d));
+    followed.current = today;
+  }, [today]);
+  return [date, setDate] as const;
 }
 
 /**

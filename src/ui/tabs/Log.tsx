@@ -10,9 +10,9 @@ import { isDraw } from "../../engine/stats";
 import { canRemoveTransaction, linkedAmountBounds } from "../../engine/state";
 import type { JournalFilter } from "../../engine/journal";
 import { isFilterActive, matchesFilter, SAVING_LABEL } from "../../engine/journal";
-import { fmt, monthLabel, todayISO } from "../../engine/format";
+import { fmt, monthLabel } from "../../engine/format";
 import { C, inputStyle } from "../theme";
-import { useMediaQuery } from "../hooks";
+import { useDateDefault, useMediaQuery } from "../hooks";
 import { CardTitle, Empty, Field } from "../bits";
 
 /** Rows rendered per "page" of the ledger — more revealed via Show more. */
@@ -45,11 +45,13 @@ const KIND_OPTIONS: [FilterKind, string][] = [
 /** Kinds whose entries carry a meaningful category (draws do — they're expenses). */
 const CATEGORY_KINDS: FilterKind[] = ["all", "expense", "draw"];
 
-export function Log({ state, d, view, addTransaction, deleteTransaction, updateTransaction, markNoSpend, initialFilter }: {
+export function Log({ state, d, view, today, addTransaction, deleteTransaction, updateTransaction, markNoSpend, initialFilter }: {
   state: State;
   d: Derived;
   /** A browsed past month; null/undefined = today. */
   view?: MonthView | null;
+  /** Today's local date (App's useToday) — the new entry's default date follows it. */
+  today: string;
   addTransaction: (tx: Omit<Transaction, "id">) => void;
   deleteTransaction: (id: string) => void;
   updateTransaction: (id: string, patch: Partial<Omit<Transaction, "id">>) => void;
@@ -62,7 +64,7 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("groceries");
   const [note, setNote] = useState("");
-  const [date, setDate] = useState(todayISO());
+  const [date, setDate] = useDateDefault(today);
 
   // Inline editing — one row at a time; opening another pencil swaps rows.
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -242,7 +244,7 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
               onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} style={inputStyle} />
           </Field>
           <Field label="Date">
-            <input type="date" value={date} max={todayISO()} onChange={(e) => setDate(e.target.value)} style={inputStyle} />
+            <input type="date" value={date} max={today} onChange={(e) => setDate(e.target.value)} style={inputStyle} />
           </Field>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginTop: 14 }}>
@@ -397,7 +399,7 @@ export function Log({ state, d, view, addTransaction, deleteTransaction, updateT
                         <input value={eNote} maxLength={60} onChange={(e) => setENote(e.target.value)} style={inputStyle} />
                       </Field>
                       <Field label="Date">
-                        <input type="date" value={eDate} max={todayISO()} onChange={(e) => setEDate(e.target.value)} style={inputStyle} />
+                        <input type="date" value={eDate} max={today} onChange={(e) => setEDate(e.target.value)} style={inputStyle} />
                       </Field>
                     </div>
                     {t.goalId && !state.goals.some((g) => g.id === t.goalId) && (
