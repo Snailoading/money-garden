@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Commitment, Transaction } from "./types";
-import { clampDay, commitmentEnded, daysUntil, deriveCommitments, nextDueDate, nextDueWithPayments } from "./commitments";
+import { clampDay, commitmentEnded, daysUntil, deriveCommitments, monthlyCost, nextDueDate, nextDueWithPayments } from "./commitments";
 
 // Commitment date math is entirely local-time, so fixed local dates are
 // deterministic in any timezone. Noon avoids any midnight edge.
@@ -100,7 +100,7 @@ describe("nextDueWithPayments", () => {
     expect([due.getMonth(), due.getDate()]).toEqual([6, 20]); // July 20
   });
 
-  it("counts payments up to 15 days early, even across a month boundary", () => {
+  it("counts a payment made a few days early, even across a month boundary", () => {
     const c = sub({ payDay: 2 });
     const nowLateJune = new Date(2026, 5, 25, 12); // due July 2
     const due = nextDueWithPayments(c, [pay("s1", "2026-06-28")], nowLateJune);
@@ -115,7 +115,7 @@ describe("nextDueWithPayments", () => {
     expect(nextDueWithPayments(c, [pay("s1", "2026-05-20")], june15).getMonth()).toBe(5); // last cycle's
   });
 
-  it("never double-advances: after the paid date passes, the next cycle shows unpaid", () => {
+  it("a past cycle's payment never covers a later cycle (June's payment, seen in mid-July)", () => {
     const c = sub({ payDay: 12 });
     const paidJune = pay("s1", "2026-06-12");
     // On June 15 the June payment has been made → July 12.
@@ -125,10 +125,43 @@ describe("nextDueWithPayments", () => {
     expect(nextDueWithPayments(c, [paidJune], july15).getMonth()).toBe(7); // Aug (July unpaid, rolled naturally)
   });
 
+  it("monthly window: up to 14 days early counts; 15 days early was last cycle's", () => {
+    // Due June 20 (as of June 15). Window = (due − 15, due]: June 6 … June 20.
+    const c = sub({ payDay: 20 });
+    const at = (date: string) => { const d = nextDueWithPayments(c, [pay("s1", date)], june15); return [d.getMonth(), d.getDate()]; };
+    expect(at("2026-06-06")).toEqual([6, 20]); // 14 days early → paid → July 20
+    expect(at("2026-06-05")).toEqual([5, 20]); // 15 days early → not this cycle → June 20
+    expect(at("2026-06-20")).toEqual([6, 20]); // on the due date itself → paid
+  });
+
+  it("one payment advances exactly one cycle, then lets go (never double-advances)", () => {
+    const c = sub({ payDay: 20 });
+    const paid = [pay("s1", "2026-06-18")];
+    // Control: without the payment, June 15 shows June 20 — so the payment matters here.
+    expect(nextDueWithPayments(c, [], june15).getMonth()).toBe(5);
+    // June 15, paid June 18 → July 20 (one cycle, not two).
+    const june = nextDueWithPayments(c, paid, june15);
+    expect([june.getMonth(), june.getDate()]).toEqual([6, 20]);
+    // After June 20 passes, the date stays July 20 — the June payment
+    // must not also count for July (that would show August 20).
+    for (const day of [new Date(2026, 5, 21, 12), new Date(2026, 6, 15, 12)]) {
+      const d = nextDueWithPayments(c, paid, day);
+      expect([d.getMonth(), d.getDate()]).toEqual([6, 20]);
+    }
+  });
+
   it("advances an annual renewal a full year when paid (31-day window)", () => {
     const c = sub({ cadence: "annual", payMonth: 7, payDay: 1 }); // due July 1, 2026
     const due = nextDueWithPayments(c, [pay("s1", "2026-06-20")], june15);
     expect([due.getFullYear(), due.getMonth(), due.getDate()]).toEqual([2027, 6, 1]);
+  });
+
+  it("annual window: up to 30 days early counts; 31 days early doesn't", () => {
+    // Due July 1, 2026 (as of June 15). Window = (due − 31, due]: June 1 … July 1.
+    const c = sub({ cadence: "annual", payMonth: 7, payDay: 1 });
+    const year = (date: string) => nextDueWithPayments(c, [pay("s1", date)], june15).getFullYear();
+    expect(year("2026-06-01")).toBe(2027); // 30 days early → paid
+    expect(year("2026-05-31")).toBe(2026); // 31 days early → not this renewal
   });
 
   it("clamps the advanced date in short months (day 31 → Feb 28)", () => {
@@ -248,7 +281,7 @@ describe("nextDueWithPayments — fortnight", () => {
     sub({ cadence: "fortnight", anchorDate: "2026-06-05", payDay: 5, ...over });
 
   it("advances exactly one 14-day cycle when paid within the 7-day window", () => {
-    // due Jun 19; window (Jun 12, Jun 19]
+    // due Jun 19; window (due − 8, due] = (Jun 11, Jun 19], i.e. Jun 12 … Jun 19
     const due = nextDueWithPayments(fort(), [pay("2026-06-13")], june15);
     expect([due.getMonth(), due.getDate()]).toEqual([6, 3]); // Jul 3
   });
@@ -256,6 +289,11 @@ describe("nextDueWithPayments — fortnight", () => {
   it("a payment on the due date itself counts", () => {
     const due = nextDueWithPayments(fort(), [pay("2026-06-19")], june15);
     expect([due.getMonth(), due.getDate()]).toEqual([6, 3]);
+  });
+
+  it("counts a payment exactly 7 days early (the window's first day)", () => {
+    const due = nextDueWithPayments(fort(), [pay("2026-06-12")], june15);
+    expect([due.getMonth(), due.getDate()]).toEqual([6, 3]); // Jul 3
   });
 
   it("ignores a payment older than half a cycle — that was last fortnight's", () => {
@@ -330,5 +368,20 @@ describe("verifier round — boundary and defensive fixes", () => {
   it("normalizes fortnightly installments too (defensive, via monthlyCost)", () => {
     const d = deriveCommitments([inst({ cadence: "fortnight", anchorDate: "2026-06-05", amount: 60 })], june15);
     expect(d.instMonthly).toBeCloseTo(130); // 60 × 26/12
+  });
+});
+
+describe("monthlyCost — every cadence normalized to one month", () => {
+  it("monthly is the amount, annual a twelfth, fortnightly 26 payments a year ÷ 12", () => {
+    expect(monthlyCost(sub({ amount: 12 }))).toBe(12);
+    expect(monthlyCost(sub({ amount: 120, cadence: "annual" }))).toBe(10);
+    expect(monthlyCost(sub({ amount: 30, cadence: "fortnight", anchorDate: "2026-06-05" }))).toBe(65); // 30 × 26 ÷ 12
+    expect(monthlyCost(inst({ amount: 240 }))).toBe(240);
+  });
+
+  it("treats a missing or junk amount as 0 (imports are deliberately loose)", () => {
+    expect(monthlyCost(sub({ amount: NaN }))).toBe(0);
+    expect(monthlyCost(sub({ amount: "" as unknown as number }))).toBe(0);
+    expect(monthlyCost(sub({ amount: undefined as unknown as number, cadence: "annual" }))).toBe(0);
   });
 });

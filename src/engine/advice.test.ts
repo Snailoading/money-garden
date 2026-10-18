@@ -355,6 +355,10 @@ describe("rule 9 — the orchard", () => {
     expect(tip).toBeDefined();
     expect(tip!.body).toContain("call it a window of age");
     expect(tip!.body).toContain("5–9%"); // the ±2% band around 7%
+    // Age 30 (birth year unset) + 20 years at 7%; the window is +18 (9%) to +24 (5%)
+    // — the same figures fire.test.ts pins exactly.
+    expect(tip!.body).toContain("lands around age 50");
+    expect(tip!.body).toContain("window of age 48–54");
   });
 
   it("celebrates Coast FIRE when compounding alone will get there", () => {
@@ -457,5 +461,17 @@ describe("ordering and edge cases", () => {
     expect([...priorities].sort((a, b) => a - b)).toEqual(priorities);
     expect(priorities[0]).toBe(1);
     expect(priorities[priorities.length - 1]).toBe(3);
+    // Within each priority, the order rules appear in advice.ts (emergency →
+    // budgets → pace; savings → 50/30/20 → streak). They're emitted
+    // interleaved (1, 3, 1, 3, 1, 3, 2); the stable sort is what guarantees this.
+    expect(tips.map((t) => [t.priority, t.title])).toEqual([
+      [1, "Set up your rain barrel"],
+      [1, "🥕 Groceries is over budget by $50.00"],
+      [1, "Spending is running ahead of the calendar"],
+      [2, "Nothing is planted in the orchard yet"],
+      [3, "Saving 25% of income — excellent"],
+      [3, "Your 50/30/20 shape looks balanced"],
+      [3, "4-day logging streak"],
+    ]);
   });
 });

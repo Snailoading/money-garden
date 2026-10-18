@@ -434,6 +434,19 @@ describe("bumpStreak", () => {
     expect(bumpStreak({ count: 9, lastDate: "2026-06-01" }, now)).toEqual({ count: 1, lastDate: today });
     expect(bumpStreak({ count: 0, lastDate: null }, now)).toEqual({ count: 1, lastDate: today });
   });
+
+  it("keeps the streak across month and year boundaries (calendar-day math)", () => {
+    const at = (y: number, m: number, d: number) => new Date(y, m, d, 12);
+    expect(bumpStreak({ count: 3, lastDate: "2026-05-31" }, at(2026, 5, 1))).toEqual({ count: 4, lastDate: "2026-06-01" });
+    expect(bumpStreak({ count: 3, lastDate: "2026-12-31" }, at(2027, 0, 1))).toEqual({ count: 4, lastDate: "2027-01-01" });
+    expect(bumpStreak({ count: 3, lastDate: "2026-02-28" }, at(2026, 2, 1))).toEqual({ count: 4, lastDate: "2026-03-01" });
+  });
+
+  it("knows leap years: Feb 28 → Feb 29 continues; Feb 28 → Mar 1 skipped a day", () => {
+    const at = (y: number, m: number, d: number) => new Date(y, m, d, 12);
+    expect(bumpStreak({ count: 3, lastDate: "2028-02-28" }, at(2028, 1, 29))).toEqual({ count: 4, lastDate: "2028-02-29" });
+    expect(bumpStreak({ count: 3, lastDate: "2028-02-28" }, at(2028, 2, 1))).toEqual({ count: 1, lastDate: "2028-03-01" });
+  });
 });
 
 describe("loadSaved — only a truly empty save may become a fresh garden", () => {

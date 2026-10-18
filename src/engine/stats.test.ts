@@ -254,6 +254,14 @@ describe("pace and month fraction", () => {
     expect(derive(state({ budgets: {} }), now).monthlyExpenses).toBe(1);
   });
 
+  it("applies the 0.05 month-fraction floor in the first days of a month", () => {
+    // July 1 → monthFrac = 1/31 ≈ 0.032, below the floor. Without it, $600
+    // on day one would project to $18,600/month; with it, 600 ÷ 0.05.
+    const july1 = new Date(2026, 6, 1, 12);
+    const s = state({ budgets: {}, transactions: [{ ...tx("expense", 600, "groceries"), date: "2026-07-01" }] });
+    expect(derive(s, july1).monthlyExpenses).toBe(12000);
+  });
+
   it("measures emergency coverage in months of projected expenses", () => {
     const s = state({
       budgets: {},
