@@ -1,7 +1,22 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    // Mostly type-checking (noEmit) — Vite does the real build, targeting
+    // chrome111 / edge111 / firefox114 / safari16.4 (its default). ES2023
+    // adds findLast (Firefox 104) and the copy-don't-mutate toSorted /
+    // toReversed / toSpliced / with (like Python's sorted() vs list.sort();
+    // Firefox 115, one past the target — a self-updating browser, so moot in
+    // practice). Vite doesn't polyfill built-ins, so check support before
+    // using any newer one (the ES2023 lib also types some Intl options
+    // Firefox 114 lacks), and don't go past ES2023 without raising the build
+    // target too.
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    // Native class fields — the standard semantics, and what ES2022+ implies
+    // anyway; stated so the build doesn't hinge on `target`. Vite reads it:
+    // ErrorBoundary's `state` / `downloadSaved` ship as native fields rather
+    // than constructor assignments (same behavior; the crash-screen browser
+    // test covers it).
+    "useDefineForClassFields": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "react-jsx",
