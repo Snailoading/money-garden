@@ -347,6 +347,43 @@ describe("rule 9 — the orchard", () => {
     expect(tip!.priority).toBe(3);
   });
 
+  describe("the FI tip names the user's own withdrawal rate", () => {
+    // $100/month → $1,200/year; a $100k portfolio clears the freedom number
+    // at every allowed rate (2–10% → $60k down to $12k).
+    const fiTip = (wr: number) =>
+      find(tipsFor(state({ invest: { ...inv, wr, retireSpend: 100, holdings: [{ id: "h", name: "ETF", value: 100000 }] } })),
+        "The tree can feed you now");
+
+    it("the default 4% says 'By the 4% rule' and suggests the cautious 3–3.5%", () => {
+      const body = fiTip(4)!.body;
+      expect(body).toContain("By the 4% rule of thumb");
+      expect(body).toContain("Many planners suggest a more cautious 3–3.5% withdrawal rate");
+    });
+
+    it("a custom 5% says 'By the 5% rule' — never the 4% it didn't use", () => {
+      const body = fiTip(5)!.body;
+      expect(body).toContain("By the 5% rule of thumb");
+      expect(body).not.toContain("4%");
+      expect(body).toContain("a more cautious 3–3.5%");
+    });
+
+    it("a rate already at or below 3.5% isn't told to be more cautious", () => {
+      for (const wr of [3.5, 3, 2]) {
+        const body = fiTip(wr)!.body;
+        expect(body).toContain(`By the ${wr}% rule of thumb`);
+        expect(body).not.toContain("more cautious");
+        expect(body).toContain(`At ${wr}% you're already at or below the 3–3.5% many planners suggest`);
+      }
+    });
+
+    it("names the clamped rate that actually sized the freedom number (2–10%)", () => {
+      // An out-of-range setting is clamped in fire.ts; the copy must say the
+      // rate the number was built with, not the raw input.
+      expect(fiTip(1)!.body).toContain("By the 2% rule of thumb");
+      expect(fiTip(12)!.body).toContain("By the 10% rule of thumb");
+    });
+  });
+
   it("gives the freedom window in bumpier markets", () => {
     const s = state({
       invest: { ...inv, retireSpend: 1000, monthly: 500, holdings: [{ id: "h", name: "ETF", value: 10000 }] },

@@ -202,7 +202,13 @@ export function buildAdvice(state: State, d: Derived, now: Date = new Date()): T
       const pct = Math.round(f.progress * 100);
       if (f.progress >= 1) {
         push(3, "🍎", "The tree can feed you now",
-          `Your portfolio has reached your freedom number (${fmt(f.fireNumber)}). By the 4% rule of thumb, work is now optional. Many planners suggest a more cautious 3–3.5% withdrawal rate before actually leaning on it — a little frost protection.`);
+          // The user's own (clamped) rate — the same one that sized the
+          // freedom number — not a hard-coded 4%. A rate already in the
+          // cautious band isn't told to get more cautious.
+          `Your portfolio has reached your freedom number (${fmt(f.fireNumber)}). By the ${f.wr}% rule of thumb, work is now optional. ` +
+          (f.wr > 3.5
+            ? "Many planners suggest a more cautious 3–3.5% withdrawal rate before actually leaning on it — a little frost protection."
+            : `At ${f.wr}% you're already at or below the 3–3.5% many planners suggest — frost protection built in.`));
       } else if (f.yearsToFI !== null && f.yearsToFI <= 50) {
         const winEarly = f.age + (f.yearsToFIEarly ?? f.yearsToFI);
         const winLate = f.yearsToFILate !== null ? f.age + f.yearsToFILate : null;
