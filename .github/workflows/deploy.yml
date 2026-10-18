@@ -20,20 +20,29 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+# Actions are pinned to exact commit SHAs (a tag like v7 can be moved to
+# different code; a SHA can't), with the release noted beside each.
+# To update one, get the FULL 40-character commit SHA of the new release:
+#   git ls-remote --tags https://github.com/actions/<name> <tag>
+# If a "<tag>^{}" line appears, use that line's SHA (the plain line is the
+# tag object, not the commit). Change the SHA and its comment together —
+# and keep the "bump together" rule for the two Pages actions below.
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: lts/* # tracks the active LTS (Node 24 as of mid-2026)
+          # Tracks the active LTS: Node 24 "Krypton" as of Oct 2026; Node 26
+          # is due to take over in late Oct 2026 and lts/* will follow it.
+          node-version: lts/*
           cache: npm
       - run: npm ci
       - run: npm test # a broken build never ships
       - run: npm run build # → dist/
       # upload-pages-artifact and deploy-pages ship as matched pairs — bump together.
-      - uses: actions/upload-pages-artifact@v5
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: dist
 
@@ -45,4 +54,4 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - id: deploy
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
