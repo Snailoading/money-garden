@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.18.2 — 2026-10-19 · *A locked garden gate* 🔒
+
+### Added
+
+- **The browser itself now guards your data.** Money Garden has always
+  kept your numbers on your device; now the page tells the browser so, in
+  a rule it enforces (a "Content Security Policy"): the app may load only
+  its own files, may not send anything to any server (not even the one
+  it's hosted on), and only its own scripts may run. Even if something
+  tried to slip code into the page, the browser would refuse to run it
+  (add-ons you install yourself are the one thing no page can police),
+  and nothing could be fetched, beaconed or loaded from elsewhere.
+  Nothing looks different; checked in Chrome's, Safari's and Firefox's
+  engines, in the hosted app and the single-file version.
+
+### Fixed
+
+- **The "tree can feed you now" tip names your own withdrawal rate.** It
+  always said "By the 4% rule of thumb", even if you'd chosen 3% or 5%,
+  and suggested a more cautious 3–3.5% even to someone already there. It
+  now uses your rate (the one that sized your freedom number), and a rate
+  already at or below 3.5% is told it's on the cautious side.
+- **No flash of the wrong colours at startup, in more cases.** If your
+  browser blocks site data, or a saved setting was garbled, the garden
+  could open in day colours and flip to night a moment later. And the
+  title bar or toolbar colour started day-green even for night gardens.
+  All of these now open in the right colours from the first frame.
+
+### Changed
+
+- **Screens draw money amounts faster.** The formatter behind every
+  dollar figure is now built once and reused — many times quicker per
+  amount (about 55× in our tests), with output identical to the cent.
+- **The guide is up to date**, covering everything since v0.15: the
+  "Left unplanted" chart, fortnightly vines, date search across seasons,
+  and a new "Safety nets" section on how the garden guards against
+  accidents.
+- Behind the scenes: build tools updated (security fixes; the app
+  itself had none to fix), the deploy pipeline's GitHub Actions pinned to
+  exact versions, and stricter tests around payment windows,
+  freedom-number timing, streaks and advice wording.
+
 ## 0.18.1 — 2026-10-17 · *Every tab, every morning* 🌅
 
 ### Fixed
