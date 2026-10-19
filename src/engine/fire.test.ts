@@ -99,6 +99,15 @@ describe("years to FI (month-by-month simulation)", () => {
     expect(f.yearsToFI).toBe(2);
   });
 
+  it("adds each contribution AFTER the month's growth (reference timing)", () => {
+    // $60k target, $1,500/month at 7%. Growth-then-contribution is $105
+    // short after month 36 ($59,895) and crosses in month 37 → 4 years.
+    // Contribution-then-growth would cross in month 36 ($60,245) → 3 years.
+    const f = df(invest({ retireSpend: 200, ret: 7, monthly: 1500 }), 0);
+    expect(f.fireNumber).toBe(60000);
+    expect(f.yearsToFI).toBe(4);
+  });
+
   it("returns null past the 720-month (60-year) cap", () => {
     const f = df(invest({ retireSpend: 1000, ret: 0, monthly: 0, holdings: holdings(100) }), 0);
     expect(f.yearsToFI).toBeNull();
@@ -111,6 +120,13 @@ describe("years to FI (month-by-month simulation)", () => {
     expect(f.yearsToFI).not.toBeNull();
     expect(f.yearsToFIEarly!).toBeLessThanOrEqual(f.yearsToFI!);
     expect(f.yearsToFILate!).toBeGreaterThanOrEqual(f.yearsToFI!);
+    // Exact figures, worked independently (month-by-month: monthly rate =
+    // annual ÷ 12, growth then the $500 contribution, years rounded up).
+    // Annual compounding would give 21 / 19 / 25 — the checks above can't
+    // tell the two models apart; these can.
+    expect(f.yearsToFI).toBe(20); // 7% → month 240
+    expect(f.yearsToFIEarly).toBe(18); // 9% → month 210
+    expect(f.yearsToFILate).toBe(24); // 5% → month 283
   });
 });
 

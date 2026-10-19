@@ -39,6 +39,54 @@ describe("display formatting", () => {
   });
 });
 
+describe("fmt reuses its formatters (no new Intl.NumberFormat per call)", () => {
+  // The original, uncached implementation — the output to match exactly.
+  const reference = (n: number, opts: Intl.NumberFormatOptions = {}): string =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: Math.abs(n) >= 1000 ? 0 : 2,
+      ...opts,
+    }).format(n);
+
+  const samples = [
+    0, -0, 0.004, 0.005, 0.015, 0.1, 0.125, 1, 9.999, 12.5, 99.995, 999.99, 999.994, 999.995, 999.999,
+    1000, 1000.4, 1000.5, 1234.5, 8060, 9999.5, 1e6, 1234567.891, 1e15, 1e21,
+    -0.005, -12.5, -999.99, -999.995, -1000, -1000.5, -8060,
+    NaN, Infinity, -Infinity, Number.MIN_VALUE, Number.MAX_SAFE_INTEGER,
+  ];
+
+  it("matches the original output character for character", () => {
+    for (const n of samples) expect(fmt(n)).toBe(reference(n));
+    // A spread of amounts from cents to hundreds of millions (a fixed pseudo-random
+    // sequence, so the run is repeatable — like seeding random in Python).
+    // Park–Miller: products stay below 2^47, exact in JS doubles.
+    let x = 12345;
+    for (let i = 0; i < 2000; i++) {
+      x = (x * 48271) % 2147483647;
+      const n = (x / 2147483647 - 0.3) * 10 ** (i % 10); // −0.3×10^k … 0.7×10^k, k = 0…9
+      expect(fmt(n)).toBe(reference(n));
+    }
+  });
+
+  it("still honors custom options (the Orchard's whole-dollar yield)", () => {
+    for (const n of [0, 12.5, 999.99, 1234.5, -8060.4]) {
+      expect(fmt(n, { maximumFractionDigits: 0 })).toBe(reference(n, { maximumFractionDigits: 0 }));
+    }
+  });
+
+  it("builds no formatter for ordinary calls (after the first of each kind)", () => {
+    fmt(1); fmt(1000); // first use builds the two shared formatters
+    const spy = vi.spyOn(Intl, "NumberFormat");
+    try {
+      for (const n of samples) fmt(n);
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
 describe("msUntilNextDay — when the garden's 'today' turns over", () => {
   // The result must land EXACTLY on the first instant of the next local
   // day, whatever the clock and timezone: one millisecond earlier is still

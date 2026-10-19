@@ -10,6 +10,7 @@ import { resolve } from "node:path";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { viteSingleFile } from "vite-plugin-singlefile";
+import { cspPlugin } from "./tooling/csp.ts";
 
 function singleFileOutput(): Plugin {
   return {
@@ -31,7 +32,9 @@ function singleFileOutput(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), viteSingleFile(), singleFileOutput()],
+  // cspPlugin last, after viteSingleFile has inlined the bundle: the policy
+  // allows the inlined scripts by their exact hashes.
+  plugins: [react(), viteSingleFile(), singleFileOutput(), cspPlugin("single")],
   // Don't copy public/ (manifest, icons, hosted favicon) into the single file's dir.
   publicDir: false,
   define: {

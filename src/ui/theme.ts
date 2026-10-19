@@ -73,6 +73,13 @@ export const isIOS = (): boolean =>
 export const isTouchDevice = (): boolean =>
   typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
 
+/** A saved theme value → the mode the app uses: day, night or auto as
+ * saved; anything else (nothing saved, unreadable storage, junk) is auto.
+ * index.html's boot script applies the same rule before the app loads —
+ * theme.test.ts runs that script against this. */
+export const parseThemeMode = (saved: string | null | undefined): ThemeMode =>
+  saved === "day" || saved === "night" || saved === "auto" ? saved : "auto";
+
 export const resolveTheme = (mode: ThemeMode, now: Date = new Date()): "day" | "night" => {
   if (mode !== "auto") return mode;
   const h = now.getHours();

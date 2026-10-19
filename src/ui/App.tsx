@@ -22,7 +22,7 @@ import { Recovery } from "./Recovery";
 import { createSaveQueue, type SaveQueue, type SetResult, type StorageMode } from "../engine/storage";
 import { useToday } from "./hooks";
 import { checkPersistentStorage, requestPersistentStorage, storageNote } from "./storageNote";
-import { C, INSTALL_HINT_KEY, isIOS, isStandalone, isTouchDevice, resolveTheme, THEME_COLOR, THEME_KEY, type ThemeMode } from "./theme";
+import { C, INSTALL_HINT_KEY, isIOS, isStandalone, isTouchDevice, parseThemeMode, resolveTheme, THEME_COLOR, THEME_KEY, type ThemeMode } from "./theme";
 import { Overview } from "./tabs/Overview";
 import { Log } from "./tabs/Log";
 import { Budgets } from "./tabs/Budgets";
@@ -287,8 +287,7 @@ export function MoneyGarden() {
   useEffect(() => {
     (async () => {
       const res = await store.get(THEME_KEY);
-      const v = res?.value;
-      if (v === "day" || v === "night" || v === "auto") setThemeMode(v);
+      setThemeMode(parseThemeMode(res?.value));
       // Both updates land in ONE render: React 18 batches state updates
       // made in the same tick (collect the changes, redraw once). And the
       // order is safe even without that — mode first, then "loaded" — so

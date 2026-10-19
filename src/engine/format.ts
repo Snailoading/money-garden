@@ -15,14 +15,32 @@ export const fmtK = (v: unknown): string => {
   return "$" + Math.round(n);
 };
 
-/** Currency formatting; whole dollars once |n| ≥ 1000, cents below that. */
-export const fmt = (n: number, opts: Intl.NumberFormatOptions = {}): string =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: Math.abs(n) >= 1000 ? 0 : 2,
-    ...opts,
-  }).format(n);
+/** The two everyday money formats, each built once and reused — a lazily
+ * filled module-level cache, like a memoized global in Python: fmt runs
+ * hundreds of times per screen, and building an Intl.NumberFormat is the
+ * slow part. Built on first use rather than at import, so code that only
+ * needs the date helpers below never pays for them (or trips on a picky
+ * Intl engine). */
+const CURRENCY = { style: "currency", currency: "USD" } as const;
+let withCents: Intl.NumberFormat | undefined;
+let wholeDollars: Intl.NumberFormat | undefined;
+
+/** Currency formatting; whole dollars once |n| ≥ 1000, cents below that.
+ * Custom `opts` (rare) still get a formatter of their own. */
+export const fmt = (n: number, opts?: Intl.NumberFormatOptions): string => {
+  const whole = Math.abs(n) >= 1000;
+  if (opts) {
+    const options = { ...CURRENCY, maximumFractionDigits: whole ? 0 : 2, ...opts };
+    return new Intl.NumberFormat("en-US", options).format(n);
+  }
+  // `??=` assigns only if still undefined — like `x = x or make()` in Python.
+  if (whole) {
+    wholeDollars ??= new Intl.NumberFormat("en-US", { ...CURRENCY, maximumFractionDigits: 0 });
+    return wholeDollars.format(n);
+  }
+  withCents ??= new Intl.NumberFormat("en-US", { ...CURRENCY, maximumFractionDigits: 2 });
+  return withCents.format(n);
+};
 
 /** Random-enough id for local, single-user data (not a UUID on purpose — reference behavior). */
 export const uid = (): string =>

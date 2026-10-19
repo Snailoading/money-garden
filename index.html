@@ -14,13 +14,23 @@
     // garden. Mirrors resolveTheme() in src/ui/theme.ts; the direct
     // localStorage read is a documented exception to the storage-adapter
     // rule — this runs before the app (and its adapter) exists.
+    // Must agree with the web app (src/ui/theme.test.ts runs this exact
+    // script against parseThemeMode/resolveTheme/THEME_COLOR): anything but
+    // a saved day/night/auto — nothing saved, blocked storage, junk — means
+    // auto. (A future native shell storing the theme elsewhere would need
+    // its own boot step.)
     (function () {
+      var mode = "auto";
       try {
-        var mode = localStorage.getItem("money-garden:theme") || "auto";
-        var h = new Date().getHours();
-        var night = mode === "night" || (mode === "auto" && (h < 7 || h >= 19));
-        document.documentElement.dataset.theme = night ? "night" : "day";
-      } catch (e) { /* storage unavailable → day */ }
+        var saved = localStorage.getItem("money-garden:theme");
+        if (saved === "day" || saved === "night") mode = saved;
+      } catch (e) { /* storage blocked → auto, as the app does */ }
+      var h = new Date().getHours();
+      var night = mode === "night" || (mode === "auto" && (h < 7 || h >= 19));
+      document.documentElement.dataset.theme = night ? "night" : "day";
+      // The browser/PWA title bar too (THEME_COLOR in theme.ts).
+      var bar = document.querySelector('meta[name="theme-color"]');
+      if (bar) bar.setAttribute("content", night ? "#141F18" : "#5A7D5A");
     })();
   </script>
   <style>

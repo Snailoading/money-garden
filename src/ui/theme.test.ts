@@ -6,7 +6,8 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { C, resolveTheme } from "./theme";
+import { runInNewContext } from "node:vm";
+import { C, parseThemeMode, resolveTheme, THEME_COLOR, THEME_KEY } from "./theme";
 
 const css = readFileSync(fileURLToPath(new URL("./global.css", import.meta.url)), "utf8");
 const varsIn = (block: string) => new Set([...block.matchAll(/--[\w-]+(?=\s*:)/g)].map((m) => m[0]));
@@ -63,4 +64,70 @@ describe("resolveTheme", () => {
     expect(resolveTheme("auto", new Date(2026, 6, 7, 19, 0))).toBe("night");
     expect(resolveTheme("auto", new Date(2026, 6, 7, 0, 30))).toBe("night");
   });
+});
+
+/*
+ * index.html's boot script paints the theme before the app exists, so it
+ * re-implements resolveTheme in plain JS. Run the REAL script (extracted
+ * from index.html) in a sandbox — like exec() with a prepared globals dict
+ * in Python — and check it agrees with the app for every saved mode and
+ * hour, including storage that's blocked or holds junk. A mismatch is a
+ * visible flash at startup.
+ */
+describe("index.html boot script agrees with the app's theme", () => {
+  const html = readFileSync(fileURLToPath(new URL("../../index.html", import.meta.url)), "utf8");
+  const boot = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)]
+    .map((m) => m[1])
+    .find((s) => s.includes(THEME_KEY));
+
+  /** Run the boot script with `stored` in localStorage ("blocked" = access throws) at local hour `h`. */
+  const runBoot = (stored: string | null | "blocked", h: number) => {
+    const meta = {
+      content: "#5A7D5A",
+      setAttribute(name: string, v: string) {
+        if (name !== "content") throw new Error(`unexpected attribute ${name}`);
+        this.content = v;
+      },
+    };
+    const root = { dataset: {} as Record<string, string> };
+    const fixed = new Date(2026, 9, 17, h, 30).getTime();
+    // A Date whose no-argument form is the fixed moment (Date(…) with args is
+    // untouched) — like patching datetime.now() in Python. The `as [number]`
+    // only quiets TypeScript about spreading an arbitrary argument list.
+    const FixedDate = class extends Date {
+      constructor(...a: []) { super(...(a.length ? a : [fixed]) as [number]); }
+    };
+    const sandbox: Record<string, unknown> = {
+      Date: FixedDate,
+      document: { documentElement: root, querySelector: (q: string) => (q === 'meta[name="theme-color"]' ? meta : null) },
+    };
+    Object.defineProperty(sandbox, "localStorage", {
+      get() {
+        // Some browsers throw on mere access. (Inside Node's vm the script
+        // sees it as a ReferenceError instead — handled the same way; the
+        // browser suite covers the real SecurityError.)
+        if (stored === "blocked") throw new Error("SecurityError");
+        return { getItem: (k: string) => (k === THEME_KEY ? stored : null) };
+      },
+    });
+    runInNewContext(boot!, sandbox);
+    return { theme: root.dataset.theme, meta: meta.content };
+  };
+
+  it("finds the boot script", () => {
+    expect(boot).toBeDefined();
+  });
+
+  const modes: (string | null | "blocked")[] = ["day", "night", "auto", null, "blocked", "dusk", ""];
+  const hours = [0, 3, 6, 7, 12, 18, 19, 23];
+  for (const stored of modes) {
+    it(`saved ${JSON.stringify(stored)}: same theme and title-bar colour as the app, every hour`, () => {
+      // What the app does (its own parser; blocked storage reads as nothing).
+      const mode = parseThemeMode(stored === "blocked" ? null : stored);
+      for (const h of hours) {
+        const want = resolveTheme(mode, new Date(2026, 9, 17, h, 30));
+        expect(runBoot(stored, h), `hour ${h}`).toEqual({ theme: want, meta: THEME_COLOR[want] });
+      }
+    });
+  }
 });
