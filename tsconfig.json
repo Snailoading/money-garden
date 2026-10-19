@@ -29,7 +29,10 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "noEmit": true,
+    // The Vite configs import "./tooling/csp.ts" WITH its extension — Vite's
+    // upcoming native config loader requires it. Fine with noEmit.
+    "allowImportingTsExtensions": true,
     "types": ["vite/client"]
   },
-  "include": ["src", "vite.config.ts", "vite.singlefile.config.ts"]
+  "include": ["src", "tooling", "vite.config.ts", "vite.singlefile.config.ts"]
 }

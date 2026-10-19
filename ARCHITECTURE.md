@@ -263,6 +263,29 @@ the in-app "Preparing your garden…" state covers the storage load after that.
 Fonts (Fraunces + DM Sans, variable woff2) are self-hosted in
 `src/assets/fonts/` — the app makes **zero** network requests at runtime.
 
+**Content Security Policy** (since v0.18.2, `tooling/csp.ts`): both builds
+ship a `<meta http-equiv="Content-Security-Policy">`, injected into the
+FINAL html by `cspPlugin` (last plugin, `generateBundle`, build only — the
+dev server's live reload needs what the policy forbids). It closes
+everything (`default-src 'none'`) and reopens only what the app uses;
+`connect-src 'none'` makes "zero network requests" browser-enforced:
+nothing can be fetched, beaconed or loaded from elsewhere, and no injected
+script can run. (No CSP can stop navigating the page itself away — only
+code already allowed to run could try.) Inline
+scripts are allowed by sha256 hash, computed from the exact final text —
+the boot script (both builds) and the inlined bundle (single file) — so
+editing the boot script never needs a hand-pasted hash (line endings are
+normalized first, as the browser does, so a CRLF checkout hashes the same).
+Styles allow `'unsafe-inline'` for the inline `<style>` blocks (the splash;
+the single file's stylesheet) — React's `style={…}` props go through the
+DOM style API, which CSP doesn't govern; scripts never get
+`'unsafe-inline'`, and there is no `'unsafe-eval'`. The hosted policy adds
+`'self'` for the bundle, fonts, manifest and service worker; the single
+file (no real origin on `file://`) uses only hashes and `data:`. The
+service-worker cache version folds in `tooling/csp.ts` so a policy-only
+change still reaches installed copies. Adding a network call, an external
+font, or an inline `onclick=` means changing this policy on purpose.
+
 ## Hosting
 
 `base: "./"` (vite.config.ts) emits relative asset paths, so the hosted
@@ -276,23 +299,23 @@ Never hand-write a root-absolute asset path (`src="/x.png"`); use relative or
   Source → GitHub Actions.)
 - **Alternative: Cloudflare Pages** — point it at the repo (build `npm run
   build`, output `dist`); no workflow needed. Root URL, unlimited bandwidth,
-  per-branch previews, and — the real reason to switch — custom response
-  headers via a `_headers` file, which GitHub Pages can't do. Worth it if a
-  custom domain or a Content-Security-Policy is wanted. Starter `_headers`:
+  per-branch previews, and custom response headers via a `_headers` file,
+  which GitHub Pages can't do. The CSP itself already ships as a meta tag
+  (above); headers would add only what a meta tag can't express. Starter
+  `_headers`:
 
   ```
   /*
-    Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'
+    Content-Security-Policy: frame-ancestors 'none'
     Referrer-Policy: no-referrer
     X-Content-Type-Options: nosniff
   ```
 
-  The big win is `default-src`/`connect-src 'self'`: nothing can be sent to
-  another origin and no external script can load. `'unsafe-inline'` is needed
-  for the pre-paint theme boot script and React's inline `style` attributes;
-  tighten `script-src` to a sha256 hash of the (static) boot script for a
-  stricter policy. The `_headers` file is inert on GitHub Pages, so it can be
-  added any time.
+  `frame-ancestors` (no embedding in other sites' frames) is ignored in a
+  meta tag. Every policy a page receives is enforced, so this header adds
+  to the meta policy rather than loosening it — keep it to directives the
+  meta can't carry. The `_headers` file is inert on GitHub Pages, so it can
+  be added any time.
 
 ## Where things would grow next
 
