@@ -20,7 +20,7 @@ import { store } from "./store";
 import { downloadText } from "./download";
 import { Recovery } from "./Recovery";
 import { createSaveQueue, type SaveQueue, type SetResult, type StorageMode } from "../engine/storage";
-import { useToday } from "./hooks";
+import { useArmed, useToday } from "./hooks";
 import { checkPersistentStorage, requestPersistentStorage, storageNote } from "./storageNote";
 import { C, INSTALL_HINT_KEY, isIOS, isStandalone, isTouchDevice, parseThemeMode, resolveTheme, THEME_COLOR, THEME_KEY, type ThemeMode } from "./theme";
 import { Overview } from "./tabs/Overview";
@@ -55,8 +55,11 @@ export function MoneyGarden() {
   const switchTab = (t: TabId) => { setLogPreset(null); setTab(t); };
   const goToDraws = () => { setLogPreset("draw"); setTab("log"); };
   const [toast, setToast] = useState<string | null>(null);
-  const [confirmReset, setConfirmReset] = useState(false);
-  const [confirmReplant, setConfirmReplant] = useState(false);
+  /** The shed's two-step buttons (Start fresh / Replant sample data): one
+   * armed at a time, "reset" or "replant". useArmed cancels the pending
+   * disarm on every new arm — the old per-button setTimeouts never did, so
+   * an earlier tap's timer could cut a later re-arm's 4s window short. */
+  const shed = useArmed();
   const [pendingImport, setPendingImport] = useState<ImportPreview | null>(null);
   /** YYYY-MM being browsed; null = today. Affects Overview, Log, Budget plots. */
   const [viewYm, setViewYm] = useState<string | null>(null);
@@ -758,24 +761,24 @@ export function MoneyGarden() {
               }} />
             {/* Replanting overwrites the whole garden, so it two-steps like
                 Start fresh (arm → 4s window → tomato confirm). */}
-            {!isEmpty && (confirmReplant ? (
-              <button className="mg-btn" onClick={() => { if (!setStateSafe(sampleState())) return; setConfirmReplant(false); setConfirmReset(false); setViewYm(null); showToast("🌼 Sample garden replanted"); }}
+            {!isEmpty && (shed.armedId === "replant" ? (
+              <button className="mg-btn" onClick={() => { if (!setStateSafe(sampleState())) return; shed.disarm(); setViewYm(null); showToast("🌼 Sample garden replanted"); }}
                 style={{ background: C.tomato, border: `1.5px solid ${C.tomato}`, borderRadius: 10, padding: "7px 14px", fontWeight: 700, fontSize: 13, color: C.inkContrast, cursor: "pointer" }}>
                 Really replace everything with sample data?
               </button>
             ) : (
-              <button className="mg-btn" onClick={() => { setConfirmReplant(true); setConfirmReset(false); setTimeout(() => setConfirmReplant(false), 4000); }}
+              <button className="mg-btn" onClick={() => shed.arm("replant")}
                 style={{ background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "7px 14px", fontWeight: 600, fontSize: 13, color: C.inkSoft, cursor: "pointer" }}>
                 Replant sample data…
               </button>
             ))}
-            {confirmReset ? (
-              <button className="mg-btn" onClick={() => { if (!setStateSafe(emptyState())) return; setConfirmReset(false); setViewYm(null); setTab("overview"); showToast("🍂 Fresh soil — everything cleared"); }}
+            {shed.armedId === "reset" ? (
+              <button className="mg-btn" onClick={() => { if (!setStateSafe(emptyState())) return; shed.disarm(); setViewYm(null); setTab("overview"); showToast("🍂 Fresh soil — everything cleared"); }}
                 style={{ background: C.tomato, border: `1.5px solid ${C.tomato}`, borderRadius: 10, padding: "7px 14px", fontWeight: 700, fontSize: 13, color: C.inkContrast, cursor: "pointer" }}>
                 Really erase everything?
               </button>
             ) : (
-              <button className="mg-btn" onClick={() => { setConfirmReset(true); setConfirmReplant(false); setTimeout(() => setConfirmReset(false), 4000); }}
+              <button className="mg-btn" onClick={() => shed.arm("reset")}
                 style={{ background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "7px 14px", fontWeight: 600, fontSize: 13, color: C.inkSoft, cursor: "pointer" }}>
                 Start fresh…
               </button>
