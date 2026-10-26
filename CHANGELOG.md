@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.18.3 — 2026-10-26 · *Steady shed doors* 🚪
+
+### Fixed
+
+- **"Start fresh…" and "Replant sample data…" always give you their full
+  four seconds to confirm.** Tapping quickly between the two could make the
+  second tap's confirm button vanish early — sometimes after only a second
+  or so. Nothing could be erased by mistake — a confirm tap just armed it
+  again — but the window was shorter than it should be.
+
+### Changed
+
+- Behind the scenes: the automatic browser checks — the garden's safety
+  screens (recovery, the rescue page, two-tap deletes, refusing damaged
+  backups) plus open tabs, midnight and the content policy — now live with
+  the project, so they can be rerun before any change.
+
 ## 0.18.2 — 2026-10-19 · *A locked garden gate* 🔒
 
 ### Added
