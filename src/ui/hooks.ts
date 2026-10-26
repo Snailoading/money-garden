@@ -20,10 +20,12 @@ export function useReveal(): boolean {
 
 /**
  * Two-step confirm for destructive taps (CLAUDE.md: nothing destroys data
- * without an explicit two-step confirm). `arm(id)` swaps that item's ✕ for
- * a "Delete?" control; it quietly disarms after `ms`, and only one item is
- * armed at a time. Returns a plain object — like a small Python class
- * instance whose attributes the component reads.
+ * without an explicit two-step confirm) — row deletes, and the shed's Start
+ * fresh / Replant (ids "reset" / "replant"). `arm(id)` swaps that control
+ * for its "Delete?" / "Really…?" confirm; it quietly disarms after `ms`,
+ * only one item is armed at a time, and re-arming cancels the previous
+ * timer. Returns a plain object — like a small Python class instance whose
+ * attributes the component reads.
  */
 export function useArmed(ms = 4000) {
   const [armedId, setArmedId] = useState<string | null>(null);

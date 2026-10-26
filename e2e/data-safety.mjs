@@ -9,6 +9,7 @@
 //   DS7  "undo the draw first", then exact reversal to the cent
 //   DS8  the browser can't save → red banner; nothing claims to be saved
 //   DS9  sample data never replaces a started garden; Replant / Start fresh two-step
+//   DS10 quick taps between the shed's two-step buttons keep each arm's full window
 // Each section runs on its own, so one broken screen can't hide the others.
 import { chromium } from "playwright";
 import { spawn, execSync } from "node:child_process";
@@ -320,6 +321,38 @@ try {
     const planted = await garden(page);
     check("DS9g confirming Replant replaces the garden with the sample", planted.transactions.length > 10 && planted.income !== 3500);
     check("DS9h no page errors", pageErrors.length === 0, pageErrors.join(" | "));
+  });
+
+  await section("DS10", async () => {
+    // Quick taps between the shed's two-step buttons: each arm must get its
+    // full 4-second window. (A fake clock makes the timing exact.) The bug
+    // this guards: the shed's old timers were never cancelled, so an earlier
+    // arm's timer cut a later re-arm short.
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
+    await ctx.addInitScript(() => {
+      localStorage.setItem("money-garden:theme", "day");
+      localStorage.setItem("money-garden:install-hint", "muted");
+      localStorage.setItem("money-garden:state-v1", JSON.stringify({ income: 3500 }));
+    });
+    const page = await ctx.newPage();
+    const pageErrors = [];
+    page.on("pageerror", (e) => pageErrors.push(e.message));
+    page.setDefaultTimeout(10_000);
+    await page.clock.install();
+    await page.goto(BASE);
+    await page.getByText("Money Garden", { exact: true }).waitFor();
+    await button(page, "Start fresh…").click();            // t = 0s
+    await page.clock.runFor(1000);
+    await button(page, "Replant sample data…").click();    // t = 1s (disarms Start fresh)
+    await page.clock.runFor(1000);
+    await button(page, "Start fresh…").click();            // t = 2s — a fresh 4s window
+    await page.clock.runFor(3000);                         // t = 5s: 3s into that window
+    check("DS10 a re-armed shed button keeps its full window (earlier taps' timers don't cut it short)",
+      await button(page, "Really erase everything?").isVisible());
+    await page.clock.runFor(1500);                         // t = 6.5s: past the 4s window
+    check("DS10b …and still disarms on its own once its window ends", await until(button(page, "Start fresh…"), "visible"));
+    check("DS10c only one shed button is ever armed", !(await button(page, "Really replace everything with sample data?").isVisible()));
+    check("DS10d no page errors", pageErrors.length === 0, pageErrors.join(" | "));
   });
 
   await browser.close();
