@@ -48,6 +48,7 @@ no checks at all counts as failed.
 
 | Suite | Guards | Since |
 |---|---|---|
+| `data-safety` | the "never lose your data" screens: unreadable save → Recovery (nothing erased, two-tap start fresh that keeps a copy — or refuses); crash → rescue page (also on the very first render); damaged backups refused; two-tap deletes (entries, vines, holdings); "undo the draw first" and exact reversal; the can't-save banner; sample data never replaces a started garden; Replant / Start fresh two-step | v0.17.4–v0.17.5 |
 | `multi-tab` | two open tabs follow each other's saves; never echo; drafts kept; damaged data → Recovery; a tab that can't save keeps its own garden | v0.18.1 |
 | `midnight` | "today" turns over at midnight (timer, wake-up, once-a-minute net); the Log's date follows; picked dates stay | v0.18.1 |
 | `backup-reminder` | the shed's backup line: dates, the 14-day amber reminder, other tabs, restore, start fresh | v0.18.1 |
