@@ -55,6 +55,7 @@ no checks at all counts as failed.
 | `theme-flash` | no wrong-theme flash at startup, frame by frame; title-bar colour; toggle; dusk | v0.18.1–2 |
 | `withdrawal-rate` | the FI tip names the user's own withdrawal rate | v0.18.2 |
 | `csp` | the security policy: normal use has zero violations; injected scripts and every way to send data out are blocked — hosted and single-file | v0.18.2 |
+| `header-pills` | the header's theme / weather / streak pills share one height, top and corner radius; the toggle is square, the streak centered — desktop, phone, narrow phone, both themes | v0.18.4 |
 
 Each suite serves `dist/` with `server.py` on its own fixed port. The server
 answers `/__pid` with its process id, and the suite refuses to run unless
