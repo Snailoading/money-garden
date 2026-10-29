@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.18.4 — 2026-10-29 · *Even fence posts* 🪵
+
+### Fixed
+
+- **The header's three pills — the day/night toggle, the weather, and your
+  streak — now stand the same height,** with matching rounded corners.
+  Before, each was only as tall as its own contents, so they sat at three
+  different heights. On wider screens the day/night toggle is a neat
+  square, too.
+
 ## 0.18.3 — 2026-10-26 · *Steady shed doors* 🚪
 
 ### Fixed
