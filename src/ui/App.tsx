@@ -642,10 +642,17 @@ export function MoneyGarden() {
               Money Garden
             </h1>
           </div>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {/* stretch: all three pills take the tallest one's height (two
+              lines of text — 55px unless the weather blurb wraps, as
+              longer blurbs do on phones); the streak card centers its
+              own content. The
+              theme button's width is that usual 55px so it reads as a
+              square — aspect-ratio can't do it: flexbox sizes the width
+              before stretch decides the height. */}
+          <div style={{ display: "flex", gap: 10, alignItems: "stretch" }}>
             <button className="mg-btn" onClick={cycleTheme} aria-label="Switch theme (day, night, or auto)"
               title={themeMode === "day" ? "Day garden — tap for night" : themeMode === "night" ? "Night garden — tap for auto" : "Auto: follows the clock, day 7am–7pm — tap for day"}
-              style={{ background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: "8px 12px", fontSize: 20, lineHeight: 1, cursor: "pointer" }}>
+              style={{ background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 18, width: 55, padding: 0, fontSize: 20, lineHeight: 1, cursor: "pointer", flexShrink: 0 }}>
               {themeMode === "day" ? "☀️" : themeMode === "night" ? "🌙" : "🌗"}
             </button>
             <div className="mg-card" style={{ padding: "8px 14px", display: "flex", gap: 8, alignItems: "center" }} title="Garden health — budget pace, saving, and logging habits">
@@ -655,7 +662,7 @@ export function MoneyGarden() {
                 <div style={{ fontSize: 11.5, color: C.inkSoft }}>{weather.blurb}</div>
               </div>
             </div>
-            <div className="mg-card" style={{ padding: "8px 14px", textAlign: "center" }} title="Days in a row you've logged something">
+            <div className="mg-card" style={{ padding: "8px 14px", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "center" }} title="Days in a row you've logged something">
               <div style={{ fontWeight: 700, fontSize: 14 }}>🔥 {state.streak.count}</div>
               <div style={{ fontSize: 11, color: C.inkSoft }}>day streak</div>
             </div>
