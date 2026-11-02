@@ -68,8 +68,13 @@
   --mist: #f7faf4;
   /* text on ink-colored fills (active tab, toast) */
   --ink-contrast: #ffffff;
-  /* darker amber for small text where marigold lacks contrast */
-  --amber: #9a7418;
+  /* deep gold for small text where marigold lacks contrast — ≥ 4.5:1 on
+     card, mist, bg and tint-amber (theme.test.ts guards it); marigold
+     itself is 1.86:1 on white, so it stays for fills, lines and dots */
+  --amber: #9f6000;
+  /* marigold's text shade ("Sent to goals", saving amounts): the same deep
+     gold by day; at night marigold itself (light on dark reads fine) */
+  --marigold-text: #9f6000;
   /* priority-pill and chip tints */
   --tint-tomato: #fbeae5;
   --tint-amber: #fbf3dc;
@@ -115,6 +120,7 @@
   --mist: #1d2a42;
   --ink-contrast: #0d1524;
   --amber: #d9b054;
+  --marigold-text: #f5c34d;
   --tint-tomato: #3b2531;
   --tint-amber: #37301f;
   --tint-leaf: #1c3530;

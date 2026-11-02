@@ -60,7 +60,7 @@ export function Overview({ state, d, view, setIncome, goTo, goToDraws }: {
           <div style={{ display: "grid", gap: 8, alignContent: "start", minWidth: 220, flex: "1 1 auto" }}>
             <Stat label="Earned" value={fmt(src.income)} color={C.leafDark} />
             <Stat label="Spent" value={fmt(src.spent)} color={C.tomato} />
-            <Stat label="Sent to goals" value={fmt(src.savedThisMonth)} color={C.marigold} sub={src.income > 0 ? `${Math.round(src.savingsRate * 100)}% savings rate` : null} />
+            <Stat label="Sent to goals" value={fmt(src.savedThisMonth)} color={C.marigoldText} sub={src.income > 0 ? `${Math.round(src.savingsRate * 100)}% savings rate` : null} />
             {src.drawn > 0 && (
               // The harvest story, summed — tap to see the individual draws in
               // the Log, pre-filtered. A button styled as a Stat row.

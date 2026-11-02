@@ -366,7 +366,7 @@ export function Log({ state, d, view, today, addTransaction, deleteTransaction, 
             {shown.map((t) => {
               const cat = CATEGORIES.find((c) => c.id === t.category);
               const sign = t.type === "income" ? "+" : t.type === "saving" ? "→" : "−";
-              const color = t.type === "income" ? C.leafDark : t.type === "saving" ? C.marigold : C.ink;
+              const color = t.type === "income" ? C.leafDark : t.type === "saving" ? C.marigoldText : C.ink;
               if (t.id === editingId) {
                 const bounds = linkedAmountBounds(state, t);
                 const typed = parseFloat(eAmount);
