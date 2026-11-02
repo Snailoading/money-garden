@@ -12,7 +12,7 @@ import { deriveCommitments, type CommitmentsDerived } from "./commitments";
 
 export interface DailyPoint {
   day: number;
-  /** Cumulative BUDGET-BASIS spend through this day, rounded (draws excluded). */
+  /** Cumulative BUDGET-BASIS spend through this day, exact (draws excluded). */
   spent: number;
   /** The even-pace line: totalBudget spread evenly across the month. */
   pace: number;
@@ -122,7 +122,8 @@ function dailySeries(monthTx: Transaction[], ym: string, lastDay: number, daysIn
     const dstr = `${ym}-${String(day).padStart(2, "0")}`;
     const dayTx = monthTx.filter((t) => t.date === dstr);
     run += dayTx.filter((t) => t.type === "expense" && !isDraw(t)).reduce((a, t) => a + t.amount, 0);
-    const point: DailyPoint = { day, spent: Math.round(run), pace: Math.round((totalBudget / daysInMonth) * day) };
+    // Exact amounts (plain data out) — the UI rounds only for display.
+    const point: DailyPoint = { day, spent: run, pace: (totalBudget / daysInMonth) * day };
     const draws = dayTx.filter(isDraw);
     if (draws.length > 0) {
       point.drawn = draws.reduce((a, t) => a + t.amount, 0);

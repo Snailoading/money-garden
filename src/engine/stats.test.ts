@@ -207,8 +207,21 @@ describe("pace and month fraction", () => {
     const d = derive(s, now);
     expect(d.daily).toHaveLength(15); // one point per elapsed day
     expect(d.daily[14].spent).toBe(75); // cumulative by mid-month
-    expect(d.daily[14].pace).toBe(Math.round((300 / 30) * 15));
+    expect(d.daily[14].pace).toBe((300 / 30) * 15);
     expect(d.daily[0].pace).toBe(10);
+  });
+
+  it("keeps cents in the daily series — the UI rounds only for display", () => {
+    // Whole-dollar rounding here showed "Spent $13.00" in the pace tooltip
+    // beside a $12.50 Spent figure.
+    const s = state({
+      budgets: { groceries: 100 },
+      transactions: [tx("expense", 12.5, "groceries", 1), tx("expense", 7.5, "dining", 2)],
+    });
+    const d = derive(s, now);
+    expect(d.daily[0].spent).toBe(12.5);
+    expect(d.daily[1].spent).toBe(20);
+    expect(d.daily[0].pace).toBeCloseTo(100 / 30, 10); // 3.33…, not 3
   });
 
   it("estimates monthlyExpenses from the trailing average of completed months", () => {

@@ -23,7 +23,9 @@ export function Overview({ state, d, view, setIncome, goTo, goToDraws }: {
 }) {
   const src = view ?? d; // MonthView's fields deliberately mirror Derived's
   const isPast = Boolean(view);
-  const donut = CATEGORIES.map((c) => ({ name: c.label, emoji: c.emoji, value: Math.round(src.byCat[c.id]) }))
+  // Exact amounts — fmt rounds only for display. Rounding each slice first
+  // made the centre total drift from "Spent" ($12.50 showed as $13.00).
+  const donut = CATEGORIES.map((c) => ({ name: c.label, emoji: c.emoji, value: src.byCat[c.id] }))
     .filter((x) => x.value > 0)
     .sort((a, b) => b.value - a.value);
   const leftPerDay = src.left / Math.max(1, src.daysInMonth - new Date().getDate() + 1);
