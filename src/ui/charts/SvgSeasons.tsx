@@ -11,9 +11,10 @@
 import { useRef, useState } from "react";
 import type { PointerEvent } from "react";
 import type { TrendPoint } from "../../engine/trends";
-import { fmt, fmtK } from "../../engine/format";
+import { fmt } from "../../engine/format";
 import { C } from "../theme";
 import { svgX, useReveal, useSvgScale } from "../hooks";
+import { niceAxis, niceStep, stepsUpTo, tickMoney } from "./ticks";
 
 const W = 640, H = 220, pl = 50, pr = 14, pt = 14, pb = 24;
 
@@ -32,14 +33,15 @@ function useBandHover(n: number) {
 
 const cxOf = (i: number, n: number) => pl + ((W - pl - pr) / n) * (i + 0.5);
 
-function Frame({ maxY, fmtTick, children }: { maxY: number; fmtTick: (v: number) => string; children: React.ReactNode }) {
+/** `maxY` and `ticks` come from niceAxis — gridlines on round values. */
+function Frame({ maxY, ticks, fmtTick, children }: { maxY: number; ticks: number[]; fmtTick: (v: number) => string; children: React.ReactNode }) {
   const y = (v: number) => pt + (1 - v / maxY) * (H - pt - pb);
   return (
     <>
-      {[1 / 3, 2 / 3, 1].map((t, i) => (
-        <g key={i}>
-          <line x1={pl} x2={W - pr} y1={y(t * maxY)} y2={y(t * maxY)} strokeDasharray="3 5" style={{ stroke: C.border }} />
-          <text x={pl - 6} y={y(t * maxY) + 4} textAnchor="end" fontSize="11" className="mg-num" style={{ fill: C.inkSoft }}>{fmtTick(t * maxY)}</text>
+      {ticks.map((t) => (
+        <g key={t}>
+          <line x1={pl} x2={W - pr} y1={y(t)} y2={y(t)} strokeDasharray="3 5" style={{ stroke: C.border }} />
+          <text x={pl - 6} y={y(t) + 4} textAnchor="end" fontSize="11" className="mg-num" style={{ fill: C.inkSoft }}>{fmtTick(t)}</text>
         </g>
       ))}
       <line x1={pl} x2={W - pr} y1={y(0)} y2={y(0)} style={{ stroke: C.border }} />
@@ -88,7 +90,7 @@ export function SeasonsBars({ trends, onPick }: { trends: TrendPoint[]; onPick?:
   if (trends.length === 0) return null;
   const n = trends.length;
   const band = (W - pl - pr) / n;
-  const maxY = Math.max(1, ...trends.map((p) => Math.max(p.earned, p.spent, p.saved))) * 1.08;
+  const { top: maxY, ticks } = niceAxis(Math.max(1, ...trends.map((p) => Math.max(p.earned, p.spent, p.saved))) * 1.08);
   const y = (v: number) => pt + (1 - v / maxY) * (H - pt - pb);
   const bw = Math.min(16, band * 0.3);
   const harvests = trends.filter((p) => p.drawn > 0);
@@ -98,7 +100,7 @@ export function SeasonsBars({ trends, onPick }: { trends: TrendPoint[]; onPick?:
       style={{ width: "100%", height: "100%", display: "block", touchAction: "pan-y" }} role="img"
       aria-label={"Earned vs spent per month" + (harvests.length ? `; spent from goals in ${harvests.map((p) => p.label).join(", ")}` : "")}>
       <defs><clipPath id={cid}><rect x="0" y="0" height={H} width={on ? W : 0} style={{ transition: "width .9s ease" }} /></clipPath></defs>
-      <Frame maxY={maxY} fmtTick={fmtK}>
+      <Frame maxY={maxY} ticks={ticks} fmtTick={tickMoney}>
         <MonthLabels trends={trends} />
         <g clipPath={`url(#${cid})`}>
           {trends.map((p, i) => {
@@ -147,9 +149,6 @@ export function SeasonsBars({ trends, onPick }: { trends: TrendPoint[]; onPick?:
   );
 }
 
-/** Signed fmtK for the diverging axis — fmtK itself renders −1400 as "$-1400". */
-const fmtKSigned = (v: number) => (v < 0 ? "−" + fmtK(-v) : fmtK(v));
-
 /**
  * Money left unplanted per month (income − spent − saved), diverging around
  * a zero baseline: leaf above (surplus), tomato below (the month outgrew its
@@ -166,16 +165,21 @@ export function SeasonsLeftover({ trends }: { trends: TrendPoint[] }) {
   const n = trends.length;
   const band = (W - pl - pr) / n;
   const lefts = trends.map((p) => p.left).filter((v): v is number => v !== null);
-  const maxV = Math.max(1, ...lefts) * 1.08;
-  const minV = Math.min(0, ...lefts) * 1.08;
+  const hasSurplus = lefts.some((v) => v > 0);
+  const surplus = Math.max(1, ...lefts) * 1.08;
+  const deficit = -Math.min(0, ...lefts) * 1.08;
+  // One round step for both sides, sized so the taller side gets about two
+  // gridlines; each side then extends to its next whole step.
+  const step = niceStep(Math.max(hasSurplus ? surplus : 0, deficit) / 2);
+  // An all-deficit window keeps the old 1.08 sliver above zero and draws no
+  // positive gridlines (they'd be "$1" ticks hugging the zero line).
+  const maxV = hasSurplus ? Math.ceil(surplus / step - 1e-9) * step : surplus;
+  const minV = deficit > 0 ? -Math.ceil(deficit / step - 1e-9) * step : 0;
   const y = (v: number) => pt + ((maxV - v) / (maxV - minV)) * (H - pt - pb);
   const bw = Math.min(26, band * 0.55);
-  // Gridlines at the halves and extremes of each side that exists — an
-  // all-deficit window would otherwise print the Math.max floor's 1.08
-  // and 0.54 as two overlapping "$1" ticks hugging the zero line.
   const ticks = [
-    ...(lefts.some((v) => v > 0) ? [maxV, maxV / 2] : []),
-    ...(minV < 0 ? [minV / 2, minV] : []),
+    ...(hasSurplus ? stepsUpTo(step, maxV) : []),
+    ...stepsUpTo(step, -minV).map((t) => -t),
   ];
   return (
     <svg ref={ref} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
@@ -186,7 +190,7 @@ export function SeasonsLeftover({ trends }: { trends: TrendPoint[] }) {
       {ticks.map((t) => (
         <g key={t}>
           <line x1={pl} x2={W - pr} y1={y(t)} y2={y(t)} strokeDasharray="3 5" style={{ stroke: C.border }} />
-          <text x={pl - 6} y={y(t) + 4} textAnchor="end" fontSize="11" className="mg-num" style={{ fill: C.inkSoft }}>{fmtKSigned(t)}</text>
+          <text x={pl - 6} y={y(t) + 4} textAnchor="end" fontSize="11" className="mg-num" style={{ fill: C.inkSoft }}>{tickMoney(t)}</text>
         </g>
       ))}
       {/* the zero baseline is the story's pivot — solid, labeled */}
@@ -240,14 +244,14 @@ export function SeasonsRate({ trends }: { trends: TrendPoint[] }) {
   if (trends.length === 0) return null;
   const n = trends.length;
   const rates = trends.map((p) => p.savingsRate * 100);
-  const maxY = Math.max(30, ...rates.map((r) => r * 1.15));
+  const { top: maxY, ticks } = niceAxis(Math.max(30, ...rates.map((r) => r * 1.15)), 3, 10);
   const y = (v: number) => pt + (1 - v / maxY) * (H - pt - pb);
   return (
     <svg ref={ref} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet"
       onPointerMove={locate} onPointerDown={locate} onPointerLeave={clear}
       style={{ width: "100%", height: "100%", display: "block", touchAction: "pan-y" }} role="img" aria-label="Savings rate per month">
       <defs><clipPath id={cid}><rect x="0" y="0" height={H} width={on ? W : 0} style={{ transition: "width .9s ease" }} /></clipPath></defs>
-      <Frame maxY={maxY} fmtTick={(v) => Math.round(v) + "%"}>
+      <Frame maxY={maxY} ticks={ticks} fmtTick={(v) => Math.round(v) + "%"}>
         <MonthLabels trends={trends} />
         <g>
           <line x1={pl} x2={W - pr} y1={y(20)} y2={y(20)} strokeWidth="1.8" strokeDasharray="7 5" style={{ stroke: C.marigold }} />
@@ -280,7 +284,7 @@ export function SeasonsSplit({ trends }: { trends: TrendPoint[] }) {
   if (trends.length === 0) return null;
   const n = trends.length;
   const band = (W - pl - pr) / n;
-  const maxY = Math.max(1, ...trends.map((p) => p.needs + p.wants)) * 1.08;
+  const { top: maxY, ticks } = niceAxis(Math.max(1, ...trends.map((p) => p.needs + p.wants)) * 1.08);
   const y = (v: number) => pt + (1 - v / maxY) * (H - pt - pb);
   const bw = Math.min(26, band * 0.55);
   return (
@@ -288,7 +292,7 @@ export function SeasonsSplit({ trends }: { trends: TrendPoint[] }) {
       onPointerMove={locate} onPointerDown={locate} onPointerLeave={clear}
       style={{ width: "100%", height: "100%", display: "block", touchAction: "pan-y" }} role="img" aria-label="Needs vs wants per month">
       <defs><clipPath id={cid}><rect x="0" y="0" height={H} width={on ? W : 0} style={{ transition: "width .9s ease" }} /></clipPath></defs>
-      <Frame maxY={maxY} fmtTick={fmtK}>
+      <Frame maxY={maxY} ticks={ticks} fmtTick={tickMoney}>
         <MonthLabels trends={trends} />
         <g clipPath={`url(#${cid})`}>
           {trends.map((p, i) => {

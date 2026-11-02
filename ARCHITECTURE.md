@@ -24,6 +24,7 @@ leaves on that trunk; the engine could be transplanted into another frontend
 │      ▼                                                                 │
 │  tabs/       Overview  Log  Budgets  Garden  Orchard  Seasons  Advice  │
 │  charts/     SvgPace  SvgDonut  SvgProjection  SvgSeasons (×4)         │
+│              ticks.ts (round gridlines + exact labels, for Seasons)    │
 │  art/        Plant (5 stages)  OrchardTree (freedom tree)              │
 │  Recovery.tsx  shown INSTEAD of the garden when the save is unreadable │
 │  bits.tsx    Stat  CardTitle  Empty  Field  PlantMini                  │

@@ -8,7 +8,7 @@
 import { execSync, spawnSync } from "node:child_process";
 import { REPO } from "./paths.mjs";
 
-const SUITES = ["data-safety", "multi-tab", "midnight", "backup-reminder", "theme-flash", "withdrawal-rate", "csp", "header-pills", "exact-amounts"];
+const SUITES = ["data-safety", "multi-tab", "midnight", "backup-reminder", "theme-flash", "withdrawal-rate", "csp", "header-pills", "exact-amounts", "seasons-gridlines"];
 
 const args = process.argv.slice(2);
 const build = !args.includes("--no-build");
