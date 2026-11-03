@@ -19,6 +19,7 @@ import type { ActionEvent, ActionResult } from "../engine/actions";
 import { store } from "./store";
 import { downloadText } from "./download";
 import { Recovery } from "./Recovery";
+import { PencilIcon, XIcon } from "./bits";
 import { createSaveQueue, type SaveQueue, type SetResult, type StorageMode } from "../engine/storage";
 import { useArmed, useToday } from "./hooks";
 import { checkPersistentStorage, requestPersistentStorage, storageNote } from "./storageNote";
@@ -615,6 +616,11 @@ export function MoneyGarden() {
     border: "none", background: "transparent", cursor: enabled ? "pointer" : "default",
     color: C.inkSoft, fontWeight: 700, fontSize: 18, lineHeight: 1, padding: "0 6px",
     opacity: enabled ? 1 : 0.25,
+    // mg-icon-btn's 32px square would push the header down and shove the
+    // month label right (wrapping the header at some widths): a 24×24 square
+    // (WCAG's floor) with −3px margins keeps the row exactly where the 18×18
+    // glyph box had it.
+    minWidth: 24, minHeight: 24, margin: "-3px",
   } as const);
 
   return (
@@ -624,12 +630,12 @@ export function MoneyGarden() {
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: -6 }}>
-              <button className="mg-btn" onClick={() => canPrev && goToMonth(months[shownIdx - 1])} disabled={!canPrev}
+              <button className="mg-btn mg-icon-btn" onClick={() => canPrev && goToMonth(months[shownIdx - 1])} disabled={!canPrev}
                 aria-label="Previous month" style={navBtnStyle(canPrev)}>‹</button>
               <div style={{ fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase", color: viewYm ? C.amber : C.inkSoft, fontWeight: 700 }}>
                 {monthLabel(shownYm, true)}
               </div>
-              <button className="mg-btn" onClick={() => canNext && goToMonth(months[shownIdx + 1] ?? currentYm)} disabled={!canNext}
+              <button className="mg-btn mg-icon-btn" onClick={() => canNext && goToMonth(months[shownIdx + 1] ?? currentYm)} disabled={!canNext}
                 aria-label="Next month" style={navBtnStyle(canNext)}>›</button>
               {viewYm && (
                 <button className="mg-btn" onClick={() => setViewYm(null)}
@@ -750,7 +756,7 @@ export function MoneyGarden() {
               </span>
             )}
             {backup.kind === "due" && backup.lastAt && <>Last backup: {dateWithYear(backup.lastAt)}. </>}
-            Edit a logged entry with its ✏️, delete with its ✕.
+            Edit a logged entry with its <PencilIcon size={13} inline />, delete with its <XIcon size={13} inline />.
           </span>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button className="mg-btn" onClick={saveBackup}

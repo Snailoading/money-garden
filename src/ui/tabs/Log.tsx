@@ -13,7 +13,7 @@ import { isFilterActive, matchesFilter, SAVING_LABEL } from "../../engine/journa
 import { fmt, monthLabel } from "../../engine/format";
 import { C, inputStyle } from "../theme";
 import { useDateDefault, useMediaQuery } from "../hooks";
-import { CardTitle, Empty, Field } from "../bits";
+import { CardTitle, Empty, Field, PencilIcon, XIcon } from "../bits";
 
 /** Rows rendered per "page" of the ledger — more revealed via Show more. */
 const PAGE = 40;
@@ -293,9 +293,16 @@ export function Log({ state, d, view, today, addTransaction, deleteTransaction, 
                 style={{ padding: "5px 12px", borderRadius: 999, cursor: "pointer", fontWeight: 700, fontSize: 12, flex: "0 0 auto", border: `1.5px solid ${showFilters || filterActive ? C.ink : C.border}`, background: showFilters || filterActive ? C.ink : C.card, color: showFilters || filterActive ? C.inkContrast : C.ink }}>
                 Filters
               </button>
-              <button className="mg-btn mg-search-extra" onClick={closeSearch} aria-label="Close search" title="Close search"
-                style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 15, flex: "0 0 auto", padding: "0 12px 0 4px" }}>
-                ✕
+              {/* A 26px square, not mg-icon-btn's 32: the pill is 38px inside
+                  (its 1.5px border renders as 1px) with overflow hidden. 26
+                  leaves a whole 6px above and below and the 16px ✕ a whole
+                  5px all round — even sizes in an even space, so nothing
+                  lands on a half pixel — and its focus ring (3px + 2px
+                  offset) fits. The 6px right margin keeps the square clear
+                  of the pill's rounded end (which would clip it). */}
+              <button className="mg-btn mg-icon-btn mg-search-extra" onClick={closeSearch} aria-label="Close search" title="Close search"
+                style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 15, flex: "0 0 auto", padding: 0, minWidth: 26, minHeight: 26, margin: "0 6px 0 0" }}>
+                <XIcon />
               </button>
             </div>
           )}
@@ -462,10 +469,15 @@ export function Log({ state, d, view, today, addTransaction, deleteTransaction, 
                       {isDraw(t) ? ` · 🌸 from ${state.goals.find((g) => g.id === t.goalId)?.name ?? "a departed goal"}` : ""}
                     </div>
                   </span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 10, flex: "0 0 auto", marginLeft: "auto" }}>
-                    <b className="mg-num" style={{ color, fontSize: 15 }}>{sign}{fmt(t.amount)}</b>
-                    <button className="mg-btn" onClick={() => openEdit(t)} title="Edit entry" aria-label="Edit entry"
-                      style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 14, padding: 4 }}>✏️</button>
+                  {/* No gap: the 32px icon buttons carry their own spacing
+                      around the glyph. Amount margin 1 + 32 + 32 = 65px of
+                      actions, within the 65.4 they took before — any wider
+                      and the 105px note threshold moves, wrapping most rows
+                      at 375px (iPhone SE / mini width). tap-targets guards it. */}
+                  <span style={{ display: "flex", alignItems: "center", flex: "0 0 auto", marginLeft: "auto" }}>
+                    <b className="mg-num" style={{ color, fontSize: 15, marginRight: 1 }}>{sign}{fmt(t.amount)}</b>
+                    <button className="mg-btn mg-icon-btn" onClick={() => openEdit(t)} title="Edit entry" aria-label="Edit entry"
+                      style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 14, padding: 4 }}><PencilIcon /></button>
                     {confirmDeleteId === t.id && !canRemoveTransaction(state, t) ? (
                       // The armed ✕ explains instead of offering Delete?: this
                       // watering's money was partly drawn since, so removing it
@@ -476,14 +488,14 @@ export function Log({ state, d, view, today, addTransaction, deleteTransaction, 
                         🪣 Partly drawn — undo the draw first
                       </span>
                     ) : confirmDeleteId === t.id ? (
-                      <button className="mg-btn" onClick={() => { deleteTransaction(t.id); setConfirmDeleteId(null); }}
+                      <button className="mg-btn mg-compact" onClick={() => { deleteTransaction(t.id); setConfirmDeleteId(null); }}
                         title="Really delete this entry" aria-label="Really delete this entry"
-                        style={{ background: C.tomato, border: "none", borderRadius: 999, padding: "4px 10px", fontWeight: 700, fontSize: 12, color: C.inkContrast, cursor: "pointer", whiteSpace: "nowrap" }}>
+                        style={{ background: C.tomato, border: "none", borderRadius: 999, padding: "0 10px", fontWeight: 700, fontSize: 12, color: C.inkContrast, cursor: "pointer", whiteSpace: "nowrap" }}>
                         Delete?
                       </button>
                     ) : (
-                      <button className="mg-btn" onClick={() => armDelete(t.id)} title="Delete entry" aria-label="Delete entry"
-                        style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 15, padding: 4 }}>✕</button>
+                      <button className="mg-btn mg-icon-btn" onClick={() => armDelete(t.id)} title="Delete entry" aria-label="Delete entry"
+                        style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 15, padding: 4 }}><XIcon /></button>
                     )}
                   </span>
                 </li>

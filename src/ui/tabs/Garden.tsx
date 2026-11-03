@@ -7,7 +7,7 @@ import type { Goal, State } from "../../engine/types";
 import { CATEGORIES, PLANT_KINDS } from "../../engine/types";
 import { fmt } from "../../engine/format";
 import { C, inputStyle } from "../theme";
-import { CardTitle, Empty, Field } from "../bits";
+import { CardTitle, Empty, Field, PencilIcon, XIcon } from "../bits";
 import { Plant } from "../art/Plant";
 
 export function Garden({ state, monthlyExpenses, expensesBasis, addGoal, waterGoal, deleteGoal, updateGoal, drawFromGoal, setupEmergencyFund }: {
@@ -266,18 +266,18 @@ export function Garden({ state, monthlyExpenses, expensesBasis, addGoal, waterGo
             return (
               <section key={g.id} className="mg-card" style={{ padding: 18, display: "grid", justifyItems: "center", textAlign: "center", gap: 6, position: "relative" }}>
                 <div style={{ position: "absolute", top: 10, right: 12, display: "flex", gap: 2, alignItems: "center" }}>
-                  <button className="mg-btn" onClick={() => openEdit(g)} title="Edit goal" aria-label={`Edit goal ${g.name}`}
-                    style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 13, padding: 4 }}>✏️</button>
+                  <button className="mg-btn mg-icon-btn" onClick={() => openEdit(g)} title="Edit goal" aria-label={`Edit goal ${g.name}`}
+                    style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 13, padding: 4 }}><PencilIcon /></button>
                   {/* The barrel is permanent — no delete affordance at all. */}
                   {!g.isEmergency && (confirmDeleteId === g.id ? (
-                    <button className="mg-btn" onClick={() => { deleteGoal(g.id); setConfirmDeleteId(null); }}
+                    <button className="mg-btn mg-compact" onClick={() => { deleteGoal(g.id); setConfirmDeleteId(null); }}
                       title="Really delete this goal" aria-label={`Really delete goal ${g.name}`}
-                      style={{ background: C.tomato, border: "none", borderRadius: 999, padding: "3px 9px", fontWeight: 700, fontSize: 11, color: C.inkContrast, cursor: "pointer", whiteSpace: "nowrap" }}>
+                      style={{ background: C.tomato, border: "none", borderRadius: 999, padding: "0 10px", fontWeight: 700, fontSize: 12, color: C.inkContrast, cursor: "pointer", whiteSpace: "nowrap" }}>
                       Delete?
                     </button>
                   ) : (
-                    <button className="mg-btn" onClick={() => armDelete(g.id)} title="Remove goal" aria-label={`Remove goal ${g.name}`}
-                      style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 14, padding: 4 }}>✕</button>
+                    <button className="mg-btn mg-icon-btn" onClick={() => armDelete(g.id)} title="Remove goal" aria-label={`Remove goal ${g.name}`}
+                      style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 14, padding: 4 }}><XIcon /></button>
                   ))}
                 </div>
                 <Plant progress={progress} bloom={bloom} size={120} celebrate={progress >= 1} />
