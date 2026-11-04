@@ -8,7 +8,7 @@ import { DEFAULT_INVEST } from "../../engine/types";
 import type { Derived } from "../../engine/stats";
 import { fmt, monthKey, monthLabel, shortDate } from "../../engine/format";
 import { C, inputStyle } from "../theme";
-import { CardTitle, Field } from "../bits";
+import { CardTitle, Field, XIcon } from "../bits";
 import { useArmed } from "../hooks";
 import { OrchardTree } from "../art/OrchardTree";
 import { SvgProjection } from "../charts/SvgProjection";
@@ -214,14 +214,17 @@ export function Orchard({ state, d, setInvest, addHolding, updateHolding, delete
                 {/* Two-step: a holding carries its whole value — one stray
                     tap must not fell a tree. ✕ arms, Delete? removes. */}
                 {armedId === h.id ? (
-                  <button className="mg-btn" onClick={() => { disarm(); deleteHolding(h.id); }}
+                  <button className="mg-btn mg-compact" onClick={() => { disarm(); deleteHolding(h.id); }}
                     title="Really remove this holding" aria-label={`Really remove ${h.name}`}
-                    style={{ background: C.tomato, border: "none", borderRadius: 999, padding: "4px 10px", fontWeight: 700, fontSize: 12, color: C.inkContrast, cursor: "pointer", whiteSpace: "nowrap" }}>
+                    style={{ background: C.tomato, border: "none", borderRadius: 999, padding: "0 10px", fontWeight: 700, fontSize: 12, color: C.inkContrast, cursor: "pointer", whiteSpace: "nowrap" }}>
                     Delete?
                   </button>
                 ) : (
-                  <button className="mg-btn" onClick={() => arm(h.id)} title="Remove holding" aria-label={`Remove ${h.name}`}
-                    style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 14 }}>✕</button>
+                  // −4.7px sides: the 32px square takes the old ✕'s 22.6px of
+                  // the row (into the 10px gap and padding, clear of the
+                  // input), so rows that fit on one line before still do.
+                  <button className="mg-btn mg-icon-btn" onClick={() => arm(h.id)} title="Remove holding" aria-label={`Remove ${h.name}`}
+                    style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 14, marginLeft: -4.7, marginRight: -4.7 }}><XIcon /></button>
                 )}
               </div>
             ))}

@@ -9,7 +9,7 @@ import type { Derived, MonthView } from "../../engine/stats";
 import { fmt, MONTH_NAMES, monthLabel, shortDate, todayISO } from "../../engine/format";
 import { commitmentEnded, daysUntil, nextDueWithPayments } from "../../engine/commitments";
 import { C, inputStyle } from "../theme";
-import { CardTitle, Field } from "../bits";
+import { CardTitle, Field, PencilIcon, XIcon } from "../bits";
 import { useArmed, useDateDefault } from "../hooks";
 
 export function Budgets({ state, d, view, today, setBudget, addCommitment, deleteCommitment, logCommitmentPayment, updateCommitment }: {
@@ -235,24 +235,31 @@ export function Budgets({ state, d, view, today, setBudget, addCommitment, delet
           {fmt(c.amount)}<span style={{ fontWeight: 500, fontSize: 12, color: C.inkSoft }}>{c.kind === "inst" ? "/pmt" : c.cadence === "annual" ? "/yr" : c.cadence === "fortnight" ? "/fortnight" : "/mo"}</span>
         </span>
         {!ended && (
-          <button className="mg-btn" onClick={() => logCommitmentPayment(c.id)}
-            style={{ background: "transparent", border: `1.5px solid ${C.leafDark}`, color: C.leafDark, borderRadius: 10, padding: "6px 10px", fontWeight: 700, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
+          <button className="mg-btn mg-compact" onClick={() => logCommitmentPayment(c.id)}
+            style={{ background: "transparent", border: `1.5px solid ${C.leafDark}`, color: C.leafDark, borderRadius: 10, padding: "0 10px", fontWeight: 700, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
             💸 Log payment
           </button>
         )}
-        <button className="mg-btn" onClick={() => { disarm(); openEditC(c); }} title="Edit" aria-label={`Edit ${c.name}`}
-          style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 14, padding: 4 }}>✏️</button>
-        {/* Two-step, like the ledger and the goal beds: ✕ arms, Delete? removes. */}
-        {armedId === c.id ? (
-          <button className="mg-btn" onClick={() => { disarm(); deleteCommitment(c.id); }}
-            title="Really remove this commitment" aria-label={`Really remove ${c.name}`}
-            style={{ background: C.tomato, border: "none", borderRadius: 999, padding: "4px 10px", fontWeight: 700, fontSize: 12, color: C.inkContrast, cursor: "pointer", whiteSpace: "nowrap" }}>
-            Delete?
-          </button>
-        ) : (
-          <button className="mg-btn" onClick={() => arm(c.id)} title="Remove" aria-label={`Remove ${c.name}`}
-            style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 14 }}>✕</button>
-        )}
+        {/* ✏️ ✕ as one unit, no gap: the 32px icon buttons carry their own
+            spacing, and −5.4px brings the pair to 68.6px, within the room it
+            took before (10 + 26 + 10 + 22.7 = 68.7) — even 0.3px more wrapped
+            rows at single widths. So the name and details beside it don't
+            reflow, and as one unit ✕ never wraps on its own. */}
+        <span style={{ display: "flex", alignItems: "center", marginLeft: -5.4 }}>
+          <button className="mg-btn mg-icon-btn" onClick={() => { disarm(); openEditC(c); }} title="Edit" aria-label={`Edit ${c.name}`}
+            style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 14, padding: 4 }}><PencilIcon /></button>
+          {/* Two-step, like the ledger and the goal beds: ✕ arms, Delete? removes. */}
+          {armedId === c.id ? (
+            <button className="mg-btn mg-compact" onClick={() => { disarm(); deleteCommitment(c.id); }}
+              title="Really remove this commitment" aria-label={`Really remove ${c.name}`}
+              style={{ background: C.tomato, border: "none", borderRadius: 999, padding: "0 10px", fontWeight: 700, fontSize: 12, color: C.inkContrast, cursor: "pointer", whiteSpace: "nowrap" }}>
+              Delete?
+            </button>
+          ) : (
+            <button className="mg-btn mg-icon-btn" onClick={() => arm(c.id)} title="Remove" aria-label={`Remove ${c.name}`}
+              style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 14 }}><XIcon /></button>
+          )}
+        </span>
       </div>
     );
   };

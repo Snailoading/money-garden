@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.18.5 — 2026-11-04 · *Labelled seed packets* 🏷️
+
+### Fixed
+
+- **Chart amounts add up to the cent.** The donut rounded each category
+  to whole dollars before adding them up, so a $12.50 expense read
+  "$13.00" in the donut right beside Spent $12.50. The spending-pace and
+  Orchard long-view tooltips did the same. These charts now keep the
+  exact amounts and round only when they show them.
+- **Seasons gridlines sit on round numbers, and say exactly where they
+  are.** The lines were drawn at thirds of the tallest bar and labelled
+  to the nearest thousand, so a line at $1,630 read "$2k", and $2k, $3k
+  and $5k looked evenly spaced. They now step by round amounts ($500,
+  $1k, $2.5k…) and each label states its line's exact value.
+- **Gold writing is easy to read by day.** "Sent to goals", the savings
+  amounts in the Log and the gold labels (like the "↩ today" pill) were
+  too faint to read comfortably on white. By day they're now a deeper
+  gold; the night garden keeps its exact colours.
+- **Small buttons are easier to tap, and their icons sit dead centre.**
+  The month arrows, every ✏️ edit and ✕ delete, the search's close and
+  the install tip's close were tiny tap targets. They're now comfortable
+  squares that show a soft tile when you hover or press them. The pencil
+  and cross are now drawn icons, centred in their squares — the old
+  emoji sat a little off-centre and varied by phone. Every "Delete?" and "Log
+  payment" button is the same height, too. Nothing on the page moved to
+  make room.
+- **The Monthly income box is the same height as every other box.** It
+  stood a little shorter than the rest.
+- **Browsing a past month, the Overview names that month.** The donut's
+  centre still said "This month" over October's spending, and so did
+  "Total money out this month". Both now name the month you're looking
+  at ("October", "Total money out in October").
+
+### Added
+
+- **Friendlier for screen readers** (VoiceOver, TalkBack):
+  - The tabs say which one you're on ("Overview, current page"), and
+    their emoji are no longer read aloud ("sun behind small cloud").
+  - The first-visit "Take the garden with you" pop-up keeps your place
+    inside it — Tab and screen-reader reading no longer wander to the
+    page behind until you close it.
+  - Each entry's edit and delete buttons in the Log say which entry
+    they're for ("Edit Rent, −$1,400, Nov 1"), not just "Edit entry".
+
+### Changed
+
+- Behind the scenes: new automatic browser checks for each fix above —
+  exact amounts, Seasons gridlines, gold contrast in both themes, tap
+  sizes and icon centring, every input's height, what a screen reader
+  hears, and past-month wording.
+
 ## 0.18.4 — 2026-10-29 · *Even fence posts* 🪵
 
 ### Fixed

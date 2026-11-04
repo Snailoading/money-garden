@@ -68,8 +68,13 @@
   --mist: #f7faf4;
   /* text on ink-colored fills (active tab, toast) */
   --ink-contrast: #ffffff;
-  /* darker amber for small text where marigold lacks contrast */
-  --amber: #9a7418;
+  /* deep gold for small text where marigold lacks contrast — ≥ 4.5:1 on
+     card, mist, bg and tint-amber (theme.test.ts guards it); marigold
+     itself is 1.86:1 on white, so it stays for fills, lines and dots */
+  --amber: #9f6000;
+  /* marigold's text shade ("Sent to goals", saving amounts): the same deep
+     gold by day; at night marigold itself (light on dark reads fine) */
+  --marigold-text: #9f6000;
   /* priority-pill and chip tints */
   --tint-tomato: #fbeae5;
   --tint-amber: #fbf3dc;
@@ -115,6 +120,7 @@
   --mist: #1d2a42;
   --ink-contrast: #0d1524;
   --amber: #d9b054;
+  --marigold-text: #f5c34d;
   --tint-tomato: #3b2531;
   --tint-amber: #37301f;
   --tint-leaf: #1c3530;
@@ -225,8 +231,9 @@ button:focus-visible {
 
 /* Charts are inspected by press-and-hold on touch, which otherwise selects
    the SVG's <text> (axis/tooltip labels) and pops iOS's callout/magnifier.
-   role="img" is worn only by the chart SVGs (the art SVGs have no role), so
-   this scopes cleanly to them and never touches selectable body copy. */
+   role="img" is worn by the chart SVGs and by the inline pencil/cross icons
+   in the shed's help line (the art SVGs have no role) — unselectable icons in
+   a sentence are harmless; it never touches selectable body copy. */
 svg[role="img"] {
   -webkit-user-select: none;
   user-select: none;
@@ -262,6 +269,49 @@ svg[role="img"] {
 }
 .mg-btn:active {
   transform: scale(0.96);
+}
+/* Icon-only buttons (‹ › ✏️ ✕): a 32×32 square tap area however small the
+   glyph (32 = the compact in-row height, so a ✏️ ✕ pair still fits beside an
+   amount on a phone row; WCAG's floor is 24), glyph centered. Transparent at
+   rest; hovering (mouse) or pressing shows the square as a soft tile, so
+   what you can tap is exactly what you see. */
+.mg-icon-btn {
+  min-width: 32px;
+  min-height: 32px;
+  /* −0.5px top and bottom: rows keep their old 31px. Where even the width
+     would move things, the button cancels it inline: the header arrows
+     (24×24, −3px) and the Advice tip's ✕ (−6.5px sides). */
+  margin-block: -0.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* !important because the buttons set `background: transparent` inline, and
+   inline styles outrank any class. Hover only where a real pointer can hover
+   — phones would otherwise keep the tile lit after a tap. */
+@media (hover: hover) {
+  .mg-icon-btn:hover:not(:disabled) {
+    background: var(--mist) !important;
+    box-shadow: inset 0 0 0 1px var(--border);
+    border-radius: 10px;
+  }
+}
+.mg-icon-btn:active:not(:disabled) {
+  background: var(--mist) !important;
+  box-shadow: inset 0 0 0 1px var(--border);
+  border-radius: 10px;
+}
+/* Compact in-row buttons ("Log payment", "Delete?"): 32px tall, the same as
+   the icon squares beside them, so a row's controls line up and ✕ → Delete?
+   keeps its height. Width still comes from each button's own padding. */
+.mg-compact {
+  box-sizing: border-box;
+  height: 32px;
+  /* the same −0.5px as .mg-icon-btn, so ✕ → Delete? really keeps its height */
+  margin-block: -0.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /*

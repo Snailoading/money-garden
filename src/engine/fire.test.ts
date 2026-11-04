@@ -133,17 +133,24 @@ describe("years to FI (month-by-month simulation)", () => {
 describe("projection curve", () => {
   it("compounds monthly with end-of-month contributions (annuity-immediate)", () => {
     // 12% annual → 1%/month. $100/month from $0 for 12 months:
-    // 100 × ((1.01^12 − 1) / 0.01) = 1268.25 → rounded 1268.
-    // (Beginning-of-month timing would give 1281 — this pins the reference's order.)
+    // 100 × ((1.01^12 − 1) / 0.01) = 1268.25 (exact — the curve isn't rounded).
+    // (Beginning-of-month timing would give 1280.93 — this pins the reference's order.)
     const f = df(invest({ ret: 12, monthly: 100 }), 1000);
-    expect(f.curve[1].value).toBe(1268);
+    expect(f.curve[1].value).toBeCloseTo(1268.25, 2);
   });
 
   it("compounds an untouched portfolio monthly, not annually", () => {
-    // $10,000 at 1%/month for a year = 10000 × 1.01^12 = 11268.25 → 11268
+    // $10,000 at 1%/month for a year = 10000 × 1.01^12 = 11268.25
     // (annual compounding would give exactly 11200).
     const f = df(invest({ ret: 12, monthly: 0, holdings: holdings(10000) }), 1000);
-    expect(f.curve[1].value).toBe(11268);
+    expect(f.curve[1].value).toBeCloseTo(11268.25, 2);
+  });
+
+  it("keeps cents on the curve — the UI rounds only for display", () => {
+    // Rounding here showed a $499.60 orchard as "$500.00" in the tooltip.
+    const f = df(invest({ ret: 12, monthly: 0, holdings: holdings(499.6) }), 1000);
+    expect(f.curve[0].value).toBe(499.6);
+    expect(f.curve[1].value).toBeCloseTo(499.6 * 1.01 ** 12, 6);
   });
 
   it("starts at the portfolio value with derived ages attached", () => {

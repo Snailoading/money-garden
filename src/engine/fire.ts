@@ -144,11 +144,12 @@ export function deriveFire(invest: Invest | undefined, monthlyExpenses: number, 
   const horizon = Math.min(45, Math.max(horizonBasis + 4, 10));
   const seriesFor = (annualRet: number): number[] => {
     const rr = monthlyRate(annualRet);
-    const out = [Math.round(portfolio)];
+    // Exact amounts (plain data out) — the UI rounds only for display.
+    const out = [portfolio];
     let v = portfolio;
     for (let yy = 1; yy <= horizon; yy++) {
       for (let mm = 0; mm < 12; mm++) v = v * (1 + rr) + contrib;
-      out.push(Math.round(v));
+      out.push(v);
     }
     return out;
   };

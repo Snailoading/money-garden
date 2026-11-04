@@ -30,6 +30,41 @@ describe("palette variable parity", () => {
   });
 });
 
+describe("gold text contrast", () => {
+  // WCAG contrast from relative luminance — the same maths browsers' and
+  // auditors' contrast checkers use. 4.5:1 is the bar for normal-size text.
+  const lin = (v: number) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  const lum = (hex: string) => {
+    const [r, g, b] = hex.replace("#", "").match(/../g)!.map((h) => lin(parseInt(h, 16) / 255));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contrast = (a: string, b: string) => {
+    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+  const value = (block: string, name: string) => block.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`))?.[1];
+
+  for (const [theme, block] of [["day", dayBlock], ["night", nightBlock]] as const) {
+    for (const token of ["--amber", "--marigold-text"]) {
+      it(`${theme}: ${token} is readable text on every surface it sits on`, () => {
+        const gold = value(block, token)!;
+        for (const surface of ["--card", "--mist", "--bg", "--tint-amber"]) {
+          const ratio = contrast(gold, value(block, surface)!);
+          expect(ratio, `${theme} ${token} on ${surface}: ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(4.5);
+        }
+      });
+    }
+  }
+
+  it("marigold really is too light for text on a day card (why these tokens exist)", () => {
+    expect(contrast(value(dayBlock, "--marigold")!, value(dayBlock, "--card")!)).toBeLessThan(3);
+  });
+
+  it("night marigold text is marigold itself — the night garden looks as before", () => {
+    expect(value(nightBlock, "--marigold-text")).toBe(value(nightBlock, "--marigold"));
+  });
+});
+
 describe("splash palette parity", () => {
   // The index.html splash hardcodes --bg/--ink-soft (it paints before
   // global.css exists) — this is the guard that keeps those copies from

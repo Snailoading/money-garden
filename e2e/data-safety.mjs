@@ -206,33 +206,33 @@ try {
 
     // DS4: a ledger entry — arm, disarm on its own, then confirm.
     const coffee = row(page, "Plain coffee");
-    await coffee.getByRole("button", { name: "Delete entry", exact: true }).click();
+    await coffee.getByTitle("Delete entry", { exact: true }).click();
     check("DS4 entry ✕ only arms (Delete? shown, entry kept)",
-      await coffee.getByRole("button", { name: "Really delete this entry", exact: true }).isVisible() &&
+      await coffee.getByTitle("Really delete this entry", { exact: true }).isVisible() &&
       (await garden(page)).transactions.some((t) => t.id === "e1"));
-    check("DS4b …and disarms on its own", await until(coffee.getByRole("button", { name: "Really delete this entry", exact: true }), "hidden"));
-    await coffee.getByRole("button", { name: "Delete entry", exact: true }).click();
-    await coffee.getByRole("button", { name: "Really delete this entry", exact: true }).click();
+    check("DS4b …and disarms on its own", await until(coffee.getByTitle("Really delete this entry", { exact: true }), "hidden"));
+    await coffee.getByTitle("Delete entry", { exact: true }).click();
+    await coffee.getByTitle("Really delete this entry", { exact: true }).click();
     await settle(page);
     check("DS4c second tap deletes it", !(await garden(page)).transactions.some((t) => t.id === "e1"));
 
     // DS7: the $100 watering, $70 of it drawn since.
     const watering = row(page, "→ Japan trip");
-    await watering.getByRole("button", { name: "Delete entry", exact: true }).click();
+    await watering.getByTitle("Delete entry", { exact: true }).click();
     check("DS7 a watering whose money was drawn can't be deleted — it says to undo the draw first",
       await watering.getByText("Partly drawn — undo the draw first").isVisible() &&
-      !(await watering.getByRole("button", { name: "Really delete this entry", exact: true }).isVisible()));
+      !(await watering.getByTitle("Really delete this entry", { exact: true }).isVisible()));
     const g0 = await garden(page);
     check("DS7b …and nothing changed", g0.transactions.some((t) => t.id === "w1") && g0.goals.find((g) => g.id === "g1").saved === 30);
     await shot(page, "data-safety-undo-draw-first");
     await until(watering.getByText("Partly drawn — undo the draw first"), "hidden");
     const draw = row(page, "Flights deposit");
-    await draw.getByRole("button", { name: "Delete entry", exact: true }).click();
-    await draw.getByRole("button", { name: "Really delete this entry", exact: true }).click();
+    await draw.getByTitle("Delete entry", { exact: true }).click();
+    await draw.getByTitle("Really delete this entry", { exact: true }).click();
     await settle(page);
     check("DS7c undoing the draw puts its $70 back in the goal", (await garden(page)).goals.find((g) => g.id === "g1").saved === 100);
-    await watering.getByRole("button", { name: "Delete entry", exact: true }).click();
-    await watering.getByRole("button", { name: "Really delete this entry", exact: true }).click();
+    await watering.getByTitle("Delete entry", { exact: true }).click();
+    await watering.getByTitle("Really delete this entry", { exact: true }).click();
     await settle(page);
     const g1 = await garden(page);
     check("DS7d …then the watering deletes, and the goal reverses exactly to $0",

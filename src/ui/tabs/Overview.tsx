@@ -6,7 +6,7 @@ import type { State } from "../../engine/types";
 import { CATEGORIES, PLANT_KINDS } from "../../engine/types";
 import type { Derived, MonthView } from "../../engine/stats";
 import { fmt, monthLabel } from "../../engine/format";
-import { C, CHART_PALETTE } from "../theme";
+import { C, CHART_PALETTE, inputStyle } from "../theme";
 import { CardTitle, Empty, PlantMini, Stat } from "../bits";
 import { SvgPace } from "../charts/SvgPace";
 import { SvgDonut } from "../charts/SvgDonut";
@@ -23,7 +23,9 @@ export function Overview({ state, d, view, setIncome, goTo, goToDraws }: {
 }) {
   const src = view ?? d; // MonthView's fields deliberately mirror Derived's
   const isPast = Boolean(view);
-  const donut = CATEGORIES.map((c) => ({ name: c.label, emoji: c.emoji, value: Math.round(src.byCat[c.id]) }))
+  // Exact amounts — fmt rounds only for display. Rounding each slice first
+  // made the centre total drift from "Spent" ($12.50 showed as $13.00).
+  const donut = CATEGORIES.map((c) => ({ name: c.label, emoji: c.emoji, value: src.byCat[c.id] }))
     .filter((x) => x.value > 0)
     .sort((a, b) => b.value - a.value);
   const leftPerDay = src.left / Math.max(1, src.daysInMonth - new Date().getDate() + 1);
@@ -58,7 +60,7 @@ export function Overview({ state, d, view, setIncome, goTo, goToDraws }: {
           <div style={{ display: "grid", gap: 8, alignContent: "start", minWidth: 220, flex: "1 1 auto" }}>
             <Stat label="Earned" value={fmt(src.income)} color={C.leafDark} />
             <Stat label="Spent" value={fmt(src.spent)} color={C.tomato} />
-            <Stat label="Sent to goals" value={fmt(src.savedThisMonth)} color={C.marigold} sub={src.income > 0 ? `${Math.round(src.savingsRate * 100)}% savings rate` : null} />
+            <Stat label="Sent to goals" value={fmt(src.savedThisMonth)} color={C.marigoldText} sub={src.income > 0 ? `${Math.round(src.savingsRate * 100)}% savings rate` : null} />
             {src.drawn > 0 && (
               // The harvest story, summed — tap to see the individual draws in
               // the Log, pre-filtered. A button styled as a Stat row.
@@ -70,7 +72,7 @@ export function Overview({ state, d, view, setIncome, goTo, goToDraws }: {
             )}
             {src.drawn > 0 && (
               <div style={{ fontSize: 12, color: C.inkSoft }}>
-                Total money out this month: <span className="mg-num">{fmt(src.spent + src.drawn)}</span>
+                Total money out {isPast ? `in ${monthLabel(view!.ym)}` : "this month"}: <span className="mg-num">{fmt(src.spent + src.drawn)}</span>
               </div>
             )}
             {!isPast && (
@@ -78,7 +80,7 @@ export function Overview({ state, d, view, setIncome, goTo, goToDraws }: {
                 Monthly income
                 <input className="mg-num" type="number" inputMode="decimal" min="0" value={state.income || ""} placeholder="4200"
                   onChange={(e) => setIncome(e.target.value)}
-                  style={{ width: 100, padding: "6px 8px", border: `1.5px solid ${C.border}`, borderRadius: 8, background: C.mist, color: C.ink }} />
+                  style={{ ...inputStyle, width: 100 }} />
               </label>
             )}
           </div>
@@ -122,7 +124,7 @@ export function Overview({ state, d, view, setIncome, goTo, goToDraws }: {
           ) : (
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <div style={{ width: 170, height: 170 }}>
-                <SvgDonut data={donut} palette={CHART_PALETTE} />
+                <SvgDonut data={donut} palette={CHART_PALETTE} label={isPast ? monthLabel(view!.ym) : undefined} />
               </div>
               <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 13, display: "grid", gap: 5, flex: 1, minWidth: 150 }}>
                 {donut.slice(0, 5).map((x, i) => (

@@ -16,7 +16,9 @@ export interface DonutDatum {
   value: number;
 }
 
-export function SvgDonut({ data, palette }: { data: DonutDatum[]; palette: readonly string[] }) {
+/** `label` heads the centre when no slice is picked: "This month", or the
+ *  month being browsed ("October"). */
+export function SvgDonut({ data, palette, label = "This month" }: { data: DonutDatum[]; palette: readonly string[]; label?: string }) {
   const on = useReveal();
   const [hi, setHi] = useState<number | null>(null);
   const total = data.reduce((a, x) => a + x.value, 0) || 1;
@@ -24,7 +26,7 @@ export function SvgDonut({ data, palette }: { data: DonutDatum[]; palette: reado
   const center = hi != null ? data[hi] : null;
   const CenterLabel = () => (
     <g style={{ pointerEvents: "none" }}>
-      <text x={cx} y={cy - 11} textAnchor="middle" fontSize="10.5" style={{ fill: C.inkSoft }}>{center ? (center.name.length > 15 ? center.name.slice(0, 14) + "…" : center.name) : "This month"}</text>
+      <text x={cx} y={cy - 11} textAnchor="middle" fontSize="10.5" style={{ fill: C.inkSoft }}>{center ? (center.name.length > 15 ? center.name.slice(0, 14) + "…" : center.name) : label}</text>
       <text x={cx} y={cy + 7} textAnchor="middle" fontSize="15" fontWeight="700" className="mg-num" style={{ fill: C.ink }}>{fmt(center ? center.value : total)}</text>
       <text x={cx} y={cy + 23} textAnchor="middle" fontSize="10.5" className="mg-num" style={{ fill: C.inkSoft }}>{center ? Math.round((center.value / total) * 100) + "%" : "total spend"}</text>
     </g>

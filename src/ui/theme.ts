@@ -22,8 +22,12 @@ export const C = {
   mist: "var(--mist)",
   /** Text on ink-colored fills (active tab, toast) — flips with the theme. */
   inkContrast: "var(--ink-contrast)",
-  /** Darker amber for small text where marigold lacks contrast. */
+  /** Gold for small text (labels, pills) where marigold lacks contrast —
+   * deep gold by day, a soft amber at night. */
   amber: "var(--amber)",
+  /** Marigold as TEXT: deep gold by day (marigold is 1.86:1 on white),
+   * marigold itself at night. */
+  marigoldText: "var(--marigold-text)",
   /** Priority-pill and need/want chip tints. */
   tintTomato: "var(--tint-tomato)",
   tintAmber: "var(--tint-amber)",

@@ -24,9 +24,11 @@ leaves on that trunk; the engine could be transplanted into another frontend
 │      ▼                                                                 │
 │  tabs/       Overview  Log  Budgets  Garden  Orchard  Seasons  Advice  │
 │  charts/     SvgPace  SvgDonut  SvgProjection  SvgSeasons (×4)         │
+│              ticks.ts (round gridlines + exact labels, for Seasons)    │
 │  art/        Plant (5 stages)  OrchardTree (freedom tree)              │
 │  Recovery.tsx  shown INSTEAD of the garden when the save is unreadable │
 │  bits.tsx    Stat  CardTitle  Empty  Field  PlantMini                  │
+│              PencilIcon  XIcon (drawn edit/delete icons, centred)      │
 │  hooks.ts    useReveal (entry anims)  useNearest/svgX (tooltips)       │
 │              useArmed (two-step confirm: arm → Delete? → auto-disarm)  │
 │  store.ts    the one shared storage-adapter instance                   │

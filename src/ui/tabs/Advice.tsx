@@ -7,7 +7,7 @@ import type { State } from "../../engine/types";
 import type { Derived } from "../../engine/stats";
 import { buildAdvice, PRIORITY_LABELS, type Priority } from "../../engine/advice";
 import { C, isIOS, isTouchDevice } from "../theme";
-import { CardTitle } from "../bits";
+import { CardTitle, XIcon } from "../bits";
 
 const prioStyle: Record<Priority, { bg: string; label: string; color: string }> = {
   1: { bg: C.tintTomato, label: PRIORITY_LABELS[1], color: C.tomato },
@@ -67,8 +67,10 @@ export function Advice({ state, d, showInstallTip, onMuteInstallTip }: {
                   : <>Use the <b style={{ color: C.ink }}>install icon in the address bar</b> (Chrome/Edge) or <b style={{ color: C.ink }}>File → Add to Dock</b> (Safari) to give the garden a window of its own. Browser doesn't offer it? Dismiss this and carry on.</>}
             </p>
           </div>
-          <button className="mg-btn" onClick={onMuteInstallTip} title="Don't show this again" aria-label="Don't show this again"
-            style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 15, padding: 4 }}>✕</button>
+          {/* −6.5px sides: the 32px tap area overlaps the gutter instead of
+              taking 13px from the tip's text (which would add a line on phones). */}
+          <button className="mg-btn mg-icon-btn" onClick={onMuteInstallTip} title="Don't show this again" aria-label="Don't show this again"
+            style={{ border: "none", background: "transparent", color: C.inkSoft, cursor: "pointer", fontSize: 15, padding: 4, marginLeft: -6.5, marginRight: -6.5 }}><XIcon /></button>
         </section>
       )}
     </div>
