@@ -60,6 +60,7 @@ no checks at all counts as failed.
 | `seasons-gridlines` | Seasons gridlines sit on round values and every label states where its line is (one straight scale through $0) — sample data, an all-deficit garden, and a five-line axis whose top reads $1.25k | v0.18.5 |
 | `gold-text` | every visible gold text (marigold / amber family) on every tab is ≥ 4.5:1 against its real background, day and night; the night garden keeps its exact old colours | v0.18.5 |
 | `tap-targets` | no control under 24px on any tab; icon buttons (‹ › ✏️ ✕) are 32×32 squares (header 24, Close search 26) that show as a tile on hover, with their drawn icons centred in the tile (≤ 0.25px at 2× and 3×); every "Delete?" and "Log payment" is 32px tall — without moving the header or widening ledger, vine and holding rows (760, 414, 390, 375 and 320px) | v0.18.5 |
+| `input-heights` | every input, select and date field each tab shows is 40px tall — including the Overview's Monthly income field (was 31px; 35 on phones) and the ledger search pill with its filter fields — empty garden and sample data, desktop and a touch phone | v0.18.5 |
 
 Each suite serves `dist/` with `server.py` on its own fixed port. The server
 answers `/__pid` with its process id, and the suite refuses to run unless

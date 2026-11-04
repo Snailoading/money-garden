@@ -6,7 +6,7 @@ import type { State } from "../../engine/types";
 import { CATEGORIES, PLANT_KINDS } from "../../engine/types";
 import type { Derived, MonthView } from "../../engine/stats";
 import { fmt, monthLabel } from "../../engine/format";
-import { C, CHART_PALETTE } from "../theme";
+import { C, CHART_PALETTE, inputStyle } from "../theme";
 import { CardTitle, Empty, PlantMini, Stat } from "../bits";
 import { SvgPace } from "../charts/SvgPace";
 import { SvgDonut } from "../charts/SvgDonut";
@@ -80,7 +80,7 @@ export function Overview({ state, d, view, setIncome, goTo, goToDraws }: {
                 Monthly income
                 <input className="mg-num" type="number" inputMode="decimal" min="0" value={state.income || ""} placeholder="4200"
                   onChange={(e) => setIncome(e.target.value)}
-                  style={{ width: 100, padding: "6px 8px", border: `1.5px solid ${C.border}`, borderRadius: 8, background: C.mist, color: C.ink }} />
+                  style={{ ...inputStyle, width: 100 }} />
               </label>
             )}
           </div>
