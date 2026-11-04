@@ -72,7 +72,7 @@ export function Overview({ state, d, view, setIncome, goTo, goToDraws }: {
             )}
             {src.drawn > 0 && (
               <div style={{ fontSize: 12, color: C.inkSoft }}>
-                Total money out this month: <span className="mg-num">{fmt(src.spent + src.drawn)}</span>
+                Total money out {isPast ? `in ${monthLabel(view!.ym)}` : "this month"}: <span className="mg-num">{fmt(src.spent + src.drawn)}</span>
               </div>
             )}
             {!isPast && (
@@ -124,7 +124,7 @@ export function Overview({ state, d, view, setIncome, goTo, goToDraws }: {
           ) : (
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <div style={{ width: 170, height: 170 }}>
-                <SvgDonut data={donut} palette={CHART_PALETTE} />
+                <SvgDonut data={donut} palette={CHART_PALETTE} label={isPast ? monthLabel(view!.ym) : undefined} />
               </div>
               <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: 13, display: "grid", gap: 5, flex: 1, minWidth: 150 }}>
                 {donut.slice(0, 5).map((x, i) => (
