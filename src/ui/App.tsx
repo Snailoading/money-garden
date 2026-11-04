@@ -675,16 +675,19 @@ export function MoneyGarden() {
           </div>
         </div>
 
-        {/* tabs */}
+        {/* tabs — aria-current tells a screen reader which one is selected
+            (sighted users see the dark pill); the emoji is aria-hidden so it
+            reads "Overview", not "sun behind small cloud, Overview". */}
         <nav style={{ display: "flex", gap: 6, marginTop: 18, flexWrap: "wrap" }}>
           {TABS.map((t) => (
             <button key={t.id} onClick={() => switchTab(t.id)} className="mg-tab mg-btn"
+              aria-current={tab === t.id ? "page" : undefined}
               style={{
                 padding: "8px 14px", borderRadius: 999, cursor: "pointer", fontWeight: 600, fontSize: 14,
                 background: tab === t.id ? C.ink : "transparent",
                 color: tab === t.id ? C.inkContrast : C.ink,
               }}>
-              <span style={{ marginRight: 6 }}>{t.icon}</span>{t.label}
+              <span aria-hidden="true" style={{ marginRight: 6 }}>{t.icon}</span>{t.label}
             </button>
           ))}
         </nav>

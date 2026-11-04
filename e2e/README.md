@@ -61,6 +61,7 @@ no checks at all counts as failed.
 | `gold-text` | every visible gold text (marigold / amber family) on every tab is ≥ 4.5:1 against its real background, day and night; the night garden keeps its exact old colours | v0.18.5 |
 | `tap-targets` | no control under 24px on any tab; icon buttons (‹ › ✏️ ✕) are 32×32 squares (header 24, Close search 26) that show as a tile on hover, with their drawn icons centred in the tile (≤ 0.25px at 2× and 3×); every "Delete?" and "Log payment" is 32px tall — without moving the header or widening ledger, vine and holding rows (760, 414, 390, 375 and 320px) | v0.18.5 |
 | `input-heights` | every input, select and date field each tab shows is 40px tall — including the Overview's Monthly income field (was 31px; 35 on phones) and the ledger search pill with its filter fields — empty garden and sample data, desktop and a touch phone | v0.18.5 |
+| `screen-reader` | what a screen reader hears: the tabs are named by their labels alone (emoji hidden), and exactly one — the selected tab — is marked current, after a tap or an in-app jump ("Log one") | v0.18.5 |
 
 Each suite serves `dist/` with `server.py` on its own fixed port. The server
 answers `/__pid` with its process id, and the suite refuses to run unless
