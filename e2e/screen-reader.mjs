@@ -69,6 +69,34 @@ try {
     if (!(now.length === 1 && now[0].endsWith(`${tab}=page`))) wrong.push(`${tab}: [${now.join(", ")}]`);
   }
   check("each tab tapped is the one current tab", wrong.length === 0, wrong.join(" | ") || `${TABS.length} tabs`);
+
+  // Ledger rows: every row has the same ✏️ ✕, so their spoken names carry
+  // the entry ("Edit Rent, −$1,400, Nov 1") — no two rows alike in the
+  // sample garden (two identical entries on one day would rightly match),
+  // each naming its own row's amount; "→" (read "right arrow") never spoken.
+  // The label is split on ", " — fine for the sample notes, which have none.
+  await page.getByRole("button", { name: "Log", exact: true }).click();
+  const rows = await page.locator("li.mg-row").evaluateAll((lis) => lis.map((li) => ({
+    text: li.textContent,
+    edit: li.querySelector('button[title="Edit entry"]')?.getAttribute("aria-label") ?? "",
+    del: li.querySelector('button[title="Delete entry"]')?.getAttribute("aria-label") ?? "",
+  })));
+  const bad = rows.filter((r) => {
+    const entry = r.edit.replace(/^Edit /, "");
+    const amount = entry.split(", ")[1]?.replace(" saved", "").replace(/^[+−]/, "");
+    return !r.edit.startsWith("Edit ") || r.del !== `Delete ${entry}` || entry.includes("→")
+      || !amount || !r.text.includes(amount) || !r.text.includes(entry.split(", ")[0]);
+  });
+  const editNames = rows.map((r) => r.edit);
+  check("ledger buttons are named after their entry", rows.length >= 5 && bad.length === 0 && new Set(editNames).size === rows.length
+    && editNames.some((n) => n.includes(" saved, ")) && editNames.some((n) => n.includes(", +$")) && editNames.some((n) => n.includes(", −$")),
+    bad.length ? bad.map((r) => `${r.edit} / ${r.del}`).join(" | ") : `${rows.length} rows, e.g. "${editNames[0]}", "${editNames.find((n) => n.includes("saved"))}"`);
+  // Arming a delete: the confirm button names the same entry.
+  const first = page.locator("li.mg-row").first();
+  const firstEntry = (await first.getByTitle("Edit entry", { exact: true }).getAttribute("aria-label")).replace(/^Edit /, "");
+  await first.getByTitle("Delete entry", { exact: true }).click();
+  const confirm = await first.getByTitle("Really delete this entry", { exact: true }).getAttribute("aria-label");
+  check("armed delete names the same entry", confirm === `Really delete ${firstEntry}`, confirm);
   check("no page errors", errs.length === 0, errs.join(" | "));
   await ctx.close();
 

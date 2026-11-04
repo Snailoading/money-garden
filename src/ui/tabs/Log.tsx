@@ -449,6 +449,20 @@ export function Log({ state, d, view, today, addTransaction, deleteTransaction, 
               // get ~105px beside the amount/actions, those drop to a second
               // line, right-aligned — nothing truncates on narrow screens.
               // (105px keeps iPhone-width rows on one line; ~365px and below wrap.)
+              const title = t.note || (t.type === "saving" ? SAVING_LABEL : cat?.label || "Other");
+              // Journal-wide results can span years — "Jul 15" alone would be
+              // ambiguous, so the year rides along.
+              const when = new Date(t.date + "T12:00").toLocaleDateString("en-US", dateScoped
+                ? { month: "short", day: "numeric", year: "numeric" }
+                : { month: "short", day: "numeric" });
+              // What a screen reader calls this row's buttons — every row has
+              // the same ✏️ ✕, so they're named after their entry ("Edit Rent,
+              // −$1,400, Nov 1"). The hover tooltips stay short, like the
+              // vines'. "→" would be read as "right arrow": savings say "saved",
+              // and the arrow the app puts before a watering's note ("→ Japan
+              // trip", "→ Orchard: index fund") is left out.
+              const spokenAmount = t.type === "saving" ? `${fmt(t.amount)} saved` : `${sign}${fmt(t.amount)}`;
+              const entry = `${title.replace(/^→\s*/, "")}, ${spokenAmount}, ${when}`;
               return (
                 <li key={t.id} className="mg-row" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "2px 12px", padding: "9px 8px", borderRadius: 10 }}>
                   <span style={{ fontSize: 20 }}>{t.type === "income" ? "💵" : t.type === "saving" ? "🪴" : cat?.emoji || "🌀"}</span>
@@ -456,14 +470,10 @@ export function Log({ state, d, view, today, addTransaction, deleteTransaction, 
                     {/* Long notes reflow onto a second line; the 2-line clamp is a
                         backstop for pathological cases, not the normal path. */}
                     <div style={{ fontWeight: 600, fontSize: 14, overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 }}>
-                      {t.note || (t.type === "saving" ? SAVING_LABEL : cat?.label || "Other")}
+                      {title}
                     </div>
                     <div style={{ fontSize: 11.5, color: C.inkSoft }}>
-                      {/* Journal-wide results can span years — "Jul 15" alone
-                          would be ambiguous, so the year rides along. */}
-                      {new Date(t.date + "T12:00").toLocaleDateString("en-US", dateScoped
-                        ? { month: "short", day: "numeric", year: "numeric" }
-                        : { month: "short", day: "numeric" })}
+                      {when}
                       {t.type === "expense" && cat ? ` · ${cat.label}` : ""}
                       {/* Draws say where the money came from — a custom note can hide it otherwise. */}
                       {isDraw(t) ? ` · 🌸 from ${state.goals.find((g) => g.id === t.goalId)?.name ?? "a departed goal"}` : ""}
@@ -476,7 +486,7 @@ export function Log({ state, d, view, today, addTransaction, deleteTransaction, 
                       at 375px (iPhone SE / mini width). tap-targets guards it. */}
                   <span style={{ display: "flex", alignItems: "center", flex: "0 0 auto", marginLeft: "auto" }}>
                     <b className="mg-num" style={{ color, fontSize: 15, marginRight: 1 }}>{sign}{fmt(t.amount)}</b>
-                    <button className="mg-btn mg-icon-btn" onClick={() => openEdit(t)} title="Edit entry" aria-label="Edit entry"
+                    <button className="mg-btn mg-icon-btn" onClick={() => openEdit(t)} title="Edit entry" aria-label={`Edit ${entry}`}
                       style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 14, padding: 4 }}><PencilIcon /></button>
                     {confirmDeleteId === t.id && !canRemoveTransaction(state, t) ? (
                       // The armed ✕ explains instead of offering Delete?: this
@@ -489,12 +499,12 @@ export function Log({ state, d, view, today, addTransaction, deleteTransaction, 
                       </span>
                     ) : confirmDeleteId === t.id ? (
                       <button className="mg-btn mg-compact" onClick={() => { deleteTransaction(t.id); setConfirmDeleteId(null); }}
-                        title="Really delete this entry" aria-label="Really delete this entry"
+                        title="Really delete this entry" aria-label={`Really delete ${entry}`}
                         style={{ background: C.tomato, border: "none", borderRadius: 999, padding: "0 10px", fontWeight: 700, fontSize: 12, color: C.inkContrast, cursor: "pointer", whiteSpace: "nowrap" }}>
                         Delete?
                       </button>
                     ) : (
-                      <button className="mg-btn mg-icon-btn" onClick={() => armDelete(t.id)} title="Delete entry" aria-label="Delete entry"
+                      <button className="mg-btn mg-icon-btn" onClick={() => armDelete(t.id)} title="Delete entry" aria-label={`Delete ${entry}`}
                         style={{ border: "none", background: "transparent", cursor: "pointer", color: C.inkSoft, fontSize: 15, padding: 4 }}><XIcon /></button>
                     )}
                   </span>

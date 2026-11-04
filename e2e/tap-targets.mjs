@@ -113,7 +113,7 @@ try {
     // onto two lines at 375px (iPhone SE / mini); 40px-wide buttons with the
     // old gaps took 100px and wrapped every phone row.
     await page.getByRole("button", { name: /Log/ }).first().click();
-    await page.getByLabel("Delete entry").first().waitFor();
+    await page.getByTitle("Delete entry", { exact: true }).first().waitFor();
     const rows = await page.evaluate(() => [...document.querySelectorAll("li.mg-row")].map((li) => {
       const amt = li.querySelector("b.mg-num");
       const group = amt.parentElement.getBoundingClientRect();
@@ -139,7 +139,7 @@ try {
     // Hovering an icon button shows its square as a tile (the tap area made
     // visible); moving away clears it.
     if (width === 760) {
-      const del = page.getByLabel("Delete entry").first();
+      const del = page.getByTitle("Delete entry", { exact: true }).first();
       const look = () => del.evaluate((b) => { const cs = getComputedStyle(b); return { bg: cs.backgroundColor, r: cs.borderTopLeftRadius }; });
       await del.hover(); await page.waitForTimeout(150); const on = await look();
       await page.mouse.move(1, 1); await page.waitForTimeout(150); const offTile = await look();
@@ -151,8 +151,8 @@ try {
     // a first tap on ✕ reveals, on every screen (the Garden one was 20px).
     const hOf = (loc) => loc.evaluate((e) => Math.round(e.getBoundingClientRect().height));
     const compact = [];
-    await page.getByLabel("Delete entry").first().click();
-    compact.push(["Log Delete?", await hOf(page.getByRole("button", { name: "Really delete this entry" }))]);
+    await page.getByTitle("Delete entry", { exact: true }).first().click();
+    compact.push(["Log Delete?", await hOf(page.getByTitle("Really delete this entry", { exact: true }))]);
     await page.getByRole("button", { name: /Budgets/ }).first().click();
     compact.push(["Log payment", await hOf(page.getByRole("button", { name: /Log payment/ }).first())]);
     await page.getByLabel(/^Remove Gym/).click();
@@ -218,7 +218,7 @@ try {
         return { dx: ((k[0] + k[1]) / 2 - (t[0] + t[1]) / 2) / s, dy: ((k[2] + k[3]) / 2 - (t[2] + t[3]) / 2) / s, tile: `${(t[1] - t[0] + 1) / s}×${(t[3] - t[2] + 1) / s}` };
       }, [png, r, DSF]);
     };
-    const glyphs = [["Log ✕", page.getByLabel("Delete entry").first()], ["Log ✏️", page.getByLabel("Edit entry").first()]];
+    const glyphs = [["Log ✕", page.getByTitle("Delete entry", { exact: true }).first()], ["Log ✏️", page.getByTitle("Edit entry", { exact: true }).first()]];
     const res = [];
     for (const [n, loc] of glyphs) res.push([n, await offset(loc)]);
     // Close search: inside the open search pill the tile shares the pill's
