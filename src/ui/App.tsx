@@ -77,6 +77,11 @@ export function MoneyGarden() {
    * checked, and stays muted for installed (standalone) launches.
    */
   const [installPref, setInstallPref] = useState<"show" | "dismissed" | "muted">("muted");
+  // The page behind the install overlay (made inert while it shows) and the
+  // overlay itself (focused when it opens).
+  const headerRef = useRef<HTMLElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  const installRef = useRef<HTMLDivElement>(null);
   const memoryFallback = useRef(false);
   /** This tab's latest own save fell through to memory (quota, privacy
    * mode) — while true, saves from other tabs are NOT adopted. A ref, not
@@ -377,6 +382,21 @@ export function MoneyGarden() {
   const monthView = useMemo(() => (state && viewYm ? deriveMonthView(state, viewYm) : null), [state, viewYm]);
   const months = useMemo(() => (state ? monthRange(state) : []), [state, today]);
 
+  // Keep focus inside the install overlay: `inert` takes the header and main
+  // out of reach — no focus, no clicks, hidden from screen readers — the way
+  // a native modal dialog does. Browsers without `inert` (Safari < 15.5) just
+  // ignore the property. Focus goes to the overlay box itself, not its
+  // button, so a screen reader announces the dialog and no ring is painted.
+  // The overlay, header and main only exist once the garden screen shows
+  // (not Recovery, not "Preparing…"), so that's a dependency too: "show" can
+  // arrive first, and the trap must still switch on when the garden appears.
+  const gardenShown = !unreadable && !!derived;
+  useEffect(() => {
+    const open = installPref === "show" && gardenShown;
+    for (const el of [headerRef.current, mainRef.current]) if (el) el.inert = open;
+    if (open) installRef.current?.focus();
+  }, [installPref, gardenShown]);
+
   if (unreadable) {
     return <Recovery raw={unreadable.raw} reason={unreadable.reason} onStartFresh={onStartFreshOverUnreadable} />;
   }
@@ -626,7 +646,7 @@ export function MoneyGarden() {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.ink, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       {/* ===== header ===== */}
-      <header style={{ maxWidth: 980, margin: "0 auto", padding: "26px 20px 8px" }}>
+      <header ref={headerRef} style={{ maxWidth: 980, margin: "0 auto", padding: "26px 20px 8px" }}>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: -6 }}>
@@ -693,7 +713,7 @@ export function MoneyGarden() {
         </nav>
       </header>
 
-      <main style={{ maxWidth: 980, margin: "0 auto", padding: "16px 20px 60px" }}>
+      <main ref={mainRef} style={{ maxWidth: 980, margin: "0 auto", padding: "16px 20px 60px" }}>
         {/* Nothing is being saved: say so where it can't be missed, not
             only in the footer (CLAUDE.md: keep the disclosure visible). */}
         {note?.warn && (
@@ -814,9 +834,9 @@ export function MoneyGarden() {
       {/* ===== one-time install invitation (browser tabs only) =====
           Any dismissal — button, tapping outside, Escape — is permanent. */}
       {installPref === "show" && (
-        <div role="dialog" aria-modal="true" aria-label="Add Money Garden to your home screen"
+        <div ref={installRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Add Money Garden to your home screen"
           onClick={dismissInstall}
-          style={{ position: "fixed", inset: 0, background: C.shadow, zIndex: 60, display: "grid", placeItems: "center", padding: 20 }}>
+          style={{ position: "fixed", inset: 0, background: C.shadow, zIndex: 60, display: "grid", placeItems: "center", padding: 20, outline: "none" }}>
           <div className="mg-card" onClick={(e) => e.stopPropagation()}
             style={{ maxWidth: 400, padding: "26px 24px", display: "grid", gap: 10, justifyItems: "center", textAlign: "center", boxShadow: `0 18px 50px ${C.shadow}`, animation: "mg-pop .3s ease" }}>
             <div style={{ fontSize: 38, lineHeight: 1 }}>{isIOS() || isTouchDevice() ? "📲" : "🖥️"}</div>

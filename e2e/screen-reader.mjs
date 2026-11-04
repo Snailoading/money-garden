@@ -3,6 +3,8 @@
 // selected tab carries aria-current="page" ("Overview, current page,
 // button"), and the tab emoji are aria-hidden so they aren't read out by
 // their Unicode names ("sun behind small cloud, Overview").
+// The first-visit install pop-up keeps focus inside: the page behind is
+// inert (no focus, hidden from screen readers) until it's dismissed.
 import { chromium } from "playwright";
 import { spawn, execSync } from "node:child_process";
 import { SP, DIST } from "./paths.mjs";
@@ -15,6 +17,16 @@ const TABS = ["Overview", "Log", "Budgets", "Garden", "Orchard", "Seasons", "Adv
 /** Labels of every element on the page marked aria-current, and its value. */
 const currentOnes = (page) => page.evaluate(() =>
   [...document.querySelectorAll("[aria-current]")].map((el) => `${el.textContent.trim()}=${el.getAttribute("aria-current")}`));
+
+/** Names in Chrome's real accessibility tree, skipping the nodes it hides
+ *  from screen readers (aria-hidden, inert, display:none…) and the root
+ *  (named by the page's <title>, "Money Garden" — not the header's). */
+async function spoken(page) {
+  const cdp = await page.context().newCDPSession(page);
+  let nodes;
+  try { ({ nodes } = await cdp.send("Accessibility.getFullAXTree")); } finally { await cdp.detach().catch(() => {}); }
+  return nodes.filter((n) => !n.ignored && n.name?.value && n.role?.value !== "RootWebArea").map((n) => n.name.value.trim());
+}
 
 let browser;
 try {
@@ -59,6 +71,81 @@ try {
   check("each tab tapped is the one current tab", wrong.length === 0, wrong.join(" | ") || `${TABS.length} tabs`);
   check("no page errors", errs.length === 0, errs.join(" | "));
   await ctx.close();
+
+  // The install pop-up (a first visit: no install-hint saved yet), three ways:
+  //   "Got it"   — normal first visit, closed with its button
+  //   "Escape"   — normal first visit, closed with Escape
+  //   "Recovery" — the save is unreadable, so Recovery shows first and the
+  //                pop-up's "show" arrives before the garden does; after
+  //                Start fresh the trap must still switch on (closed with Escape)
+  for (const route of ["Got it", "Escape", "Recovery"]) {
+    const ictx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: "block" });
+    await ictx.addInitScript((route) => {
+      localStorage.setItem("money-garden:theme", "day");
+      // Once per tab, so Start fresh's own reload-free save isn't undone.
+      if (route === "Recovery" && !sessionStorage.getItem("seeded")) {
+        sessionStorage.setItem("seeded", "1"); localStorage.setItem("money-garden:state-v1", "{not json");
+      }
+    }, route);
+    const ip = await ictx.newPage(); const ierrs = []; ip.on("pageerror", (e) => ierrs.push(e.message)); ip.setDefaultTimeout(5000);
+    await ip.goto(BASE);
+    if (route === "Recovery") {
+      await ip.getByRole("button", { name: "Start fresh…", exact: true }).click();
+      await ip.getByRole("button", { name: "Really start fresh?", exact: true }).click();
+    }
+    const dialog = ip.getByRole("dialog", { name: "Add Money Garden to your home screen" });
+    await dialog.waitFor();
+    // Where focus is, as "dialog" / "inside" / "header" / "main" / "body".
+    const focusAt = () => ip.evaluate(() => {
+      const a = document.activeElement;
+      if (!a || a === document.body) return "body";
+      if (a.getAttribute("role") === "dialog") return "dialog";
+      if (a.closest('[role="dialog"]')) return "inside";
+      return a.closest("header") ? "header" : a.closest("main") ? "main" : a.tagName;
+    });
+    const inertNow = () => ip.evaluate(() => [...document.querySelectorAll("header, main")].map((el) => el.inert));
+
+    // Trapped from the start: the page behind is inert, and focus is on the
+    // pop-up itself (so it's announced) with no ring painted.
+    const before = await inertNow();
+    const ring = await ip.evaluate(() => getComputedStyle(document.activeElement).outlineStyle);
+    const at = await focusAt();
+    check(`${route}: pop-up opens trapped (page inert, focus on it, no ring)`,
+      before.length === 2 && before.every((v) => v === true) && at === "dialog" && ring === "none",
+      `inert ${before}, focus ${at}, outline ${ring}`);
+
+    if (route === "Got it") {
+      // Tab and Shift+Tab, round and round: never behind the pop-up. (Past
+      // its last button focus may rest on the page itself — the browser's
+      // own toolbar in a real window — then comes straight back.)
+      const seen = [];
+      for (const key of [...Array(8).fill("Tab"), ...Array(8).fill("Shift+Tab")]) {
+        await ip.keyboard.press(key); seen.push(await focusAt());
+      }
+      check("pop-up: Tab / Shift+Tab never reach the page behind", seen.every((s) => ["dialog", "inside", "body"].includes(s)) && seen.includes("inside"), seen.join(" "));
+      // A screen reader's view: the pop-up only, none of the page behind.
+      // Read from Chrome's own accessibility tree (what screen readers get) —
+      // Playwright's ariaSnapshot() doesn't apply `inert`.
+      const heard = await spoken(ip);
+      check("pop-up: screen reader hears only the pop-up", heard.includes("Got it") && heard.includes("Take the garden with you")
+        && !heard.includes("Overview") && !heard.includes("Money Garden"), heard.join(" · ").slice(0, 300));
+      await ip.getByRole("button", { name: "Got it", exact: true }).click();
+    } else {
+      await ip.keyboard.press("Escape");
+    }
+
+    // Closed: the page is back — reachable by keyboard and by screen readers.
+    await dialog.waitFor({ state: "detached" });
+    const after = await inertNow();
+    let reached = false;
+    for (let i = 0; i < 6 && !reached; i++) { await ip.keyboard.press("Tab"); reached = ["header", "main"].includes(await focusAt()); }
+    const back = await spoken(ip);
+    check(`${route}: closed, page back (not inert, Tab reaches it, readable)`,
+      after.length === 2 && after.every((v) => v === false) && reached && back.includes("Overview") && back.includes("Money Garden"),
+      `inert ${after}, tab reached ${reached}, heard ${back.length} names`);
+    check(`${route}: no page errors`, ierrs.length === 0, ierrs.join(" | "));
+    await ictx.close();
+  }
   await browser.close();
 } catch (e) { out.push("ERROR " + (e.stack || e).toString().split("\n").slice(0, 3).join(" | ")); } finally {
   await browser?.close().catch(() => {}); server.kill(); console.log(out.join("\n"));
