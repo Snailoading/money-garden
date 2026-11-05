@@ -1,7 +1,9 @@
 // The header's three pills — theme toggle, weather, streak — share one
 // height and round corners, the theme toggle is a square, and the streak
 // card centers its content (v0.18.4). Checked at desktop, phone and a
-// narrow phone, in both themes.
+// narrow phone, in both themes — for a fresh garden (the short "New
+// garden" pill, v0.18.6) and with sample data (the real weather, whose
+// longer blurb wraps on narrow phones).
 import { chromium } from "playwright";
 import { spawn, execSync } from "node:child_process";
 import { SP, DIST, shot } from "./paths.mjs";
@@ -22,47 +24,53 @@ try {
     }, theme);
     const page = await ctx.newPage(); const errs = []; page.on("pageerror", (e) => errs.push(e.message)); page.setDefaultTimeout(5000);
     await page.goto(BASE); await page.getByText("Money Garden", { exact: true }).waitFor();
-    await page.evaluate(() => document.fonts.ready); // measure with the real fonts
-    const tag = `H${width}-${theme}`;
-    // For each pill: its box, its corner radius, and the box of its
-    // content (the text/emoji inside, measured with a Range).
-    const pills = await page.evaluate(() => {
-      const els = [
-        document.querySelector('button[aria-label^="Switch theme"]'),
-        document.querySelector('[title^="Garden health"]'),
-        document.querySelector('[title^="Days in a row"]'),
-      ];
-      return els.map((el) => {
-        if (!el) return null;
-        const r = el.getBoundingClientRect();
-        const range = document.createRange(); range.selectNodeContents(el);
-        const c = range.getBoundingClientRect();
-        return { top: r.top, width: r.width, height: r.height, mid: r.top + r.height / 2, contentMid: c.top + c.height / 2,
-          radius: getComputedStyle(el).borderTopLeftRadius };
+    for (const garden of ["fresh", "sample"]) {
+      if (garden === "sample") {
+        await page.getByRole("button", { name: "Plant sample data", exact: true }).click();
+        await page.getByText("Sent to goals", { exact: true }).waitFor();
+      }
+      await page.evaluate(() => document.fonts.ready); // measure with the real fonts
+      const tag = `H${width}-${theme}-${garden}`;
+      // For each pill: its box, its corner radius, and the box of its
+      // content (the text/emoji inside, measured with a Range).
+      const pills = await page.evaluate(() => {
+        const els = [
+          document.querySelector('button[aria-label^="Switch theme"]'),
+          document.querySelector('[title^="Garden health"]'),
+          document.querySelector('[title^="Days in a row"]'),
+        ];
+        return els.map((el) => {
+          if (!el) return null;
+          const r = el.getBoundingClientRect();
+          const range = document.createRange(); range.selectNodeContents(el);
+          const c = range.getBoundingClientRect();
+          return { top: r.top, width: r.width, height: r.height, mid: r.top + r.height / 2, contentMid: c.top + c.height / 2,
+            radius: getComputedStyle(el).borderTopLeftRadius };
+        });
       });
-    });
-    check(`${tag} all three pills found`, pills.every(Boolean));
-    if (pills.every(Boolean)) {
-      const hs = pills.map((p) => p.height.toFixed(1));
-      check(`${tag} same height`, Math.max(...pills.map((p) => p.height)) - Math.min(...pills.map((p) => p.height)) < 0.5, hs.join(" / "));
-      check(`${tag} same top`, Math.max(...pills.map((p) => p.top)) - Math.min(...pills.map((p) => p.top)) < 0.5);
-      check(`${tag} same corner radius`, new Set(pills.map((p) => p.radius)).size === 1, pills.map((p) => p.radius).join(" / "));
-      // Square wherever the row has its usual two-line height (always on
-      // desktop). On phones a longer weather blurb wraps, the row grows,
-      // and the toggle keeps its width — a tall pill, by design — so the
-      // check goes by the measured height, not the screen width.
-      const t = pills[0];
-      if (width >= 1280 || t.height < 60) check(`${tag} theme toggle is square`, Math.abs(t.width - t.height) < 0.5, `${t.width.toFixed(1)}×${t.height.toFixed(1)}`);
-      // No check for the toggle's centering: browsers center a <button>'s
-      // content by themselves, so it could never fail. The streak card's
-      // can — at 320px it's off by ~7px without its flex centering.
-      const off = pills[2].contentMid - pills[2].mid;
-      check(`${tag} streak content centered`, Math.abs(off) <= 1.5, `off by ${off.toFixed(1)}px`);
+      check(`${tag} all three pills found`, pills.every(Boolean));
+      if (pills.every(Boolean)) {
+        const hs = pills.map((p) => p.height.toFixed(1));
+        check(`${tag} same height`, Math.max(...pills.map((p) => p.height)) - Math.min(...pills.map((p) => p.height)) < 0.5, hs.join(" / "));
+        check(`${tag} same top`, Math.max(...pills.map((p) => p.top)) - Math.min(...pills.map((p) => p.top)) < 0.5);
+        check(`${tag} same corner radius`, new Set(pills.map((p) => p.radius)).size === 1, pills.map((p) => p.radius).join(" / "));
+        // Square wherever the row has its usual two-line height (always on
+        // desktop). On phones a longer weather blurb wraps, the row grows,
+        // and the toggle keeps its width — a tall pill, by design — so the
+        // check goes by the measured height, not the screen width.
+        const t = pills[0];
+        if (width >= 1280 || t.height < 60) check(`${tag} theme toggle is square`, Math.abs(t.width - t.height) < 0.5, `${t.width.toFixed(1)}×${t.height.toFixed(1)}`);
+        // No check for the toggle's centering: browsers center a <button>'s
+        // content by themselves, so it could never fail. The streak card's
+        // can — at 320px it's off by ~7px without its flex centering.
+        const off = pills[2].contentMid - pills[2].mid;
+        check(`${tag} streak content centered`, Math.abs(off) <= 1.5, `off by ${off.toFixed(1)}px`);
+      }
+      // The page must still fit the phone — no sideways scroll.
+      check(`${tag} no horizontal overflow`, await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      check(`${tag} no page errors`, errs.length === 0, errs.join(" | "));
+      await shot(page, `header-pills-${width}-${theme}-${garden}`, { clip: { x: 0, y: 0, width, height: 220 } });
     }
-    // The page must still fit the phone — no sideways scroll.
-    check(`${tag} no horizontal overflow`, await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-    check(`${tag} no page errors`, errs.length === 0, errs.join(" | "));
-    await shot(page, `header-pills-${width}-${theme}`, { clip: { x: 0, y: 0, width, height: 220 } });
     await ctx.close();
   }
   await browser.close();

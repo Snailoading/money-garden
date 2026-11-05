@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { State, Transaction } from "./types";
 import { emptyState } from "./state";
 import { monthKey } from "./format";
-import { derive, deriveMonthView, weatherFor } from "./stats";
+import { derive, deriveMonthView, nothingLoggedYet, weatherFor } from "./stats";
 
 // June 15, 2026 at local noon: monthFrac = 15/30 = 0.5 exactly, and the
 // UTC-based monthKey stays in June for every real-world timezone offset.
@@ -340,7 +340,34 @@ describe("health score (adherence 55 + savings 30 + streak 15)", () => {
   });
 });
 
+describe("nothingLoggedYet", () => {
+  it("is true until the first entry or no-spend day, whatever is set up", () => {
+    const setUp = state({
+      income: 4200,
+      budgets: { groceries: 600, fun: 100 },
+      goals: [{ id: "g1", name: "Japan trip", plant: "tulip", target: 2800, saved: 500, isEmergency: false }],
+    });
+    expect(nothingLoggedYet(emptyState())).toBe(true);
+    expect(nothingLoggedYet(setUp)).toBe(true);
+    // Why "New garden" is honest there: health reads only the journal and
+    // the streak, so a set-up garden with nothing logged is the default 55.
+    expect(derive(setUp, now).health).toBe(55);
+    expect(nothingLoggedYet(state({ transactions: [tx("expense", 12.5, "dining")] }))).toBe(false);
+    expect(nothingLoggedYet(state({ streak: { count: 1, lastDate: mk + "-14" } }))).toBe(false);
+  });
+});
+
 describe("weather thresholds", () => {
+  it("the fresh flag gives New garden, whatever the score", () => {
+    // An empty garden scores the no-budget default 55 — Overcast by score.
+    expect(derive(emptyState(), now).health).toBe(55);
+    for (const score of [0, 39, 55, 80, 100]) {
+      expect(weatherFor(score, true)).toEqual({ icon: "🌱", word: "New garden", blurb: "Plant your first entry." });
+    }
+    expect(weatherFor(55).word).toBe("Overcast");
+    expect(weatherFor(55, false).word).toBe("Overcast");
+  });
+
   it("maps health bands to Sunny / Fair / Overcast / Stormy", () => {
     expect(weatherFor(80).word).toBe("Sunny");
     expect(weatherFor(79).word).toBe("Fair");
