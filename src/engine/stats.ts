@@ -69,10 +69,19 @@ export interface Derived {
 }
 
 /**
- * The header's weather for a health score. A fresh garden (nothing entered
- * yet — the caller passes isFreshGarden) has nothing to judge: its 55 is
- * the no-budget default, not a reading, so it gets a neutral "New garden"
- * instead of "Spending is creeping up".
+ * Has the garden anything for the health score to judge? Health reads only
+ * the journal (spending pace, savings) and the logging streak — income,
+ * budgets and goals alone leave it at a fixed 55 that measures nothing. So
+ * until the first entry or no-spend day, the weather is "New garden".
+ */
+export function nothingLoggedYet(state: State): boolean {
+  return state.transactions.length === 0 && state.streak.count === 0;
+}
+
+/**
+ * The header's weather for a health score. A garden with nothing logged yet
+ * (the caller passes nothingLoggedYet) gets a neutral "New garden" instead
+ * of its default 55's "Spending is creeping up".
  */
 export function weatherFor(score: number, fresh = false): Weather {
   if (fresh) return { icon: "🌱", word: "New garden", blurb: "Plant your first entry." };

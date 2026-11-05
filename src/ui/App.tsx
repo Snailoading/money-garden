@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Commitment, Goal, Invest, State, Transaction } from "../engine/types";
 import { BACKUP_META_KEY, DEFAULT_INVEST, STORAGE_KEY, UNREADABLE_KEY_PREFIX } from "../engine/types";
 import { fmt, monthLabel, shortDate, uid } from "../engine/format";
-import { derive, deriveMonthView, weatherFor } from "../engine/stats";
+import { derive, deriveMonthView, nothingLoggedYet, weatherFor } from "../engine/stats";
 import { monthRange } from "../engine/trends";
 import { canRemoveTransaction, deleteGoal as engineDeleteGoal, emptyState, insertGoal, isFreshGarden, linkedAmountBounds, loadSaved, removeTransaction, sampleState, serialize, setupEmergencyFund, updateCommitment, updateGoal, updateTransaction } from "../engine/state";
 import { backupStatus, buildBackup, NO_BACKUP_META, noteBackupRestored, noteBackupSaved, noteGardenChange, parseBackup, parseBackupMeta, serializeBackupMeta, type BackupMeta, type ImportPreview } from "../engine/backup";
@@ -631,7 +631,9 @@ export function MoneyGarden() {
     if (!isFreshGarden(state) || !setStateSafe(sampleState())) return;
     setViewYm(null);
   };
-  const weather = weatherFor(derived.health, isEmpty);
+  // Until something is logged the score is a fixed default — no reading yet.
+  const unjudged = nothingLoggedYet(state);
+  const weather = weatherFor(derived.health, unjudged);
   const navBtnStyle = (enabled: boolean) => ({
     border: "none", background: "transparent", cursor: enabled ? "pointer" : "default",
     color: C.inkSoft, fontWeight: 700, fontSize: 18, lineHeight: 1, padding: "0 6px",
@@ -684,8 +686,8 @@ export function MoneyGarden() {
             <div className="mg-card" style={{ padding: "8px 14px", display: "flex", gap: 8, alignItems: "center" }} title="Garden health — budget pace, saving, and logging habits">
               <span style={{ fontSize: 22 }}>{weather.icon}</span>
               <div>
-                {/* A fresh garden's 55 is a default, not a reading — no score. */}
-                <div style={{ fontWeight: 700, fontSize: 14 }}>{weather.word}{!isEmpty && ` · ${derived.health}/100`}</div>
+                {/* Nothing logged: the 55 is a default, not a reading — no score. */}
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{weather.word}{!unjudged && ` · ${derived.health}/100`}</div>
                 <div style={{ fontSize: 11.5, color: C.inkSoft }}>{weather.blurb}</div>
               </div>
             </div>
