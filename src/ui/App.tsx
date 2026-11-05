@@ -631,7 +631,7 @@ export function MoneyGarden() {
     if (!isFreshGarden(state) || !setStateSafe(sampleState())) return;
     setViewYm(null);
   };
-  const weather = weatherFor(derived.health);
+  const weather = weatherFor(derived.health, isEmpty);
   const navBtnStyle = (enabled: boolean) => ({
     border: "none", background: "transparent", cursor: enabled ? "pointer" : "default",
     color: C.inkSoft, fontWeight: 700, fontSize: 18, lineHeight: 1, padding: "0 6px",
@@ -684,7 +684,8 @@ export function MoneyGarden() {
             <div className="mg-card" style={{ padding: "8px 14px", display: "flex", gap: 8, alignItems: "center" }} title="Garden health — budget pace, saving, and logging habits">
               <span style={{ fontSize: 22 }}>{weather.icon}</span>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>{weather.word} · {derived.health}/100</div>
+                {/* A fresh garden's 55 is a default, not a reading — no score. */}
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{weather.word}{!isEmpty && ` · ${derived.health}/100`}</div>
                 <div style={{ fontSize: 11.5, color: C.inkSoft }}>{weather.blurb}</div>
               </div>
             </div>

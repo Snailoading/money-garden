@@ -341,6 +341,16 @@ describe("health score (adherence 55 + savings 30 + streak 15)", () => {
 });
 
 describe("weather thresholds", () => {
+  it("a fresh garden is a New garden, whatever its score", () => {
+    // An empty garden scores the no-budget default 55 — Overcast by score.
+    expect(derive(emptyState(), now).health).toBe(55);
+    for (const score of [0, 39, 55, 80, 100]) {
+      expect(weatherFor(score, true)).toEqual({ icon: "🌱", word: "New garden", blurb: "Plant your first entry." });
+    }
+    expect(weatherFor(55).word).toBe("Overcast");
+    expect(weatherFor(55, false).word).toBe("Overcast");
+  });
+
   it("maps health bands to Sunny / Fair / Overcast / Stormy", () => {
     expect(weatherFor(80).word).toBe("Sunny");
     expect(weatherFor(79).word).toBe("Fair");

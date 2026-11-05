@@ -68,7 +68,14 @@ export interface Derived {
   commit: CommitmentsDerived;
 }
 
-export function weatherFor(score: number): Weather {
+/**
+ * The header's weather for a health score. A fresh garden (nothing entered
+ * yet — the caller passes isFreshGarden) has nothing to judge: its 55 is
+ * the no-budget default, not a reading, so it gets a neutral "New garden"
+ * instead of "Spending is creeping up".
+ */
+export function weatherFor(score: number, fresh = false): Weather {
+  if (fresh) return { icon: "🌱", word: "New garden", blurb: "Plant your first entry." };
   if (score >= 80) return { icon: "☀️", word: "Sunny", blurb: "Your money is thriving." };
   if (score >= 60) return { icon: "🌤️", word: "Fair", blurb: "Mostly healthy, a little drift." };
   if (score >= 40) return { icon: "☁️", word: "Overcast", blurb: "Spending is creeping up." };
