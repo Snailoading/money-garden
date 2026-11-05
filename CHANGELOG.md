@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.18.6 — 2026-11-05 · *Fresh soil, fair skies* 🌱
+
+### Fixed
+
+- **A brand-new garden no longer gets a gloomy forecast.** Before
+  anything was entered, the weather read "☁️ Overcast · 55/100 —
+  Spending is creeping up", though there was no spending to judge. A
+  fresh garden now reads "🌱 New garden — Plant your first entry." The
+  real weather and score return as soon as you enter anything — sample
+  data, an entry, a goal, or just your income.
+
 ## 0.18.5 — 2026-11-04 · *Labelled seed packets* 🏷️
 
 ### Fixed
