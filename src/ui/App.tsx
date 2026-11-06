@@ -21,7 +21,7 @@ import { downloadText } from "./download";
 import { Recovery } from "./Recovery";
 import { PencilIcon, XIcon } from "./bits";
 import { createSaveQueue, type SaveQueue, type SetResult, type StorageMode } from "../engine/storage";
-import { useArmed, useToday } from "./hooks";
+import { useArmed, useMediaQuery, useToday } from "./hooks";
 import { checkPersistentStorage, requestPersistentStorage, storageNote } from "./storageNote";
 import { C, INSTALL_HINT_KEY, isIOS, isStandalone, isTouchDevice, parseThemeMode, resolveTheme, THEME_COLOR, THEME_KEY, type ThemeMode } from "./theme";
 import { Overview } from "./tabs/Overview";
@@ -365,6 +365,11 @@ export function MoneyGarden() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [installPref]);
 
+  // Phones: the theme toggle moves from the pill row to the end of the month
+  // line (beside the weather it stretched into a tall pill whenever the
+  // weather's blurb wrapped onto two lines).
+  const phoneHeader = useMediaQuery("(max-width: 479px)");
+
   /* ---------- derived numbers (engine) ---------- */
   const today = useToday();
   // A month picked a moment before `today` caught up with midnight (e.g.
@@ -634,6 +639,20 @@ export function MoneyGarden() {
   // Until something is logged the score is a fixed default — no reading yet.
   const unjudged = nothingLoggedYet(state);
   const weather = weatherFor(derived.health, unjudged);
+  // One button, placed by the breakpoint (phoneHeader): a 55px square pill
+  // beside the weather on wider screens; on phones a 32px square at the end
+  // of the month line, its −7px block margins keeping that line 18px tall
+  // so the title below doesn't move.
+  const themeButton = (
+    <button className="mg-btn" onClick={cycleTheme} aria-label="Switch theme (day, night, or auto)"
+      title={themeMode === "day" ? "Day garden — tap for night" : themeMode === "night" ? "Night garden — tap for auto" : "Auto: follows the clock, day 7am–7pm — tap for day"}
+      style={{ background: C.card, border: `1.5px solid ${C.border}`, padding: 0, lineHeight: 1, cursor: "pointer", flexShrink: 0,
+        ...(phoneHeader
+          ? { width: 32, height: 32, borderRadius: 10, fontSize: 16, marginLeft: "auto", marginBlock: -7 }
+          : { width: 55, borderRadius: 18, fontSize: 20 }) }}>
+      {themeMode === "day" ? "☀️" : themeMode === "night" ? "🌙" : "🌗"}
+    </button>
+  );
   const navBtnStyle = (enabled: boolean) => ({
     border: "none", background: "transparent", cursor: enabled ? "pointer" : "default",
     color: C.inkSoft, fontWeight: 700, fontSize: 18, lineHeight: 1, padding: "0 6px",
@@ -650,7 +669,10 @@ export function MoneyGarden() {
       {/* ===== header ===== */}
       <header ref={headerRef} style={{ maxWidth: 980, margin: "0 auto", padding: "26px 20px 8px" }}>
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-          <div>
+          {/* Grows to fill its row so the month line spans the header — on
+              phones the theme toggle sits at its far end. (Growth happens
+              after wrapping, so where the row wraps doesn't change.) */}
+          <div style={{ flexGrow: 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: -6 }}>
               <button className="mg-btn mg-icon-btn" onClick={() => canPrev && goToMonth(months[shownIdx - 1])} disabled={!canPrev}
                 aria-label="Previous month" style={navBtnStyle(canPrev)}>‹</button>
@@ -665,25 +687,25 @@ export function MoneyGarden() {
                   ↩ today
                 </button>
               )}
+              {phoneHeader && themeButton}
             </div>
             <h1 style={{ fontFamily: "'Fraunces', serif", fontWeight: 900, fontSize: "clamp(30px, 5vw, 44px)", margin: "2px 0 0", lineHeight: 1.05 }}>
               Money Garden
             </h1>
           </div>
-          {/* stretch: all three pills take the tallest one's height (two
-              lines of text — 55px unless the weather blurb wraps, as
-              longer blurbs do on phones); the streak card centers its
-              own content. The
-              theme button's width is that usual 55px so it reads as a
-              square — aspect-ratio can't do it: flexbox sizes the width
-              before stretch decides the height. */}
-          <div style={{ display: "flex", gap: 10, alignItems: "stretch" }}>
-            <button className="mg-btn" onClick={cycleTheme} aria-label="Switch theme (day, night, or auto)"
-              title={themeMode === "day" ? "Day garden — tap for night" : themeMode === "night" ? "Night garden — tap for auto" : "Auto: follows the clock, day 7am–7pm — tap for day"}
-              style={{ background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 18, width: 55, padding: 0, fontSize: 20, lineHeight: 1, cursor: "pointer", flexShrink: 0 }}>
-              {themeMode === "day" ? "☀️" : themeMode === "night" ? "🌙" : "🌗"}
-            </button>
-            <div className="mg-card" style={{ padding: "8px 14px", display: "flex", gap: 8, alignItems: "center" }} title="Garden health — budget pace, saving, and logging habits">
+          {/* stretch: the pills — three on wider screens, two on phones,
+              where the theme toggle sits on the month line — take the
+              tallest one's height (two lines of text: 55px unless the
+              weather blurb wraps); the streak card centers its own content.
+              On wider screens the theme button's width is that usual 55px
+              so it reads as a square — aspect-ratio can't do it: flexbox
+              sizes the width before stretch decides the height. */}
+          {/* On phones the row spans the header and the weather pill takes
+              the slack, so the streak's right edge lines up with the theme
+              toggle above it at the end of the month line. */}
+          <div style={{ display: "flex", gap: 10, alignItems: "stretch", ...(phoneHeader && { flexBasis: "100%" }) }}>
+            {!phoneHeader && themeButton}
+            <div className="mg-card" style={{ padding: "8px 14px", display: "flex", gap: 8, alignItems: "center", ...(phoneHeader && { flexGrow: 1 }) }} title="Garden health — budget pace, saving, and logging habits">
               <span style={{ fontSize: 22 }}>{weather.icon}</span>
               <div>
                 {/* Nothing logged: the 55 is a default, not a reading — no score. */}
