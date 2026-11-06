@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.18.7 — 2026-11-06 · *A tidier gate* ☀️
+
+### Fixed
+
+- **On phones, the day/night switch has moved to the top line,** next to
+  the month. Beside the weather it stretched into a tall pill whenever
+  the forecast wrapped onto two lines. Now it's a small square at the end
+  of the month line, and the weather and streak share the row below — so
+  on narrow phones that row is shorter and the page starts a little
+  higher. Laptops and wider screens look exactly as before.
+
 ## 0.18.6 — 2026-11-05 · *Fresh soil, fair skies* 🌱
 
 ### Fixed
