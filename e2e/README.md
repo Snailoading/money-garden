@@ -55,7 +55,7 @@ no checks at all counts as failed.
 | `theme-flash` | no wrong-theme flash at startup, frame by frame; title-bar colour; toggle; dusk | v0.18.1–2 |
 | `withdrawal-rate` | the FI tip names the user's own withdrawal rate | v0.18.2 |
 | `csp` | the security policy: normal use has zero violations; injected scripts and every way to send data out are blocked — hosted and single-file | v0.18.2 |
-| `header-pills` | the header's theme / weather / streak pills share one height, top and corner radius; the toggle is square, the streak centered — desktop, phone, narrow phone, both themes; a fresh garden and sample data | v0.18.4, v0.18.6 |
+| `header-pills` | the header's theme / weather / streak pills share one height, top and corner radius; the toggle is square, the streak centered — desktop, phone, narrow phone, both themes; a fresh garden and sample data. On phones (< 480px) the toggle is a 32px square at the end of the month line, centred on it and lined up with the pills' right edge | v0.18.4, v0.18.6, v0.18.7 |
 | `exact-amounts` | money is rounded only when shown, never before adding up: the donut's centre and legend, the pace and projection tooltips keep their cents ($12.50 + $7.50 + $4.50 reads $24.50, not $26.00) | v0.18.5 |
 | `seasons-gridlines` | Seasons gridlines sit on round values and every label states where its line is (one straight scale through $0) — sample data, an all-deficit garden, and a five-line axis whose top reads $1.25k | v0.18.5 |
 | `gold-text` | every visible gold text (marigold / amber family) on every tab is ≥ 4.5:1 against its real background, day and night; the night garden keeps its exact old colours | v0.18.5 |
