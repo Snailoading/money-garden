@@ -74,12 +74,21 @@ describe("tickMoney", () => {
       const m = s.match(/^(−?)\$([\d.]+)([kM]?)$/)!;
       return (m[1] ? -1 : 1) * Number(m[2]) * (m[3] === "k" ? 1e3 : m[3] === "M" ? 1e6 : 1);
     };
-    // Maxima from $0.50 to ~$50M on a geometric sweep (×1.003 per step).
-    for (let max = 0.5; max < 5e7; max *= 1.003) {
-      const { ticks } = niceAxis(max);
-      const labels = ticks.map(tickMoney);
-      for (const [i, t] of ticks.entries()) expect(readBack(labels[i])).toBeCloseTo(t, 6);
-      expect(new Set(labels).size).toBe(labels.length); // no duplicate labels
+    // Maxima from $0.50 to ~$500M on a geometric sweep (×1.003 per step), at
+    // the Seasons/pace count (3) and the projection's (4) — FIRE axes reach
+    // the millions.
+    for (const count of [3, 4]) {
+      for (let max = 0.5; max < 5e8; max *= 1.003) {
+        const { ticks } = niceAxis(max, count);
+        const labels = ticks.map(tickMoney);
+        for (const [i, t] of ticks.entries()) expect(readBack(labels[i])).toBeCloseTo(t, 6);
+        expect(new Set(labels).size).toBe(labels.length); // no duplicate labels
+      }
     }
+  });
+
+  it("gives the projection round lines ($500k steps, not $632k/$1.3M/$1.9M)", () => {
+    // A band top of ~$2.6M (+6% headroom): $500k steps up to $3M.
+    expect(niceAxis(2.6e6 * 1.06, 4).ticks.map(tickMoney)).toEqual(["$500k", "$1M", "$1.5M", "$2M", "$2.5M", "$3M"]);
   });
 });

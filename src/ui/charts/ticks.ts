@@ -37,9 +37,10 @@ export function niceAxis(max: number, count = 3, minStep = 1): { top: number; ti
 }
 
 /** Gridline money label: dollars under $1k, then $k / $M, with at most two
- * decimals and no trailing zeros. Two are enough for any niceAxis value at
- * count 3 (at most 5 lines): a 2.5-sized step's fifth line is 12.5 × a
- * power of ten ($1.25k, $12.5). */
+ * decimals and no trailing zeros. Two are enough for any niceAxis value
+ * (count 3 for Seasons/pace, 4 for the projection): every gridline is a
+ * whole multiple of 1, 2, 2.5 or 5 × a power of ten, so at worst it ends in
+ * .25 or .75 of a unit ($1.25k, $12.5). ticks.test sweeps both counts. */
 export function tickMoney(v: number): string {
   if (v < 0) return "−" + tickMoney(-v); // a real minus sign, not a hyphen
   const short = (x: number) => String(Math.round(x * 100) / 100);
