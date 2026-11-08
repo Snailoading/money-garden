@@ -6,8 +6,10 @@
 // the x-axis labels don't touch; the y-axis labels sit on round gridlines on
 // one straight scale whose zero is the plot's floor; and a hover tooltip,
 // swept across the plot, stays inside the chart. Also: a full 30/31-day month
-// at 320px; resizing wider and narrower redraws at the new width; and with
-// motion on, the entry wipe plays once but a resize doesn't replay it.
+// at 320px; a 12-month Seasons window names every month on desktop and thins
+// them on phones (newest always named, the first shown carrying its year);
+// resizing wider and narrower redraws at the new width; and with motion on,
+// the entry wipe plays once but a resize doesn't replay it.
 import { chromium } from "playwright";
 import { spawn, execSync } from "node:child_process";
 import { SP, DIST, shot } from "./paths.mjs";
@@ -16,11 +18,48 @@ try { execSync(`lsof -tnP -iTCP:${PORT} -sTCP:LISTEN | xargs kill`, { stdio: "ig
 const server = spawn("python3", [`${SP}/server.py`, DIST, String(PORT)], { stdio: "ignore" });
 const out = []; const check = (n, ok, d = "") => out.push(`${ok ? "PASS" : "FAIL"}  ${n}${d ? "  — " + d : ""}`);
 
-// [key, tab, aria-label prefix, bottom margin pb — the plot's floor is H − pb]
+// [key, tab, aria-label prefix, bottom margin pb — the plot's floor is H − pb;
+// null for the diverging leftover chart, whose $0 is its own labelled line]
+const SEASONS = [
+  ["bars", "Seasons", "Earned vs spent per month", 24],
+  ["rate", "Seasons", "Savings rate per month", 24],
+  ["left", "Seasons", "Money left over per month", null],
+  ["split", "Seasons", "Needs vs wants per month", 24],
+];
 const CHARTS = [
   ["pace", "Overview", "Cumulative spending", 22],
   ["projection", "Orchard", "Portfolio projection", 24],
+  ...SEASONS,
 ];
+
+// A 13-month garden (so the Seasons window is a full 12): steady income and
+// rent, varied groceries/dining/fun, a deficit month and a 🌸 goal draw.
+const ym = (k) => { const d = new Date(); const p = new Date(d.getFullYear(), d.getMonth() - k, 1); return `${p.getFullYear()}-${String(p.getMonth() + 1).padStart(2, "0")}`; };
+const garden12 = (() => {
+  const txs = []; let id = 0;
+  const tx = (type, amount, category, date, extra = {}) => txs.push({ id: "t" + id++, type, amount, category, note: "", date, ...extra });
+  const vary = (k, a, b) => Math.round(a + (((k * 7919) % 97) / 97) * (b - a));
+  for (let k = 12; k >= 0; k--) {
+    // This month: nothing dated after today.
+    const last = k === 0 ? Math.min(new Date().getDate(), 28) : 28;
+    const d = (day) => `${ym(k)}-${String(Math.min(day, last)).padStart(2, "0")}`;
+    tx("income", 4200, "other", d(1));
+    tx("expense", 1400, "housing", d(1));
+    tx("expense", vary(k, 330, 520), "groceries", d(5));
+    tx("expense", vary(k + 3, 120, 320), "dining", d(6));
+    tx("expense", vary(k + 5, 60, 260), "fun", d(4));
+    if (k === 8) tx("expense", 2300, "shopping", d(12));
+    tx("saving", vary(k + 1, 250, 750), "other", d(2), { goalId: "trip" });
+    if (k === 4) tx("expense", 600, "fun", d(14), { goalId: "trip" });
+  }
+  return {
+    income: 4200, budgets: { housing: 1400, groceries: 450, dining: 250, fun: 200 }, transactions: txs,
+    goals: [{ id: "trip", name: "Trip", plant: "tulip", target: 6000, saved: 4200, isEmergency: false }],
+    invest: { holdings: [], monthly: 0, ret: 7, birthYear: 0, retireAge: 65, wr: 4, retireSpend: 0 },
+    commitments: [], streak: { count: 0, lastDate: null },
+  };
+})();
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /** "$2.5k" → 2500, "−$1k" → −1000, "30%" → 30. */
 const parse = (s) => {
@@ -67,6 +106,58 @@ const tip = (page, label) => page.evaluate((label) => {
   const b = r.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom, px: Math.min(...px) };
 }, label);
 
+/** The checks every chart gets at width W; returns its measurements. `pre`
+ * tags the garden in check names ("12mo " for the 13-month one). */
+async function checkChart(page, W, [key, tab, label, pb], pre) {
+  await page.getByRole("button", { name: new RegExp(tab) }).first().click();
+  const svg = page.locator(`svg[aria-label^="${label}"]`);
+  await svg.waitFor(); await svg.scrollIntoViewIfNeeded();
+  const m = await measure(page, label);
+  const tag = `${W}px ${pre}${key}`;
+
+  check(`${tag}: drawn at the box's real size`, Math.abs(m.vb.w - m.box.w) < 0.5 && Math.abs(m.vb.h - m.box.h) < 0.5,
+    `viewBox ${m.vb.w.toFixed(1)}×${m.vb.h.toFixed(1)}, box ${m.box.w.toFixed(1)}×${m.box.h.toFixed(1)}`);
+  const small = m.sizes.filter((s) => s.px < 10 - 1e-6);
+  check(`${tag}: every label ≥ 10px on screen`, m.sizes.length > 0 && small.length === 0,
+    small.length ? small.map((s) => `"${s.text}" ${s.px.toFixed(1)}px`).join(", ") : `${Math.min(...m.sizes.map((s) => s.px)).toFixed(1)}px smallest`);
+
+  const gaps = m.xs.slice(1).map((x, i) => x.l - m.xs[i].r);
+  check(`${tag}: x labels don't touch, all inside the chart`,
+    m.xs.length >= 2 && gaps.every((g) => g >= 4) && m.xs[0].l >= m.box.l - 0.5 && m.xs[m.xs.length - 1].r <= m.box.r + 0.5,
+    `${m.xs.map((x) => x.text).join(" ")} · smallest gap ${Math.min(...gaps).toFixed(1)}px`);
+
+  // y labels: each on its own gridline, round, evenly stepped, one scale.
+  const pts = m.ys.map((p) => ({ ...p, v: parse(p.text) })).sort((a, b) => a.v - b.v);
+  const shown = pts.map((p) => p.text).join(" ");
+  const steps = pts.slice(1).map((p, i) => p.v - pts[i].v);
+  const scales = pts.slice(1).map((p, i) => (pts[i].y - p.y) / (p.v - pts[i].v));
+  // Follow the scale down to $0: a label sits 4px below its line, so zero's
+  // label would be at the plot's floor + 4. (An axis labelled one step
+  // off would still be even and linear — this catches it.)
+  const zeroAt = pts.length ? pts[0].y + pts[0].v * scales[0] : NaN;
+  check(`${tag}: y labels on round, even gridlines (one scale, zero at the floor)`,
+    pts.length >= 2 && pts.every((p) => p.line && Number.isFinite(p.v))
+      && isRoundStep(steps[0]) && pts.every((p) => Math.abs(p.v / steps[0] - Math.round(p.v / steps[0])) < 1e-9)
+      && steps.every((s) => Math.abs(s - steps[0]) < 1e-9 * steps[0])
+      && scales.every((s) => Math.abs(s - scales[0]) < 1e-6 * Math.abs(scales[0]))
+      && (pb === null || Math.abs(zeroAt - (m.vb.h - pb + 4)) < 0.5),
+    `${shown} · zero at ${zeroAt.toFixed(1)}` + (pb === null ? "" : `, floor ${(m.vb.h - pb).toFixed(1)}`));
+
+  // Tooltip sweep: 4% steps across the box; it must stay inside.
+  let outside = [];
+  for (let f = 0.02; f <= 0.98; f += 0.04) {
+    await page.mouse.move(m.box.l + m.box.w * f, m.box.t + m.box.h * 0.5);
+    const t = await tip(page, label);
+    if (!t) { outside.push(`${Math.round(f * 100)}%: no tooltip`); continue; }
+    if (t.l < m.box.l - 0.5 || t.r > m.box.r + 0.5 || t.t < m.box.t - 0.5 || t.b > m.box.b + 0.5) outside.push(`${Math.round(f * 100)}%`);
+    if (t.px < 10 - 1e-6) outside.push(`${Math.round(f * 100)}%: text ${t.px.toFixed(1)}px`);
+  }
+  await page.mouse.move(2, 2);
+  check(`${tag}: tooltip stays inside the chart, text ≥ 10px`, outside.length === 0, outside.join(", "));
+  await shot(svg, `chart-width-${W}-${pre}${key}`);
+  return m;
+}
+
 let browser;
 try {
   let pid = null;
@@ -84,54 +175,7 @@ try {
     await page.getByRole("button", { name: "Plant sample data", exact: true }).click();
     await page.getByText("Sent to goals", { exact: true }).waitFor();
 
-    for (const [key, tab, label, pb] of CHARTS) {
-      await page.getByRole("button", { name: new RegExp(tab) }).first().click();
-      const svg = page.locator(`svg[aria-label^="${label}"]`);
-      await svg.waitFor(); await svg.scrollIntoViewIfNeeded();
-      const m = await measure(page, label);
-      const tag = `${W}px ${key}`;
-
-      check(`${tag}: drawn at the box's real size`, Math.abs(m.vb.w - m.box.w) < 0.5 && Math.abs(m.vb.h - m.box.h) < 0.5,
-        `viewBox ${m.vb.w.toFixed(1)}×${m.vb.h.toFixed(1)}, box ${m.box.w.toFixed(1)}×${m.box.h.toFixed(1)}`);
-      const small = m.sizes.filter((s) => s.px < 10 - 1e-6);
-      check(`${tag}: every label ≥ 10px on screen`, m.sizes.length > 0 && small.length === 0,
-        small.length ? small.map((s) => `"${s.text}" ${s.px.toFixed(1)}px`).join(", ") : `${Math.min(...m.sizes.map((s) => s.px)).toFixed(1)}px smallest`);
-
-      const gaps = m.xs.slice(1).map((x, i) => x.l - m.xs[i].r);
-      check(`${tag}: x labels don't touch, all inside the chart`,
-        m.xs.length >= 2 && gaps.every((g) => g >= 4) && m.xs[0].l >= m.box.l - 0.5 && m.xs[m.xs.length - 1].r <= m.box.r + 0.5,
-        `${m.xs.map((x) => x.text).join(" ")} · smallest gap ${Math.min(...gaps).toFixed(1)}px`);
-
-      // y labels: each on its own gridline, round, evenly stepped, one scale.
-      const pts = m.ys.map((p) => ({ ...p, v: parse(p.text) })).sort((a, b) => a.v - b.v);
-      const shown = pts.map((p) => p.text).join(" ");
-      const steps = pts.slice(1).map((p, i) => p.v - pts[i].v);
-      const scales = pts.slice(1).map((p, i) => (pts[i].y - p.y) / (p.v - pts[i].v));
-      // Follow the scale down to $0: a label sits 4px below its line, so zero's
-      // label would be at the plot's floor + 4. (An axis labelled one step
-      // off would still be even and linear — this catches it.)
-      const zeroAt = pts.length ? pts[0].y + pts[0].v * scales[0] : NaN;
-      check(`${tag}: y labels on round, even gridlines (one scale, zero at the floor)`,
-        pts.length >= 2 && pts.every((p) => p.line && Number.isFinite(p.v))
-          && isRoundStep(steps[0]) && pts.every((p) => Math.abs(p.v / steps[0] - Math.round(p.v / steps[0])) < 1e-9)
-          && steps.every((s) => Math.abs(s - steps[0]) < 1e-9 * steps[0])
-          && scales.every((s) => Math.abs(s - scales[0]) < 1e-6 * Math.abs(scales[0]))
-          && Math.abs(zeroAt - (m.vb.h - pb + 4)) < 0.5,
-        `${shown} · zero at ${zeroAt.toFixed(1)}, floor ${(m.vb.h - pb).toFixed(1)}`);
-
-      // Tooltip sweep: 5% steps across the box; it must stay inside.
-      let outside = [];
-      for (let f = 0.02; f <= 0.98; f += 0.04) {
-        await page.mouse.move(m.box.l + m.box.w * f, m.box.t + m.box.h * 0.5);
-        const t = await tip(page, label);
-        if (!t) { outside.push(`${Math.round(f * 100)}%: no tooltip`); continue; }
-        if (t.l < m.box.l - 0.5 || t.r > m.box.r + 0.5 || t.t < m.box.t - 0.5 || t.b > m.box.b + 0.5) outside.push(`${Math.round(f * 100)}%`);
-        if (t.px < 10 - 1e-6) outside.push(`${Math.round(f * 100)}%: text ${t.px.toFixed(1)}px`);
-      }
-      await page.mouse.move(2, 2);
-      check(`${tag}: tooltip stays inside the chart, text ≥ 10px`, outside.length === 0, outside.join(", "));
-      await shot(svg, `chart-width-${W}-${key}`);
-    }
+    for (const chart of CHARTS) await checkChart(page, W, chart, "");
 
     if (W === 320) {
       // A whole month in the narrowest pace chart (sample data's last month
@@ -169,6 +213,30 @@ try {
     check(`${W}px: no page errors`, errs.length === 0, errs.join(" | "));
     await ctx.close();
   }
+  // A full 12-month Seasons window: every month named on desktop; on phones
+  // the names thin out, the newest month is always named and the first one
+  // shown carries its year.
+  for (const W of [320, 390, 1280]) {
+    const ctx = await browser.newContext({ viewport: { width: W, height: 900 }, serviceWorkers: "block", reducedMotion: "reduce" });
+    await ctx.addInitScript((g) => {
+      localStorage.setItem("money-garden:theme", "day"); localStorage.setItem("money-garden:install-hint", "muted");
+      if (!localStorage.getItem("money-garden:state-v1")) localStorage.setItem("money-garden:state-v1", JSON.stringify(g));
+    }, garden12);
+    const page = await ctx.newPage(); const errs = []; page.on("pageerror", (e) => errs.push(e.message)); page.setDefaultTimeout(5000);
+    await page.goto(BASE); await page.getByText("Money Garden", { exact: true }).waitFor();
+    for (const chart of SEASONS) {
+      const m = await checkChart(page, W, chart, "12mo ");
+      const names = m.xs.map((x) => x.text);
+      const newest = MONTHS[new Date().getMonth()];
+      check(`${W}px 12mo ${chart[0]}: ${W >= 1000 ? "all 12 months named" : "months thinned"}, newest named, first shown has its year`,
+        (W >= 1000 ? names.length === 12 : names.length >= 3 && names.length < 12)
+          && names[names.length - 1].startsWith(newest) && names[0].includes("’"),
+        names.join(" · "));
+    }
+    check(`${W}px 12mo: no page errors`, errs.length === 0, errs.join(" | "));
+    await ctx.close();
+  }
+
   // Motion on (no reduced-motion): the entry wipe still plays, but once it
   // has, a resize snaps — the wipe must not replay (it did when the clip's
   // width first followed the chart's width).
