@@ -536,7 +536,8 @@ button.mg-tab {
 }
 @media (max-width: 349px) {
   /* Too narrow for 7 — the row scrolls sideways. The fade is on the row,
-     not the bar (a mask fades everything it covers, glass included). */
+     not the bar (a mask fades everything it covers, glass included). Its
+     two edges are the --tabs-fade-* widths below: right only at rest. */
   .mg-tabs-row {
     display: flex;
     flex-wrap: nowrap; /* the laptop row wraps; this one must scroll */
@@ -546,9 +547,25 @@ button.mg-tab {
     /* a sideways swipe that hits the end stays in the bar — it mustn't
        turn into the browser's swipe-back gesture */
     overscroll-behavior-x: contain;
-    scroll-padding-inline-end: 28px; /* keyboard focus stops short of the fade */
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    /* keyboard focus stops short of the fades (where the browser scrolls
+       for focus at all) */
+    scroll-padding-inline: 28px;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--tabs-fade-l, 0px),
+        #000 calc(100% - var(--tabs-fade-r, 28px)), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 var(--tabs-fade-l, 0px),
+        #000 calc(100% - var(--tabs-fade-r, 28px)), transparent);
+  }
+  /* The fades follow the row's own scroll position: a left fade grows in as
+     soon as you scroll away from the start, and the right one goes when you
+     reach the end. It's an animation whose clock is the scroll position
+     instead of time — no JavaScript. Browsers without scroll timelines (and
+     Reduce Motion, whose kill switch stops all animations) keep the
+     right-only fade. */
+  @supports (animation-timeline: scroll()) {
+    .mg-tabs-row {
+      animation: mg-tabs-fade linear both;
+      animation-timeline: scroll(self inline); /* after the shorthand, which resets it */
+    }
   }
   /* a spacer as wide as the fade, so the last tab can scroll fully clear
      of it (end padding in a scroller isn't reliably scrollable in Safari) */
@@ -572,6 +589,36 @@ button.mg-tab {
   /* …and a lift would be clipped too: the pressed tab just brightens */
   button.mg-tab:active {
     transform: none;
+  }
+}
+/* The scrolling tab row's fade widths. Registered (typed as lengths) so an
+   animation can glide between values; an unregistered custom property would
+   only jump from one value to the next. */
+@property --tabs-fade-l {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --tabs-fade-r {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 28px;
+}
+@keyframes mg-tabs-fade {
+  /* 0% = scrolled to the start, 100% = to the end. The right fade has no 0%
+     stop, so it starts from its registered 28px and holds until 90%. */
+  0% {
+    --tabs-fade-l: 0px;
+  }
+  10% {
+    --tabs-fade-l: 28px;
+  }
+  90% {
+    --tabs-fade-r: 28px;
+  }
+  100% {
+    --tabs-fade-l: 28px;
+    --tabs-fade-r: 0px;
   }
 }
 /* No glass where it can't be (no backdrop-filter) or isn't wanted (the

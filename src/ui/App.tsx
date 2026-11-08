@@ -3,7 +3,7 @@
  * every action handler, the header (weather + streak), tab nav, footer
  * ("the shed") with storage disclosure and two-step reset, and the toast.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Commitment, Goal, Invest, State, Transaction } from "../engine/types";
 import { BACKUP_META_KEY, DEFAULT_INVEST, STORAGE_KEY, UNREADABLE_KEY_PREFIX } from "../engine/types";
 import { fmt, monthLabel, shortDate, uid } from "../engine/format";
@@ -81,6 +81,8 @@ export function MoneyGarden() {
   // overlay itself (focused when it opens).
   const headerRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLElement>(null);
+  /** The row of tab buttons — scrolls sideways on the narrowest phones. */
+  const tabRowRef = useRef<HTMLDivElement>(null);
   const installRef = useRef<HTMLDivElement>(null);
   const memoryFallback = useRef(false);
   /** This tab's latest own save fell through to memory (quota, privacy
@@ -401,6 +403,25 @@ export function MoneyGarden() {
     for (const el of [headerRef.current, mainRef.current]) if (el) el.inert = open;
     if (open) installRef.current?.focus();
   }, [installPref, gardenShown]);
+
+  // Under 350px the tab bar scrolls sideways. A tab chosen without a tap on
+  // the bar — a Seasons month jumping to Overview — could be scrolled out of
+  // sight, so centre the selected tab. Only the row's own scroll moves
+  // (scrollIntoView would scroll the page too), and only when the row really
+  // overflows: everywhere else this does nothing. It glides there (a tab
+  // tapped near the edge would otherwise jump under your finger) — or moves
+  // at once under Reduce Motion. A layout effect runs after React updates the
+  // DOM but before the screen is painted, so the move starts on the same
+  // frame as the new tab. (The row renders only once the garden shows.)
+  useLayoutEffect(() => {
+    const row = tabRowRef.current;
+    if (!row || row.scrollWidth <= row.clientWidth) return;
+    const selected = row.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!selected) return;
+    const leftInRow = selected.getBoundingClientRect().left - row.getBoundingClientRect().left + row.scrollLeft;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    row.scrollTo({ left: leftInRow - (row.clientWidth - selected.offsetWidth) / 2, behavior: still ? "auto" : "smooth" });
+  }, [tab, gardenShown]);
 
   if (unreadable) {
     return <Recovery raw={unreadable.raw} reason={unreadable.reason} onStartFresh={onStartFreshOverUnreadable} />;
@@ -727,7 +748,7 @@ export function MoneyGarden() {
             styles outrank any stylesheet rule, media queries included. The
             row inside the nav does the laying out. */}
         <nav className="mg-tabs">
-          <div className="mg-tabs-row">
+          <div className="mg-tabs-row" ref={tabRowRef}>
             {TABS.map((t) => (
               <button key={t.id} onClick={() => switchTab(t.id)} className="mg-tab mg-btn"
                 aria-current={tab === t.id ? "page" : undefined}>
