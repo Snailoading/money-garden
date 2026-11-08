@@ -738,7 +738,9 @@ export function MoneyGarden() {
         </nav>
       </header>
 
-      <main ref={mainRef} style={{ maxWidth: 980, margin: "0 auto", padding: "16px 20px 60px" }}>
+      {/* --tabbar-space (global.css) is the phone tab bar's footprint, unset
+          on laptops: the shed scrolls clear of the bar, toasts float above it. */}
+      <main ref={mainRef} style={{ maxWidth: 980, margin: "0 auto", padding: "16px 20px calc(60px + var(--tabbar-space, 0px))" }}>
         {/* Nothing is being saved: say so where it can't be missed, not
             only in the footer (CLAUDE.md: keep the disclosure visible). */}
         {note?.warn && (
@@ -850,7 +852,7 @@ export function MoneyGarden() {
 
       {toast && (
         <div role="status" style={{
-          position: "fixed", bottom: 22, left: "50%", transform: "translateX(-50%)",
+          position: "fixed", bottom: "calc(22px + var(--tabbar-space, 0px))", left: "50%", transform: "translateX(-50%)",
           background: C.ink, color: C.inkContrast, padding: "12px 20px", borderRadius: 14,
           fontWeight: 600, boxShadow: `0 10px 30px ${C.shadow}`, animation: "mg-pop .25s ease", zIndex: 50, maxWidth: "90vw",
         }}>{toast}</div>

@@ -98,6 +98,15 @@
   --tabbar-glass: 80%;
   --tabbar-pill: var(--leaf);
   --tabbar-pill-mix: 16%;
+  /* …and its edge light: the rim, the bright top line, the soft glow inside
+     the top, the darker edge underneath, the drop shadow, and the gloss
+     over the top half */
+  --tabbar-edge: rgba(255, 255, 255, 0.85);
+  --tabbar-shine: rgba(255, 255, 255, 1);
+  --tabbar-glow: rgba(255, 255, 255, 0.9);
+  --tabbar-under: rgba(28, 53, 42, 0.12);
+  --tabbar-drop: rgba(28, 53, 42, 0.2);
+  --tabbar-gloss: rgba(255, 255, 255, 0.45);
   /* categorical chart palette (donut slices + legend swatches) */
   --cat-1: #3e9b5f;
   --cat-2: #f0b429;
@@ -146,6 +155,13 @@
   --tabbar-glass: 80%;
   --tabbar-pill: #ffffff;
   --tabbar-pill-mix: 12%;
+  /* moonlight on the bar's edges is fainter; the shadows are deeper */
+  --tabbar-edge: rgba(255, 255, 255, 0.18);
+  --tabbar-shine: rgba(255, 255, 255, 0.3);
+  --tabbar-glow: rgba(255, 255, 255, 0.14);
+  --tabbar-under: rgba(0, 0, 0, 0.4);
+  --tabbar-drop: rgba(0, 0, 0, 0.5);
+  --tabbar-gloss: rgba(255, 255, 255, 0.1);
   /* categorical chart palette, brightened for the midnight card */
   --cat-1: #4fb374;
   --cat-2: #f5c34d;
@@ -298,6 +314,188 @@ button.mg-tab {
 }
 .mg-tab-icon {
   margin-right: 6px;
+}
+
+/*
+ * Phones (< 480px, the same line as App's phoneHeader): the tab row becomes
+ * a frosted-glass bar floating at the bottom of the screen, so the tabs stay
+ * under your thumb wherever you've scrolled. Laptops keep the row above.
+ *
+ * The bar is 60px tall, 10px above the bottom edge (plus the home-indicator
+ * strip on notched phones). --tabbar-space is that whole footprint: App uses
+ * it for main's bottom padding (the shed scrolls clear of the bar) and the
+ * toast's height (toasts float above it). Unset on laptops, so both fall back
+ * to their usual values there.
+ *
+ * Layering — what theme.test.ts's contrast check assumes: the card colour at
+ * --tabbar-glass over the blurred page, the selected tab's pill at
+ * --tabbar-pill-mix over that, ink labels on top. The gloss only covers the
+ * top half (the icons), never the labels.
+ *
+ * Widths: a grid of 7 needs ~50px a tab ("Overview" is ~47px of text), which
+ * fits from 375px. 350–374px (most Androids are 360) gets a tighter grid with
+ * 10px labels; below 350 the row scrolls sideways under a fade.
+ */
+@media (max-width: 479px) {
+  html {
+    --tabbar-space: calc(70px + env(safe-area-inset-bottom, 0px));
+    /* whatever the browser scrolls into view for you (Tab to a field, a
+       jump) lands above the bar, not under it */
+    scroll-padding-bottom: var(--tabbar-space);
+  }
+  .mg-tabs {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    z-index: 40; /* under the toast (50) and the install pop-up (60) */
+    margin: 0;
+    box-sizing: border-box;
+    height: 60px;
+    padding: 4px;
+    border-radius: 30px;
+    border: 1px solid var(--tabbar-edge);
+    /* solid until the @supports block below swaps in the glass */
+    background: var(--card);
+    -webkit-backdrop-filter: blur(22px) saturate(1.9) brightness(1.03);
+    backdrop-filter: blur(22px) saturate(1.9) brightness(1.03);
+    /* edge light: drop shadow, bright top line, faint side lines, a soft
+       glow inside the top and a darker edge underneath — inset shadows
+       follow the rounded ends, which a drawn line wouldn't */
+    box-shadow:
+      0 12px 32px var(--tabbar-drop),
+      inset 0 1px 0 var(--tabbar-shine),
+      inset 1px 0 0 var(--tabbar-edge),
+      inset -1px 0 0 var(--tabbar-edge),
+      inset 0 -1px 0 var(--tabbar-under),
+      inset 0 10px 16px -10px var(--tabbar-glow),
+      inset 0 -10px 16px -10px var(--tabbar-under);
+  }
+  /* a brighter streak along the middle of the top edge (kept off the
+     rounded ends, where a straight line would poke outside the curve) */
+  .mg-tabs::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 24px;
+    right: 24px;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, var(--tabbar-shine), transparent);
+  }
+  .mg-tabs-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0;
+    height: 100%;
+  }
+  button.mg-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    border-width: 0;
+    border-radius: 22px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: -0.1px;
+    white-space: nowrap;
+  }
+  .mg-tab[aria-current="page"] {
+    background: var(--tint-leaf); /* solid, until @supports below */
+    color: var(--ink);
+    box-shadow: inset 0 1px 0 var(--tabbar-shine);
+  }
+  /* The glass and the pill tint. In @supports, not as a second
+     `background:` line: a value holding var() can't be rejected while the
+     stylesheet is read, so a browser without color-mix() would take that
+     line anyway and end up transparent instead of solid. */
+  @supports (color: color-mix(in srgb, red 50%, blue)) {
+    .mg-tabs {
+      background: linear-gradient(180deg, var(--tabbar-gloss), transparent 50%),
+        color-mix(in srgb, var(--card) var(--tabbar-glass), transparent);
+    }
+    .mg-tab[aria-current="page"] {
+      background: color-mix(in srgb, var(--tabbar-pill) var(--tabbar-pill-mix), transparent);
+    }
+  }
+  .mg-tab-icon {
+    margin-right: 0;
+    font-size: 20px;
+    line-height: 1.1;
+  }
+  /* the focus ring sits 2px outside the tab: any closer and the pill's
+     rounded corners, which curve in ~2px at label height, bring it across
+     "Overview" (only ~1.3px spare a side at 375px). Nothing clips it. */
+  button.mg-tab:focus-visible {
+    outline-offset: 2px;
+  }
+}
+@media (max-width: 374px) {
+  .mg-tabs {
+    left: 6px;
+    right: 6px;
+    padding: 4px 3px;
+  }
+  button.mg-tab {
+    font-size: 10px;
+  }
+}
+@media (max-width: 349px) {
+  /* Too narrow for 7 — the row scrolls sideways. The fade is on the row,
+     not the bar (a mask fades everything it covers, glass included). */
+  .mg-tabs-row {
+    display: flex;
+    flex-wrap: nowrap; /* the laptop row wraps; this one must scroll */
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    /* a sideways swipe that hits the end stays in the bar — it mustn't
+       turn into the browser's swipe-back gesture */
+    overscroll-behavior-x: contain;
+    scroll-padding-inline-end: 28px; /* keyboard focus stops short of the fade */
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+  /* a spacer as wide as the fade, so the last tab can scroll fully clear
+     of it (end padding in a scroller isn't reliably scrollable in Safari) */
+  .mg-tabs-row::after {
+    content: "";
+    flex: 0 0 28px;
+  }
+  .mg-tabs-row::-webkit-scrollbar {
+    display: none;
+  }
+  button.mg-tab {
+    flex: 0 0 auto;
+    min-width: 58px;
+    padding: 0 6px;
+  }
+  /* here the row clips top and bottom, so the ring goes fully inside —
+     these tabs have 6px of padding, so it clears the label */
+  button.mg-tab:focus-visible {
+    outline-offset: -3px;
+  }
+}
+/* No glass where it can't be (no backdrop-filter) or isn't wanted (the
+   phone's Reduce Transparency setting): a solid bar, same edges. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  @media (max-width: 479px) {
+    .mg-tabs {
+      background: var(--card);
+    }
+  }
+}
+@media (max-width: 479px) and (prefers-reduced-transparency: reduce) {
+  .mg-tabs {
+    background: var(--card);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 .mg-row:hover {
   background: var(--mist);
