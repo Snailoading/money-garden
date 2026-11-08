@@ -1,8 +1,8 @@
 /*
  * Shared chart hooks, verbatim from the reference.
  */
-import { useEffect, useRef, useState } from "react";
-import type { PointerEvent, RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { PointerEvent } from "react";
 import { msUntilNextDay, todayISO } from "../engine/format";
 
 /**
@@ -142,45 +142,49 @@ export function svgX(el: SVGSVGElement, e: PointerEvent<SVGSVGElement>, W: numbe
 }
 
 /**
- * How many viewBox units map to one on-screen pixel — the inverse of the
- * preserveAspectRatio scale. A chart's fixed viewBox (W≈560–640) is squeezed
- * to fit its container, so on a narrow phone one CSS pixel spans ~1.6 viewBox
- * units and a 11-unit label renders at ~7px. Multiplying a tooltip's geometry
- * by this factor and never letting it drop below 1 counter-scales the tooltip
- * to a CONSTANT on-screen size on small screens, while leaving desktop
- * (where the chart is as wide as or wider than its viewBox) pixel-identical.
- * Like CSS's `max(1, …)` — the clamp is what keeps desktop untouched.
+ * The chart's real on-screen size in CSS pixels, kept current as the
+ * container resizes (rotation, window resize, a card reflowing). Charts draw
+ * with W/H = this size and viewBox="0 0 W H", so one drawing unit is one
+ * pixel: fontSize="11" really renders at 11px and the plot fills its box at
+ * every width, instead of a fixed 640-wide drawing squeezed to fit.
+ *
+ * `ref` is a callback ref (React calls it with the element when it mounts,
+ * null when it goes) — like registering a callback rather than holding a
+ * pointer, so a chart that first renders nothing (too little data) still
+ * starts measuring once its <svg> appears. Measured in a layout effect,
+ * before the browser paints, so the fallback size is never seen.
  */
-export function useSvgScale(ref: RefObject<SVGSVGElement | null>, W: number): number {
-  const [k, setK] = useState(1);
-  useEffect(() => {
-    const el = ref.current;
+export function useChartSize(fallbackW: number, fallbackH: number) {
+  const [el, setEl] = useState<SVGSVGElement | null>(null);
+  const [size, setSize] = useState({ w: fallbackW, h: fallbackH });
+  useLayoutEffect(() => {
     if (!el) return;
     const measure = () => {
-      const w = el.getBoundingClientRect().width;
-      if (w > 0) setK(Math.max(1, W / w));
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) return; // hidden — keep the last size
+      // Same numbers → hand back the same object so React skips the re-render.
+      setSize((s) => (s.w === r.width && s.h === r.height ? s : { w: r.width, h: r.height }));
     };
     measure();
+    if (typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [ref, W]);
-  return k;
+  }, [el]);
+  return { ref: setEl, el, W: size.w, H: size.h };
 }
 
 /**
  * Tooltip hit-testing for line charts: maps the pointer's x position into
  * viewBox space and rounds to the nearest data index. Touch-friendly — no
- * per-point hover targets needed.
+ * per-point hover targets needed. `el` is the chart's <svg> (useChartSize).
  */
-export function useNearest(W: number, pl: number, pr: number, n: number) {
-  const ref = useRef<SVGSVGElement>(null);
+export function useNearest(el: SVGSVGElement | null, W: number, pl: number, pr: number, n: number) {
   const [hi, setHi] = useState<number | null>(null);
   const locate = (e: PointerEvent<SVGSVGElement>) => {
-    const el = ref.current;
     if (!el || n < 2) return;
     const fx = svgX(el, e, W);
     setHi(Math.max(0, Math.min(n - 1, Math.round(((fx - pl) / (W - pl - pr)) * (n - 1)))));
   };
-  return { ref, hi, locate, clear: () => setHi(null) };
+  return { hi, locate, clear: () => setHi(null) };
 }

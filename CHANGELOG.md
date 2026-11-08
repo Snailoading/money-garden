@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.18.8 — 2026-11-08 · *Room to grow* 📏
+
+### Fixed
+
+- **Charts fill their space and are easy to read on phones.** Spending
+  pace, the long view and the four Seasons charts were drawn at one
+  fixed size and shrunk to fit. On a phone their numbers came out tiny,
+  and on a wide screen the long view stopped well short of its card's
+  edge. They're now drawn at the size of the card, so every label is
+  readable and the chart reaches the edges. Where a phone has no room
+  for every day or month, the names thin out: the newest month is
+  always named, and the first one shown carries its year. Every month
+  is still there when you hover or tap. Tooltips always stay inside
+  the chart. Nothing else on the page moved.
+- **Spending pace and the long view have round gridlines,** like
+  Seasons got in 0.18.5: $500, $1k, $1.5k… and $500k, $1M, $1.5M…
+  instead of odd ones like $632k, each labelled with its exact amount.
+  The long view's "band" and "Freedom" labels stay readable where a
+  line runs behind them.
+
 ## 0.18.7 — 2026-11-06 · *A tidier gate* ☀️
 
 ### Fixed
