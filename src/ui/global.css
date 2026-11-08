@@ -91,6 +91,13 @@
   --gold-hi: #f6c64b;
   --gold-mid: #e8a81c;
   --shadow: rgba(28, 53, 42, 0.35);
+  /* the phone tab bar's glass: how much card colour it carries (the rest is
+     the blurred page behind), and the selected tab's pill — a base colour
+     mixed in at a share. theme.test.ts checks every label stays readable
+     whatever colour scrolls behind the bar (black and white included). */
+  --tabbar-glass: 80%;
+  --tabbar-pill: var(--leaf);
+  --tabbar-pill-mix: 16%;
   /* categorical chart palette (donut slices + legend swatches) */
   --cat-1: #3e9b5f;
   --cat-2: #f0b429;
@@ -135,6 +142,10 @@
   --gold-hi: #d9a832;
   --gold-mid: #c69420;
   --shadow: rgba(0, 0, 5, 0.6);
+  /* a moonlit pill: white, kept dim so the light label still reads on it */
+  --tabbar-glass: 80%;
+  --tabbar-pill: #ffffff;
+  --tabbar-pill-mix: 12%;
   /* categorical chart palette, brightened for the midnight card */
   --cat-1: #4fb374;
   --cat-2: #f5c34d;
@@ -255,11 +266,38 @@ svg[role="img"] {
 .mg-num {
   font-variant-numeric: tabular-nums;
 }
-.mg-tab {
+/* The tab row under the header (App.tsx). Selection is read from
+   aria-current, so the dark pill and what a screen reader announces can
+   never disagree. `button.mg-tab` (element + class) is deliberate: it
+   outweighs `button:focus-visible`'s 8px corners above, so a tab reached by
+   keyboard stays a pill — the radius used to be inline, which beat it. */
+.mg-tabs {
+  margin-top: 18px;
+}
+.mg-tabs-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+button.mg-tab {
   border: 1.5px solid transparent;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  background: transparent;
+  color: var(--ink);
+}
+.mg-tab[aria-current="page"] {
+  background: var(--ink);
+  color: var(--ink-contrast);
 }
 .mg-tab:hover {
   border-color: var(--border);
+}
+.mg-tab-icon {
+  margin-right: 6px;
 }
 .mg-row:hover {
   background: var(--mist);

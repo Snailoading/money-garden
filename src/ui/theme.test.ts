@@ -30,20 +30,20 @@ describe("palette variable parity", () => {
   });
 });
 
-describe("gold text contrast", () => {
-  // WCAG contrast from relative luminance — the same maths browsers' and
-  // auditors' contrast checkers use. 4.5:1 is the bar for normal-size text.
-  const lin = (v: number) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
-  const lum = (hex: string) => {
-    const [r, g, b] = hex.replace("#", "").match(/../g)!.map((h) => lin(parseInt(h, 16) / 255));
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  };
-  const contrast = (a: string, b: string) => {
-    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
-    return (hi + 0.05) / (lo + 0.05);
-  };
-  const value = (block: string, name: string) => block.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`))?.[1];
+// WCAG contrast from relative luminance — the same maths browsers' and
+// auditors' contrast checkers use. 4.5:1 is the bar for normal-size text.
+const lin = (v: number) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+const lum = (hex: string) => {
+  const [r, g, b] = hex.replace("#", "").match(/../g)!.map((h) => lin(parseInt(h, 16) / 255));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const contrast = (a: string, b: string) => {
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+};
+const value = (block: string, name: string) => block.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`))?.[1];
 
+describe("gold text contrast", () => {
   for (const [theme, block] of [["day", dayBlock], ["night", nightBlock]] as const) {
     for (const token of ["--amber", "--marigold-text"]) {
       it(`${theme}: ${token} is readable text on every surface it sits on`, () => {
@@ -63,6 +63,49 @@ describe("gold text contrast", () => {
   it("night marigold text is marigold itself — the night garden looks as before", () => {
     expect(value(nightBlock, "--marigold-text")).toBe(value(nightBlock, "--marigold"));
   });
+});
+
+describe("phone tab bar label contrast", () => {
+  // The bar is translucent: what's behind it shows through, so its labels'
+  // contrast depends on the page. The bar's colour is a straight mix of the
+  // card and whatever is behind it, so the worst possible backdrop is the
+  // extreme the label can't stand out from: pure black by day (dark labels),
+  // pure white at night (light labels). Passing over those proves the labels
+  // read over ANY colour — chart, art, emoji, a filter's saturate/brightness
+  // boost — no palette list to keep in sync. The styles (App's phone bar)
+  // must layer exactly like mix(): card at --tabbar-glass over the page, the
+  // pill at --tabbar-pill-mix over the bar, ink labels on top.
+  // (Why every label is ink, the selected one too: a green label fails this.)
+  const rgb = (hex: string) => hex.replace("#", "").match(/../g)!.map((h) => parseInt(h, 16));
+  const toHex = (c: number[]) => "#" + c.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
+  /** `share` of colour a over colour b — what color-mix(in srgb, a share, b) paints. */
+  const mix = (a: string, b: string, share: number) => toHex(rgb(a).map((v, i) => v * share + rgb(b)[i] * (1 - share)));
+  const raw = (block: string, name: string) => block.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1].trim();
+  /** A colour variable as hex, following one var(--x) reference. */
+  const colour = (block: string, name: string): string => {
+    const v = raw(block, name)!;
+    const ref = v.match(/^var\((--[\w-]+)\)$/)?.[1];
+    return ref ? value(block, ref)! : v;
+  };
+  const percent = (block: string, name: string) => Number(raw(block, name)!.replace("%", "")) / 100;
+
+  for (const [theme, block] of [["day", dayBlock], ["night", nightBlock]] as const) {
+    it(`${theme}: tab labels stay readable whatever scrolls behind the bar`, () => {
+      const pill = colour(block, "--tabbar-pill");
+      expect(pill, "--tabbar-pill should resolve to a hex colour").toMatch(/^#[0-9a-fA-F]{6}$/);
+      const ink = value(block, "--ink")!;
+      // Both extremes, both themes — so the test stays right even if a
+      // palette change ever flipped which end is the hard one.
+      for (const worst of ["#000000", "#ffffff"]) {
+        const bar = mix(value(block, "--card")!, worst, percent(block, "--tabbar-glass"));
+        const plain = contrast(ink, bar);
+        const selected = contrast(ink, mix(pill, bar, percent(block, "--tabbar-pill-mix")));
+        // NaN (an unreadable percent) fails these too, so they can't pass vacuously.
+        expect(plain, `${theme} label over ${worst}: ${plain.toFixed(2)}`).toBeGreaterThanOrEqual(4.5);
+        expect(selected, `${theme} selected label over ${worst}: ${selected.toFixed(2)}`).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  }
 });
 
 describe("splash palette parity", () => {
