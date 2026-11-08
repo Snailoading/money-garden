@@ -104,6 +104,10 @@ describe("phone tab bar label contrast", () => {
         expect(plain, `${theme} label over ${worst}: ${plain.toFixed(2)}`).toBeGreaterThanOrEqual(4.5);
         expect(selected, `${theme} selected label over ${worst}: ${selected.toFixed(2)}`).toBeGreaterThanOrEqual(4.5);
       }
+      // A pressed tab's droplet is opaque — the pill colour at
+      // --tabbar-press-mix, mixed into the card — so nothing behind shows through.
+      const pressed = contrast(ink, mix(pill, value(block, "--card")!, percent(block, "--tabbar-press-mix")));
+      expect(pressed, `${theme} pressed label: ${pressed.toFixed(2)}`).toBeGreaterThanOrEqual(4.5);
     });
   }
 });

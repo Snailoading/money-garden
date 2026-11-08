@@ -98,6 +98,8 @@
   --tabbar-glass: 80%;
   --tabbar-pill: var(--leaf);
   --tabbar-pill-mix: 16%;
+  /* a pressed tab's droplet: the same pill colour, stronger, on solid card */
+  --tabbar-press-mix: 26%;
   /* …and its edge light: the rim, the bright top line, the soft glow inside
      the top, the darker edge underneath, the drop shadow, and the gloss
      over the top half */
@@ -155,6 +157,7 @@
   --tabbar-glass: 80%;
   --tabbar-pill: #ffffff;
   --tabbar-pill-mix: 12%;
+  --tabbar-press-mix: 19%;
   /* moonlight on the bar's edges is fainter; the shadows are deeper */
   --tabbar-edge: rgba(255, 255, 255, 0.18);
   --tabbar-shine: rgba(255, 255, 255, 0.3);
@@ -434,6 +437,92 @@ button.mg-tab {
   button.mg-tab:focus-visible {
     outline-offset: 2px;
   }
+
+  /* Pressing a tab lifts it: a brighter droplet swells a little past the
+     bar, then settles back as the inset pill once it's selected. Only
+     transform and opacity animate (the GPU does those without repainting);
+     the droplet's colour and shadow live on a ::before layer that fades in,
+     rather than an animated box-shadow, which would repaint every frame. */
+  button.mg-tab {
+    position: relative;
+    isolation: isolate; /* keeps ::before above the pill, below the label */
+    transition: transform 0.2s ease;
+  }
+  button.mg-tab::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: var(--tint-leaf); /* solid, until @supports below */
+    box-shadow: 0 4px 14px var(--tabbar-drop), inset 0 1px 0 var(--tabbar-shine);
+    opacity: 0; /* at rest on every tab — no ghost shadow after release */
+    pointer-events: none;
+  }
+  @supports (color: color-mix(in srgb, red 50%, blue)) {
+    button.mg-tab::before {
+      /* the pill's colour, stronger, on solid card — so the label sits on
+         an opaque droplet (theme.test.ts checks it like the pill) */
+      background: color-mix(in srgb, var(--tabbar-pill) var(--tabbar-press-mix), var(--card));
+    }
+  }
+  button.mg-tab:active::before {
+    opacity: 1;
+  }
+  /* Each tab is its own layer (isolation), and later tabs paint over
+     earlier ones — so the pressed tab, and a keyboard-focused one's ring,
+     step to the front, or the next tab's pill would cover their right edge. */
+  button.mg-tab:active,
+  button.mg-tab:focus-visible {
+    z-index: 1;
+  }
+  /* the droplet is the press feedback — no grey tap flash over it */
+  button.mg-tab {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+/* The lift and the droplet's fade — not under Reduce Motion, where the
+   droplet just appears. (The global kill switch's `*` doesn't reach
+   ::before layers, so the fade's transition lives here.) */
+@media (max-width: 479px) and (prefers-reduced-motion: no-preference) {
+  button.mg-tab:active {
+    transform: translateY(-3px) scale(1.14);
+  }
+  button.mg-tab::before {
+    transition: opacity 0.2s ease;
+  }
+}
+
+/* Typing on a phone: while a field you type into has focus (text, number,
+   search… — the ones that raise the on-screen keyboard), the bar steps
+   aside, so it can't float over the form or the keyboard, and comes back
+   when focus leaves. Dropdowns and dates are left out: Android keeps them
+   focused after you pick, which would hide the bar with no keyboard up.
+   Touch screens only (a narrow desktop window has no on-screen keyboard).
+   `visibility: hidden` also takes the tabs out of reach of taps and Tab.
+   Browsers without :has() simply keep the bar. Known gap: Android's Back
+   button drops the keyboard but keeps the focus, so the bar waits for a tap
+   elsewhere. */
+@media (max-width: 479px) {
+  .mg-tabs {
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0s;
+  }
+}
+@media (max-width: 479px) and (pointer: coarse) {
+  body:has(
+      input:focus:is(
+          :not([type]), [type="text"], [type="number"], [type="search"],
+          [type="email"], [type="tel"], [type="url"], [type="password"]
+        ),
+      textarea:focus
+    )
+    .mg-tabs {
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(24px);
+    /* hide after the fade, so it fades out rather than vanishing */
+    transition: opacity 0.2s ease, transform 0.2s ease, visibility 0s 0.2s;
+  }
 }
 @media (max-width: 374px) {
   .mg-tabs {
@@ -479,6 +568,10 @@ button.mg-tab {
      these tabs have 6px of padding, so it clears the label */
   button.mg-tab:focus-visible {
     outline-offset: -3px;
+  }
+  /* …and a lift would be clipped too: the pressed tab just brightens */
+  button.mg-tab:active {
+    transform: none;
   }
 }
 /* No glass where it can't be (no backdrop-filter) or isn't wanted (the
