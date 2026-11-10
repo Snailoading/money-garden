@@ -1,10 +1,10 @@
 // The phone tab bar (v0.18.9). Below 480px the tab row is a frosted bar fixed
 // to the bottom of the screen; from 480px up it's the same row at the top.
 // Every 2px from 320 to 478 (and 479, 375, 349, where the layout changes),
-// day and night: the bar is pinned 10px above the bottom edge, holds all 7
-// tabs, uses the right layout for the width (grid, tight grid under 375,
-// sideways scroll under 350), no label spills out of
-// its tab, and the page never scrolls sideways. Also: laptops keep today's
+// the bar is pinned 10px above the bottom edge, holds all 7 tabs, uses the
+// right layout for the width (grid, tight grid under 375, sideways scroll
+// under 350), no label spills out of its tab, and the page never scrolls
+// sideways. Also: laptops keep today's
 // row; the selected pill follows aria-current; the shed and toasts clear the
 // bar; a press lifts the tab (not under Reduce Motion, not where the row
 // would clip it); typing on a touch screen hides the bar, picking a date or
@@ -116,38 +116,37 @@ try {
   if (pid !== server.pid) throw new Error("orphan server");
   browser = await chromium.launch();
 
-  // ---- the 2px sweep: one page per theme, resized (not 160 fresh loads)
-  for (const theme of ["day", "night"]) {
-    await scenario(`sweep ${theme}`, { width: 478, theme }, async (page) => {
-      const bad = { pinned: [], tabs: [], mode: [], font: [], side: [], spills: [], small: [], wide: [] };
-      // Every 2px, plus the odd widths right at the layout's edges (375 is a
-      // real iPhone) — the even steps alone would step over 479, 375 and 349.
-      const widths = [...Array.from({ length: 80 }, (_, i) => 320 + i * 2), 349, 375, 479].sort((a, b) => b - a);
-      for (const w of widths) {
-        await page.setViewportSize({ width: w, height: 844 }); await frames(page);
-        const m = await page.evaluate(measure);
-        if (m.position !== "fixed" || Math.abs(m.gap - 10) > 0.5 || m.height !== 60) bad.pinned.push(`${w}:${m.position},${m.gap},${m.height}`);
-        if (m.count !== 7) bad.tabs.push(`${w}:${m.count}`);
-        const wantScroll = w < 350;
-        if (m.overflows !== wantScroll || m.display !== (wantScroll ? "flex" : "grid")) bad.mode.push(`${w}:${m.display},${m.overflows}`);
-        if (m.fontSize !== (w < 375 ? 10 : 10.5)) bad.font.push(`${w}:${m.fontSize}`);
-        if (m.side !== (w < 375 ? 6 : 8)) bad.side.push(`${w}:${m.side}`);
-        if (m.spills.length) bad.spills.push(`${w}:${m.spills}`);
-        if (m.small.length) bad.small.push(`${w}:${m.small}`);
-        if (m.pageWide) bad.wide.push(w);
-        if ([478, 375, 374, 350, 349, 320].includes(w)) await shot(page, `tab-bar-${theme}-${w}`, { clip: { x: 0, y: 844 - 90, width: w, height: 90 } });
-      }
-      const show = (l) => (l.length ? `${l.length} widths, e.g. ${l.slice(0, 4).join(" ")}` : "320–479");
-      check(`sweep ${theme}: the bar is fixed, 60px tall, 10px above the bottom`, !bad.pinned.length, show(bad.pinned));
-      check(`sweep ${theme}: all 7 tabs are there`, !bad.tabs.length, show(bad.tabs));
-      check(`sweep ${theme}: grid from 350px, sideways scroll below`, !bad.mode.length, show(bad.mode));
-      check(`sweep ${theme}: labels 10.5px from 375, 10px below`, !bad.font.length, show(bad.font));
-      check(`sweep ${theme}: side margins 8px from 375, 6px below`, !bad.side.length, show(bad.side));
-      check(`sweep ${theme}: no label spills out of its tab`, !bad.spills.length, show(bad.spills));
-      check(`sweep ${theme}: every tab is at least 32×32`, !bad.small.length, show(bad.small));
-      check(`sweep ${theme}: the page never scrolls sideways`, !bad.wide.length, show(bad.wide));
-    });
-  }
+  // ---- the 2px sweep: one page, resized. Day only: the night theme changes
+  // colours, never layout, and the scenarios below cover night's look.
+  await scenario("sweep", { width: 478 }, async (page) => {
+    const bad = { pinned: [], tabs: [], mode: [], font: [], side: [], spills: [], small: [], wide: [] };
+    // Every 2px, plus the odd widths right at the layout's edges (375 is a
+    // real iPhone) — the even steps alone would step over 479, 375 and 349.
+    const widths = [...Array.from({ length: 80 }, (_, i) => 320 + i * 2), 349, 375, 479].sort((a, b) => b - a);
+    for (const w of widths) {
+      await page.setViewportSize({ width: w, height: 844 }); await frames(page);
+      const m = await page.evaluate(measure);
+      if (m.position !== "fixed" || Math.abs(m.gap - 10) > 0.5 || m.height !== 60) bad.pinned.push(`${w}:${m.position},${m.gap},${m.height}`);
+      if (m.count !== 7) bad.tabs.push(`${w}:${m.count}`);
+      const wantScroll = w < 350;
+      if (m.overflows !== wantScroll || m.display !== (wantScroll ? "flex" : "grid")) bad.mode.push(`${w}:${m.display},${m.overflows}`);
+      if (m.fontSize !== (w < 375 ? 10 : 10.5)) bad.font.push(`${w}:${m.fontSize}`);
+      if (m.side !== (w < 375 ? 6 : 8)) bad.side.push(`${w}:${m.side}`);
+      if (m.spills.length) bad.spills.push(`${w}:${m.spills}`);
+      if (m.small.length) bad.small.push(`${w}:${m.small}`);
+      if (m.pageWide) bad.wide.push(w);
+      if ([478, 375, 374, 350, 349, 320].includes(w)) await shot(page, `tab-bar-${w}`, { clip: { x: 0, y: 844 - 90, width: w, height: 90 } });
+    }
+    const show = (l) => (l.length ? `${l.length} widths, e.g. ${l.slice(0, 4).join(" ")}` : "320–479");
+    check(`sweep: the bar is fixed, 60px tall, 10px above the bottom`, !bad.pinned.length, show(bad.pinned));
+    check(`sweep: all 7 tabs are there`, !bad.tabs.length, show(bad.tabs));
+    check(`sweep: grid from 350px, sideways scroll below`, !bad.mode.length, show(bad.mode));
+    check(`sweep: labels 10.5px from 375, 10px below`, !bad.font.length, show(bad.font));
+    check(`sweep: side margins 8px from 375, 6px below`, !bad.side.length, show(bad.side));
+    check(`sweep: no label spills out of its tab`, !bad.spills.length, show(bad.spills));
+    check(`sweep: every tab is at least 32×32`, !bad.small.length, show(bad.small));
+    check(`sweep: the page never scrolls sideways`, !bad.wide.length, show(bad.wide));
+  });
 
   // ---- laptops keep today's row
   for (const width of [480, 760, 1280]) {
