@@ -286,8 +286,9 @@ svg[role="img"] {
   font-variant-numeric: tabular-nums;
 }
 /* The tab row under the header (App.tsx). Selection is read from
-   aria-current, so the dark pill and what a screen reader announces can
-   never disagree. `button.mg-tab` (element + class) is deliberate: it
+   aria-current, so the pill (solid ink here, a tint on the phone bar below)
+   and what a screen reader announces can never disagree.
+   `button.mg-tab` (element + class) is deliberate: it
    outweighs `button:focus-visible`'s 8px corners above, so a tab reached by
    keyboard stays a pill — the radius used to be inline, which beat it. */
 .mg-tabs {

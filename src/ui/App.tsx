@@ -760,7 +760,7 @@ export function MoneyGarden() {
         </div>
 
         {/* tabs — aria-current tells a screen reader which one is selected
-            (sighted users see the dark pill); the emoji is aria-hidden so it
+            (sighted users see the pill); the emoji is aria-hidden so it
             reads "Overview", not "sun behind small cloud, Overview".
             The look lives in global.css (.mg-tab), not inline — inline
             styles outrank any stylesheet rule, media queries included. The
