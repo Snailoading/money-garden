@@ -292,11 +292,20 @@ try {
         const s = getComputedStyle(document.querySelector("nav"));
         const probe = document.createElement("div"); probe.style.background = "var(--card)"; document.body.append(probe);
         const card = getComputedStyle(probe).backgroundColor; probe.remove();
-        return { bg: s.backgroundColor, image: s.backgroundImage, filter: s.backdropFilter, card };
+        const root = getComputedStyle(document.documentElement);
+        return { bg: s.backgroundColor, image: s.backgroundImage, filter: s.backdropFilter, card,
+          pill: getComputedStyle(document.querySelector('nav [aria-current="page"]')).backgroundColor,
+          glassVar: parseFloat(root.getPropertyValue("--tabbar-glass")) / 100, pillVar: parseFloat(root.getPropertyValue("--tabbar-pill-mix")) / 100 };
       });
       const glass = await read();
-      const translucent = /\/ 0?\.\d+\)$/.test(glass.bg) && glass.image.startsWith("linear-gradient") && glass.filter.includes("blur(");
+      const alpha = (c) => Number(/\/ ([\d.]+)\)$/.exec(c)?.[1]);
+      const translucent = alpha(glass.bg) < 1 && glass.image.startsWith("linear-gradient") && glass.filter.includes("blur(");
       check(`390 ${theme}: normally the bar is translucent, blurred glass`, translucent, JSON.stringify(glass));
+      // Against the variables, not fixed numbers: theme.test.ts proves labels
+      // read at those values, so the paint must really use them. A frost tweak
+      // passes; CSS that stops using the tested variables doesn't.
+      check(`390 ${theme}: the bar's frost is the tested --tabbar-glass`, Math.abs(alpha(glass.bg) - glass.glassVar) < 0.001, `${glass.bg} vs ${glass.glassVar}`);
+      check(`390 ${theme}: the pill's tint is the tested --tabbar-pill-mix`, Math.abs(alpha(glass.pill) - glass.pillVar) < 0.001, `${glass.pill} vs ${glass.pillVar}`);
       const cdp = await page.context().newCDPSession(page);
       await cdp.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-transparency", value: "reduce" }] });
       const solid = await read();
