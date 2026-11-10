@@ -180,6 +180,9 @@ try {
       if (!right) off.push(`${name}: current ${current.map((x) => x.name)}, filled ${filled.map((x) => x.name)}`);
     }
     check("390: after each of the 7 taps, one tab is current and only it has the pill", !off.length, off.join("; "));
+    // pans and pinch-zoom stay allowed (the 320px row must still scroll)
+    const touch = await page.evaluate(() => [...new Set([...document.querySelectorAll("nav button")].map((b) => getComputedStyle(b).touchAction))].join());
+    check("390: quick taps on tabs can't double-tap-zoom the page", touch === "manipulation", touch);
   });
 
   // ---- room around the bar
