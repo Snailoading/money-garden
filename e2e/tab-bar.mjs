@@ -200,6 +200,30 @@ try {
     check("390: a toast sits entirely above the bar", t.toastBottom <= t.barTop, JSON.stringify(t));
   });
 
+  // ---- the home-indicator strip (Playwright can't set one; Chrome's protocol can)
+  await scenario("safe area", { width: 390 }, async (page) => {
+    const cdp = await page.context().newCDPSession(page);
+    const atInset = async (bottom) => {
+      await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { top: 0, left: 0, right: 0, bottom } });
+      await frames(page); await settle(page, 60);
+      return page.evaluate(() => ({
+        gap: innerHeight - document.querySelector("nav").getBoundingClientRect().bottom,
+        mainBottom: parseFloat(getComputedStyle(document.querySelector("main")).paddingBottom),
+      }));
+    };
+    // a notched iPhone's 34px: the bar overlaps the strip, as native bars do
+    let r = await atInset(34);
+    check("390 home-indicator strip (34px): the bar sits 24px up", r.gap === 24, `${r.gap}px`);
+    check("390 home-indicator strip (34px): the page keeps exactly the bar's room", r.mainBottom === 60 + 60 + 24, `${r.mainBottom}px`);
+    await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight)); await settle(page, 100);
+    const clear = await page.evaluate(() => document.querySelector("nav").getBoundingClientRect().top - [...document.querySelectorAll("footer button")].pop().getBoundingClientRect().bottom);
+    check("390 home-indicator strip (34px): the shed still clears the bar", clear >= 8, `${clear}px`);
+    r = await atInset(15);
+    check("390 a small strip (15px) keeps the usual 10px gap", r.gap === 10, `${r.gap}px`);
+    r = await atInset(0);
+    check("390 no strip: the usual 10px gap", r.gap === 10, `${r.gap}px`);
+  });
+
   // ---- the press lift
   for (const theme of ["day", "night"]) {
     await scenario(`lift ${theme}`, { width: 390, theme }, async (page) => {

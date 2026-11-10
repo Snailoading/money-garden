@@ -324,11 +324,13 @@ button.mg-tab {
  * a frosted-glass bar floating at the bottom of the screen, so the tabs stay
  * under your thumb wherever you've scrolled. Laptops keep the row above.
  *
- * The bar is 60px tall, 10px above the bottom edge (plus the home-indicator
- * strip on notched phones). --tabbar-space is that whole footprint: App uses
- * it for main's bottom padding (the shed scrolls clear of the bar) and the
- * toast's height (toasts float above it). Unset on laptops, so both fall back
- * to their usual values there.
+ * The bar is 60px tall and --tabbar-gap above the bottom edge: 10px, or on
+ * notched phones most of the way up the home-indicator strip (24px of 34),
+ * where native floating bars sit — a full 10px on top of the strip looks
+ * stranded. --tabbar-space is the whole footprint: App uses it for main's
+ * bottom padding (the shed scrolls clear of the bar) and the toast's height
+ * (toasts float above it). Unset on laptops, so both fall back to their
+ * usual values there.
  *
  * Layering — what theme.test.ts's contrast check assumes: the card colour at
  * --tabbar-glass over the blurred page, the selected tab's pill at
@@ -341,7 +343,8 @@ button.mg-tab {
  */
 @media (max-width: 479px) {
   html {
-    --tabbar-space: calc(70px + env(safe-area-inset-bottom, 0px));
+    --tabbar-gap: max(10px, env(safe-area-inset-bottom, 0px) - 10px);
+    --tabbar-space: calc(60px + var(--tabbar-gap));
     /* whatever the browser scrolls into view for you (Tab to a field, a
        jump) lands above the bar, not under it */
     scroll-padding-bottom: var(--tabbar-space);
@@ -350,7 +353,7 @@ button.mg-tab {
     position: fixed;
     left: 8px;
     right: 8px;
-    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    bottom: var(--tabbar-gap);
     z-index: 40; /* under the toast (50) and the install pop-up (60) */
     margin: 0;
     box-sizing: border-box;
