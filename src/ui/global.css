@@ -364,8 +364,10 @@ button.mg-tab {
     border: 1px solid var(--tabbar-edge);
     /* solid until the @supports block below swaps in the glass */
     background: var(--card);
-    -webkit-backdrop-filter: blur(22px) saturate(1.9) brightness(1.03);
-    backdrop-filter: blur(22px) saturate(1.9) brightness(1.03);
+    /* 12px: colour behind still reads as colour, and it's cheaper while
+       scrolling. Readability is the tint's job, so the blur can stay light. */
+    -webkit-backdrop-filter: blur(12px) saturate(1.9) brightness(1.03);
+    backdrop-filter: blur(12px) saturate(1.9) brightness(1.03);
     /* edge light: drop shadow, bright top line, faint side lines, a soft
        glow inside the top and a darker edge underneath — inset shadows
        follow the rounded ends, which a drawn line wouldn't */
