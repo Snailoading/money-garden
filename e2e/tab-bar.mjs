@@ -226,7 +226,7 @@ try {
   await scenario("lift reduced", { width: 390, reduced: "reduce" }, async (page) => {
     await press(page, "Seasons"); await settle(page, 60);
     const held = await tabState(page, "Seasons");
-    check("390 Reduce Motion: no lift, and the droplet appears at once", held.top >= held.barTop && held.droplet === 1, `top ${held.top} vs bar ${held.barTop}, droplet ${held.droplet}`);
+    check("390 Reduce Motion: the tab doesn't move at all, and the droplet appears at once", held.transform === "none" && held.droplet === 1, `${held.transform}, droplet ${held.droplet}`);
     await page.mouse.up();
   });
   await scenario("lift scroll mode", { width: 320 }, async (page) => {
