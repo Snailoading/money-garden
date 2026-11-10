@@ -364,8 +364,8 @@ button.mg-tab {
     border: 1px solid var(--tabbar-edge);
     /* solid until the @supports block below swaps in the glass */
     background: var(--card);
-    /* 12px: colour behind still reads as colour, and it's cheaper while
-       scrolling. Readability is the tint's job, so the blur can stay light. */
+    /* 12px, so colour behind still reads as colour. Readability is the
+       tint's job, so the blur can stay light. */
     -webkit-backdrop-filter: blur(12px) saturate(1.9) brightness(1.03);
     backdrop-filter: blur(12px) saturate(1.9) brightness(1.03);
     /* edge light: drop shadow, bright top line, faint side lines, a soft
@@ -635,8 +635,9 @@ button.mg-tab {
     --tabs-fade-r: 0px;
   }
 }
-/* No glass where it can't be (no backdrop-filter) or isn't wanted (the
-   phone's Reduce Transparency setting): a solid bar, same edges. */
+/* No glass where it can't be (no backdrop-filter) or isn't wanted (Reduce
+   Transparency, where the browser reports it — Chrome does, iOS Safari
+   doesn't yet): a solid bar, same edges. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   @media (max-width: 479px) {
     .mg-tabs {

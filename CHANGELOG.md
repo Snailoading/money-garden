@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.18.9 — 2026-11-10 · *Close at hand* 🪴
+
+### Changed
+
+- **On phones, the tabs now float at the bottom of the screen** in a
+  frosted-glass bar, so they stay under your thumb wherever you've
+  scrolled. They used to wrap onto three or four rows in the header and
+  disappear as soon as you scrolled, so the first card now starts much
+  higher up. The selected tab sits in a soft pill, and a pressed tab
+  lifts just past the bar. All seven tabs fit on most phones; on the
+  smallest, the bar scrolls sideways. Laptops and wider screens keep the
+  row of tabs they've always had.
+- **The bar steps aside while you type,** so it can't sit over the form
+  or the keyboard, and comes back when you're done. Dropdowns and dates
+  leave it where it is.
+- **It stays readable.** Labels hold up over anything that scrolls
+  behind the glass. With Reduce Motion nothing lifts, and where the
+  browser honours Reduce Transparency (Chrome does; iPhone Safari
+  doesn't yet) the bar turns solid.
+
+### Fixed
+
+- **A new tab opens at its top,** wherever you switched from. Switching
+  tabs used to keep your place on the page, so you could land halfway
+  down the new one; even "Log one" opened the Log past its form.
+
 ## 0.18.8 — 2026-11-08 · *Room to grow* 📏
 
 ### Fixed

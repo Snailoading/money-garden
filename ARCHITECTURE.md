@@ -258,6 +258,22 @@ icon SVG in `index.html`, so it renders from raw HTML before the bundle
 arrives, themed by the same boot script. An `App.tsx` mount effect removes it;
 the in-app "Preparing your garden…" state covers the storage load after that.
 
+## Tab bar (since v0.18.9)
+
+One `<nav>` inside `<header>`, restyled by width in `global.css`: from 480px
+up it's the row under the header; below that, a frosted bar fixed to the
+bottom of the screen (grid of 7, a tighter grid under 375px, a sideways
+scroller under 350px). It stays inside `<header>` so the install pop-up's
+`inert` covers it. Selection is read from `aria-current`, so the pill can't
+disagree with what a screen reader announces. `--tabbar-space` (set only
+below 480px) is the bar's footprint; `App.tsx` adds it to main's bottom
+padding and the toast's offset. Hiding the bar while typing is pure CSS
+(`body:has(...)`, touch screens only). `App.tsx` has two tab-change layout
+effects: every switch scrolls the page to the top, and where the row
+overflows the selected tab is centred in it. Readability of the labels over
+anything behind the glass is proven in `theme.test.ts` (worst case black or
+white), and `e2e/tab-bar.mjs` checks the paint really uses those variables.
+
 ## Build targets (both from the same source)
 
 | Target | Command | Output |
