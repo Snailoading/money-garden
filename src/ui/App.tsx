@@ -83,6 +83,10 @@ export function MoneyGarden() {
   const mainRef = useRef<HTMLElement>(null);
   /** The row of tab buttons — scrolls sideways on the narrowest phones. */
   const tabRowRef = useRef<HTMLDivElement>(null);
+  /** False until the first tab-change effect has run (see below). A ref is a
+   * mutable box that keeps its value across renders without causing one —
+   * like an instance attribute, where useState would be a watched field. */
+  const tabEffectRan = useRef(false);
   const installRef = useRef<HTMLDivElement>(null);
   const memoryFallback = useRef(false);
   /** This tab's latest own save fell through to memory (quota, privacy
@@ -403,6 +407,20 @@ export function MoneyGarden() {
     for (const el of [headerRef.current, mainRef.current]) if (el) el.inert = open;
     if (open) installRef.current?.focus();
   }, [installPref, gardenShown]);
+
+  // A new tab opens at its top. The page is one long scroll shared by every
+  // tab, so without this you'd land wherever the last tab left you — on a
+  // phone, where the bar is always in reach, often halfway down the new one
+  // (and the browser's scroll anchoring can shift it further). A layout
+  // effect, so it happens before paint: the new tab never flashes at the old
+  // position. Skipped on the first render, so opening the app moves nothing.
+  useLayoutEffect(() => {
+    if (!tabEffectRan.current) {
+      tabEffectRan.current = true;
+      return;
+    }
+    window.scrollTo(0, 0);
+  }, [tab]);
 
   // Under 350px the tab bar scrolls sideways. A tab chosen without a tap on
   // the bar — a Seasons month jumping to Overview — could be scrolled out of
