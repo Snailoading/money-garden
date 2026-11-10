@@ -3,7 +3,7 @@
  * every action handler, the header (weather + streak), tab nav, footer
  * ("the shed") with storage disclosure and two-step reset, and the toast.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Commitment, Goal, Invest, State, Transaction } from "../engine/types";
 import { BACKUP_META_KEY, DEFAULT_INVEST, STORAGE_KEY, UNREADABLE_KEY_PREFIX } from "../engine/types";
 import { fmt, monthLabel, shortDate, uid } from "../engine/format";
@@ -81,6 +81,12 @@ export function MoneyGarden() {
   // overlay itself (focused when it opens).
   const headerRef = useRef<HTMLElement>(null);
   const mainRef = useRef<HTMLElement>(null);
+  /** The row of tab buttons — scrolls sideways on the narrowest phones. */
+  const tabRowRef = useRef<HTMLDivElement>(null);
+  /** False until the first tab-change effect has run (see below). A ref is a
+   * mutable box that keeps its value across renders without causing one —
+   * like an instance attribute, where useState would be a watched field. */
+  const tabEffectRan = useRef(false);
   const installRef = useRef<HTMLDivElement>(null);
   const memoryFallback = useRef(false);
   /** This tab's latest own save fell through to memory (quota, privacy
@@ -402,6 +408,39 @@ export function MoneyGarden() {
     if (open) installRef.current?.focus();
   }, [installPref, gardenShown]);
 
+  // A new tab opens at its top. The page is one long scroll shared by every
+  // tab, so without this you'd land wherever the last tab left you — on a
+  // phone, where the bar is always in reach, often halfway down the new one
+  // (and the browser's scroll anchoring can shift it further). A layout
+  // effect, so it happens before paint: the new tab never flashes at the old
+  // position. Skipped on the first render, so opening the app moves nothing.
+  useLayoutEffect(() => {
+    if (!tabEffectRan.current) {
+      tabEffectRan.current = true;
+      return;
+    }
+    window.scrollTo(0, 0);
+  }, [tab]);
+
+  // Under 350px the tab bar scrolls sideways. A tab chosen without a tap on
+  // the bar — a Seasons month jumping to Overview — could be scrolled out of
+  // sight, so centre the selected tab. Only the row's own scroll moves
+  // (scrollIntoView would scroll the page too), and only when the row really
+  // overflows: everywhere else this does nothing. It glides there (a tab
+  // tapped near the edge would otherwise jump under your finger) — or moves
+  // at once under Reduce Motion. A layout effect runs after React updates the
+  // DOM but before the screen is painted, so the move starts on the same
+  // frame as the new tab. (The row renders only once the garden shows.)
+  useLayoutEffect(() => {
+    const row = tabRowRef.current;
+    if (!row || row.scrollWidth <= row.clientWidth) return;
+    const selected = row.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!selected) return;
+    const leftInRow = selected.getBoundingClientRect().left - row.getBoundingClientRect().left + row.scrollLeft;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    row.scrollTo({ left: leftInRow - (row.clientWidth - selected.offsetWidth) / 2, behavior: still ? "auto" : "smooth" });
+  }, [tab, gardenShown]);
+
   if (unreadable) {
     return <Recovery raw={unreadable.raw} reason={unreadable.reason} onStartFresh={onStartFreshOverUnreadable} />;
   }
@@ -721,24 +760,26 @@ export function MoneyGarden() {
         </div>
 
         {/* tabs — aria-current tells a screen reader which one is selected
-            (sighted users see the dark pill); the emoji is aria-hidden so it
-            reads "Overview", not "sun behind small cloud, Overview". */}
-        <nav style={{ display: "flex", gap: 6, marginTop: 18, flexWrap: "wrap" }}>
-          {TABS.map((t) => (
-            <button key={t.id} onClick={() => switchTab(t.id)} className="mg-tab mg-btn"
-              aria-current={tab === t.id ? "page" : undefined}
-              style={{
-                padding: "8px 14px", borderRadius: 999, cursor: "pointer", fontWeight: 600, fontSize: 14,
-                background: tab === t.id ? C.ink : "transparent",
-                color: tab === t.id ? C.inkContrast : C.ink,
-              }}>
-              <span aria-hidden="true" style={{ marginRight: 6 }}>{t.icon}</span>{t.label}
-            </button>
-          ))}
+            (sighted users see the pill); the emoji is aria-hidden so it
+            reads "Overview", not "sun behind small cloud, Overview".
+            The look lives in global.css (.mg-tab), not inline — inline
+            styles outrank any stylesheet rule, media queries included. The
+            row inside the nav does the laying out. */}
+        <nav className="mg-tabs">
+          <div className="mg-tabs-row" ref={tabRowRef}>
+            {TABS.map((t) => (
+              <button key={t.id} onClick={() => switchTab(t.id)} className="mg-tab mg-btn"
+                aria-current={tab === t.id ? "page" : undefined}>
+                <span aria-hidden="true" className="mg-tab-icon">{t.icon}</span>{t.label}
+              </button>
+            ))}
+          </div>
         </nav>
       </header>
 
-      <main ref={mainRef} style={{ maxWidth: 980, margin: "0 auto", padding: "16px 20px 60px" }}>
+      {/* --tabbar-space (global.css) is the phone tab bar's footprint, unset
+          on laptops: the shed scrolls clear of the bar, toasts float above it. */}
+      <main ref={mainRef} style={{ maxWidth: 980, margin: "0 auto", padding: "16px 20px calc(60px + var(--tabbar-space, 0px))" }}>
         {/* Nothing is being saved: say so where it can't be missed, not
             only in the footer (CLAUDE.md: keep the disclosure visible). */}
         {note?.warn && (
@@ -850,7 +891,7 @@ export function MoneyGarden() {
 
       {toast && (
         <div role="status" style={{
-          position: "fixed", bottom: 22, left: "50%", transform: "translateX(-50%)",
+          position: "fixed", bottom: "calc(22px + var(--tabbar-space, 0px))", left: "50%", transform: "translateX(-50%)",
           background: C.ink, color: C.inkContrast, padding: "12px 20px", borderRadius: 14,
           fontWeight: 600, boxShadow: `0 10px 30px ${C.shadow}`, animation: "mg-pop .25s ease", zIndex: 50, maxWidth: "90vw",
         }}>{toast}</div>
