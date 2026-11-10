@@ -337,7 +337,9 @@ try {
   await scenario("fades reduced", { width: 320, reduced: "reduce" }, async (page) => {
     await setRowScroll(page, "end"); await frames(page);
     const got = await fades(page);
-    check("320 Reduce Motion: stays the plain right-hand fade", got === `0px/${FADE}px`, got);
+    // Not an accident: the global kill switch stops the scroll-linked fades,
+    // and the right-only fade is the agreed fallback.
+    check("320 Reduce Motion: falls back to the right-only fade", got === `0px/${FADE}px`, got);
   });
   await scenario("keep in view", { width: 320 }, async (page) => {
     // The real case: bar scrolled right to reach Seasons, then a month bar
