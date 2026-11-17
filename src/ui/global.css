@@ -223,6 +223,17 @@ input[type="date"]::-webkit-date-and-time-value {
   text-align: left;
 }
 
+/* A long press on a button (iOS especially) selects its label and emoji and
+   can pop the copy/look-up callout. Nothing in a button needs copying (the
+   one figure in one, Overview's "Spent from goals", is also in the "Total
+   money out" line below it). Buttons only — labels and body copy stay
+   selectable. */
+button {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
 input:focus-visible,
 select:focus-visible,
 button:focus-visible {
