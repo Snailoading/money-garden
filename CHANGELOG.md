@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.18.10 — 2026-11-17 · *Light touch* 🪶
+
+### Fixed
+
+- **Holding a button no longer selects its text.** On an iPhone, a long
+  press on a tab, "Plant it", "Add expense" or any other button
+  highlighted its label and emoji as if you meant to copy them. Buttons
+  now just stay buttons; everything else you might want to copy still
+  can be.
+
 ## 0.18.9 — 2026-11-10 · *Close at hand* 🪴
 
 ### Changed

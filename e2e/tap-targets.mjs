@@ -4,7 +4,8 @@
 // compact in-row buttons ("Delete?", "Log payment") are 32px tall — all
 // without changing the layout: the header keeps its 18px month row, and
 // ✏️ ✕ take no more room beside a ledger amount or in a vine row than before
-// (wider buttons once pushed every phone row onto two lines).
+// (wider buttons once pushed every phone row onto two lines). And a long
+// press on any button never selects its text (user-select: none).
 import { chromium } from "playwright";
 import { spawn, execSync } from "node:child_process";
 import { SP, DIST, shot } from "./paths.mjs";
@@ -21,6 +22,7 @@ const controls = () => [...document.querySelectorAll("button, a[href], input, se
   .map(({ e, r }) => ({
     name: (e.getAttribute("aria-label") || e.textContent || e.getAttribute("placeholder") || e.tagName).trim().slice(0, 30),
     w: Math.round(r.width), h: Math.round(r.height), icon: e.classList.contains("mg-icon-btn"),
+    button: e.tagName === "BUTTON", select: getComputedStyle(e).userSelect || getComputedStyle(e).webkitUserSelect,
   }));
 
 let browser;
@@ -47,6 +49,11 @@ try {
     const small = all.filter((c) => Math.min(c.w, c.h) < 24);
     check(`${width}: nothing under 24px`, all.length > 50 && small.length === 0,
       small.length ? small.map((c) => `${c.tab}:"${c.name}" ${c.w}×${c.h}`).join(", ") : `${all.length} controls checked`);
+    // A long press on a button (tabs, Plant it, Add expense…) must not
+    // select its label/emoji — iOS did, on every button (found on an iPhone, 2026-11-17).
+    const buttons = all.filter((c) => c.button); const selectable = buttons.filter((c) => c.select !== "none");
+    check(`${width}: no button's text can be selected`, buttons.length > 40 && selectable.length === 0,
+      selectable.length ? selectable.slice(0, 8).map((c) => `${c.tab}:"${c.name}" ${c.select}`).join(", ") : `${buttons.length} buttons`);
     const icons = all.filter((c) => c.icon);
     // Squares, with two deliberate smaller ones: the header arrows are 24×24
     // (bigger would move the month label), and Close search is 26×26
