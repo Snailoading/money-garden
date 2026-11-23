@@ -3,7 +3,11 @@
 // screen — not the entry form, which on a phone left the filtered list below
 // the fold — and already there on the first painted frame (no flash of the
 // Log's top); an ordinary visit to the Log still opens at its top.
+// Replacing the whole garden from the shed at the bottom of the page —
+// restoring a backup, Replant sample data, Start fresh — shows the new
+// garden from its top, also when the tab doesn't change.
 import { chromium } from "playwright";
+import { readFileSync } from "node:fs";
 import { spawn, execSync } from "node:child_process";
 import { SP, DIST, shot } from "./paths.mjs";
 const PORT = 8161; const BASE = `http://127.0.0.1:${PORT}/`;
@@ -18,17 +22,23 @@ const SIZES = [
   { name: "1280", viewport: { width: 1280, height: 800 } },
 ];
 
-/** A fresh context on the sample garden, plus one goal draw dated today
- * (sample data has none this month, and the Overview's line only shows
- * when something was drawn). */
-async function sampleGardenWithDraw(browser, size) {
+/** A fresh context on the sample garden. */
+async function sampleGarden(browser, size) {
   const { name, ...opts } = size;
-  const ctx = await browser.newContext({ ...opts, serviceWorkers: "block" });
+  const ctx = await browser.newContext({ ...opts, serviceWorkers: "block", acceptDownloads: true });
   await ctx.addInitScript(() => localStorage.setItem("money-garden:install-hint", "muted"));
   const page = await ctx.newPage(); const errs = []; page.on("pageerror", (e) => errs.push(e.message)); page.setDefaultTimeout(5000);
   await page.goto(BASE); await page.getByText("Money Garden", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Plant sample data", exact: true }).click();
   await page.waitForFunction(() => (JSON.parse(localStorage.getItem("money-garden:state-v1") || "{}").transactions || []).length > 5);
+  await page.evaluate(() => document.fonts.ready);
+  return { ctx, page, errs };
+}
+
+/** …plus one goal draw dated today (sample data has none this month, and
+ * the Overview's line only shows when something was drawn). */
+async function sampleGardenWithDraw(browser, size) {
+  const { ctx, page, errs } = await sampleGarden(browser, size);
   await page.evaluate(() => {
     const k = "money-garden:state-v1"; const st = JSON.parse(localStorage.getItem(k));
     const g = st.goals.find((g) => g.saved >= 60); g.saved -= 60; // a draw spends the goal's pool
@@ -93,6 +103,50 @@ try {
       check(`${w}: a plain tap on Log still opens at its top`, plainY === 0, `scrollY ${plainY}`);
       check(`${w}: …with no filter open`, await page.getByRole("combobox", { name: "Type" }).count() === 0);
       check(`${w}: no page errors`, errs.length === 0, errs.join(" | "));
+    } finally { await ctx.close(); }
+  }
+
+  // ---- 2. Replacing the whole garden from the shed shows it from the top
+  /** Scroll to the very bottom (the shed), do it, then where are we? */
+  const fromShed = async (page, act) => {
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const before = await page.evaluate(() => Math.round(scrollY));
+    await act();
+    await page.waitForTimeout(200);
+    // maxY: the new page must still be able to scroll, or "at the top" would
+    // pass by itself (a page shorter than the screen can't be anywhere else).
+    const after = await page.evaluate(() => ({ y: Math.round(scrollY), maxY: document.documentElement.scrollHeight - innerHeight, tab: document.querySelector('nav [aria-current="page"]')?.textContent }));
+    return { before, ...after };
+  };
+  for (const size of SIZES.filter((s) => s.name !== "760")) {
+    const { ctx, page, errs } = await sampleGarden(browser, size);
+    try {
+      const w = size.name;
+      const btn = (name) => page.getByRole("button", { name, exact: true });
+      const replant = () => fromShed(page, async () => { await btn("Replant sample data…").click(); await btn("Really replace everything with sample data?").click(); });
+
+      let r = await replant();
+      check(`${w}: Replant on the Overview lands at the top`, r.before > 100 && r.maxY > 100 && r.y === 0 && /Overview/.test(r.tab), JSON.stringify(r));
+
+      await page.getByRole("button", { name: /Garden/ }).first().click();
+      r = await replant();
+      check(`${w}: Replant on the Garden tab lands at its top, still on Garden`, r.before > 100 && r.maxY > 100 && r.y === 0 && /Garden/.test(r.tab), JSON.stringify(r));
+      await page.getByRole("button", { name: /Overview/ }).first().click();
+
+      const [dl] = await Promise.all([page.waitForEvent("download"), btn("⬇️ Save backup").click()]);
+      const backup = readFileSync(await dl.path());
+      r = await fromShed(page, async () => {
+        await page.locator('input[type="file"]').setInputFiles({ name: "b.json", mimeType: "application/json", buffer: backup });
+        await btn("Replace my garden").waitFor();
+        await btn("Replace my garden").click();
+        await page.getByText("Garden restored").waitFor();
+      });
+      check(`${w}: restoring a backup on the Overview lands at the top`, r.before > 100 && r.maxY > 100 && r.y === 0 && /Overview/.test(r.tab), JSON.stringify(r));
+
+      r = await fromShed(page, async () => { await btn("Start fresh…").click(); await btn("Really erase everything?").click(); await page.getByText("Fresh soil — everything cleared").waitFor(); });
+      await shot(page, `landing-fresh-${w}`);
+      check(`${w}: Start fresh on the Overview lands at the top`, r.before > 100 && r.maxY > 100 && r.y === 0 && /Overview/.test(r.tab), JSON.stringify(r));
+      check(`${w}: no page errors (shed)`, errs.length === 0, errs.join(" | "));
     } finally { await ctx.close(); }
   }
 } catch (e) {
