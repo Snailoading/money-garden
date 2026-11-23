@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.18.11 — 2026-11-23 · *Garden paths* 🪨
+
+### Fixed
+
+- **"Spent from goals" takes you straight to the list.** Tapping it on
+  the Overview opened the Log filtered to goal draws, but at the entry
+  form, so on a phone the entries themselves were out of sight below.
+  It now lands on the ledger, filter and entries in view.
+- **A replaced garden shows from the top.** Restoring a backup, Replant
+  sample data and Start fresh all live at the bottom of the page, and
+  afterwards you stayed down there looking at the footer of a garden you
+  couldn't see. Now you're back at the top of it.
+
+### Changed
+
+- **Tap the tab you're on to go back to its top,** the way iPhone apps
+  do: handy deep in the Log. It glides up (or jumps, with Reduce Motion
+  on) and leaves everything else as it was, your search included.
+
 ## 0.18.10 — 2026-11-17 · *Light touch* 🪶
 
 ### Fixed

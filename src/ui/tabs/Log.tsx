@@ -2,7 +2,7 @@
  * LOG — the daily driver: add expenses/income, browse and delete this
  * month's ledger.
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { State, Transaction } from "../../engine/types";
 import { CATEGORIES } from "../../engine/types";
 import type { Derived, MonthView } from "../../engine/stats";
@@ -100,6 +100,21 @@ export function Log({ state, d, view, today, addTransaction, deleteTransaction, 
   const pinSearchToTop = () => {
     if (coarsePointer) ledgerCardRef.current?.scrollIntoView({ block: "start" });
   };
+
+  // Arriving with a preset (Overview's "Spent from goals") means "show me
+  // these entries", so land on the ledger, not the entry form above it — on
+  // a phone the filtered list was below the fold. Every width: the open
+  // filter panel pushes the rows down on laptops too. A passive useEffect on
+  // purpose: App's "new tab opens at its top" is a layout effect, and React
+  // runs a parent's layout effects AFTER its children's, so a layout effect
+  // here would be scrolled straight back to the top. Passive effects run
+  // after every layout effect — and, after a click, still before the paint.
+  // The empty dependency list runs it once, on mount (a bit like
+  // __post_init__); the preset is only read at mount anyway.
+  useEffect(() => {
+    if (initialFilter) ledgerCardRef.current?.scrollIntoView({ block: "start" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const openSearch = () => {
     setSearchOpen(true);
