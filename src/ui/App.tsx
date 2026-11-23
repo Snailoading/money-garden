@@ -54,6 +54,17 @@ export function MoneyGarden() {
   // later manual visit to the Log starts unfiltered.
   const [logPreset, setLogPreset] = useState<"draw" | null>(null);
   const switchTab = (t: TabId) => { setLogPreset(null); setTab(t); };
+  /** A tap on the tab bar. Tapping the tab you're already on takes you back
+   * to its top (the iOS habit — handy deep in the Log), gliding there, or
+   * jumping under Reduce Motion. Nothing else changes: same tab, and its
+   * search, filters and half-typed entries stay as they were. Only the tab
+   * bar does this; the in-page jumps ("Log one", "Spent from goals", a
+   * Seasons month) never point at the tab you're already on. */
+  const tapTab = (t: TabId) => {
+    if (t !== tab) return switchTab(t); // just an early exit, like `return` in Python
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: still ? "auto" : "smooth" });
+  };
   const goToDraws = () => { setLogPreset("draw"); setTab("log"); };
   const [toast, setToast] = useState<string | null>(null);
   /** The shed's two-step buttons (Start fresh / Replant sample data): one
@@ -778,7 +789,7 @@ export function MoneyGarden() {
         <nav className="mg-tabs">
           <div className="mg-tabs-row" ref={tabRowRef}>
             {TABS.map((t) => (
-              <button key={t.id} onClick={() => switchTab(t.id)} className="mg-tab mg-btn"
+              <button key={t.id} onClick={() => tapTab(t.id)} className="mg-tab mg-btn"
                 aria-current={tab === t.id ? "page" : undefined}>
                 <span aria-hidden="true" className="mg-tab-icon">{t.icon}</span>{t.label}
               </button>
