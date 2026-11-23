@@ -635,6 +635,15 @@ export function MoneyGarden() {
     setPendingImport(result.preview);
   };
 
+  /** The whole garden was just replaced (a restored backup, Replant, Start
+   * fresh) from down in the shed: show the new garden from its top. A tab
+   * change already does this (the [tab] layout effect above), but these
+   * often leave you on the tab you were on, so nothing would move and
+   * you'd be looking at the footer of a garden you can't see. Called before
+   * React draws the new garden, which is fine: at the very top, a page
+   * that grows or shrinks can't move you. */
+  const showFromTop = () => window.scrollTo(0, 0);
+
   const confirmImport = () => {
     if (!pendingImport) return;
     const { counts } = pendingImport;
@@ -646,6 +655,7 @@ export function MoneyGarden() {
     setPendingImport(null);
     setViewYm(null);
     setTab("overview");
+    showFromTop();
     showToast(`🌱 Garden restored — ${counts.transactions} transactions, ${counts.goals} goals.`);
   };
 
@@ -864,7 +874,7 @@ export function MoneyGarden() {
             {/* Replanting overwrites the whole garden, so it two-steps like
                 Start fresh (arm → 4s window → tomato confirm). */}
             {!isEmpty && (shed.armedId === "replant" ? (
-              <button className="mg-btn" onClick={() => { if (!setStateSafe(sampleState())) return; shed.disarm(); setViewYm(null); showToast("🌼 Sample garden replanted"); }}
+              <button className="mg-btn" onClick={() => { if (!setStateSafe(sampleState())) return; shed.disarm(); setViewYm(null); showFromTop(); showToast("🌼 Sample garden replanted"); }}
                 style={{ background: C.tomato, border: `1.5px solid ${C.tomato}`, borderRadius: 10, padding: "7px 14px", fontWeight: 700, fontSize: 13, color: C.inkContrast, cursor: "pointer" }}>
                 Really replace everything with sample data?
               </button>
@@ -875,7 +885,7 @@ export function MoneyGarden() {
               </button>
             ))}
             {shed.armedId === "reset" ? (
-              <button className="mg-btn" onClick={() => { if (!setStateSafe(emptyState())) return; shed.disarm(); setViewYm(null); setTab("overview"); showToast("🍂 Fresh soil — everything cleared"); }}
+              <button className="mg-btn" onClick={() => { if (!setStateSafe(emptyState())) return; shed.disarm(); setViewYm(null); setTab("overview"); showFromTop(); showToast("🍂 Fresh soil — everything cleared"); }}
                 style={{ background: C.tomato, border: `1.5px solid ${C.tomato}`, borderRadius: 10, padding: "7px 14px", fontWeight: 700, fontSize: 13, color: C.inkContrast, cursor: "pointer" }}>
                 Really erase everything?
               </button>
