@@ -270,7 +270,14 @@ below 480px) is the bar's footprint; `App.tsx` adds it to main's bottom
 padding and the toast's offset. Hiding the bar while typing is pure CSS
 (`body:has(...)`, touch screens only). `App.tsx` has two tab-change layout
 effects: every switch scrolls the page to the top, and where the row
-overflows the selected tab is centred in it. Readability of the labels over
+overflows the selected tab is centred in it. Tapping the tab you're already
+on scrolls to the top too (`tapTab`; it glides, or jumps under Reduce
+Motion). Two landings aim elsewhere (since v0.18.11): the Log, opened with
+the draws preset, scrolls its ledger card into view in a *passive* effect —
+a parent's layout effects run after its children's, so a layout effect in
+the Log would be undone by App's scroll to the top; and the shed's
+garden-replacing buttons call `showFromTop`, because the tab often doesn't
+change. `e2e/scroll-landings.mjs` covers all three. Readability of the labels over
 anything behind the glass is proven in `theme.test.ts` (worst case black or
 white), and `e2e/tab-bar.mjs` checks the paint really uses those variables.
 
