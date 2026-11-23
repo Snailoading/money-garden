@@ -5,7 +5,9 @@
 // Log's top); an ordinary visit to the Log still opens at its top.
 // Replacing the whole garden from the shed at the bottom of the page —
 // restoring a backup, Replant sample data, Start fresh — shows the new
-// garden from its top, also when the tab doesn't change.
+// garden from its top, also when the tab doesn't change. Tapping the tab
+// you're already on glides back to its top (jumps under Reduce Motion),
+// keeping the tab and its search exactly as they were.
 import { chromium } from "playwright";
 import { readFileSync } from "node:fs";
 import { spawn, execSync } from "node:child_process";
@@ -148,6 +150,60 @@ try {
       check(`${w}: Start fresh on the Overview lands at the top`, r.before > 100 && r.maxY > 100 && r.y === 0 && /Overview/.test(r.tab), JSON.stringify(r));
       check(`${w}: no page errors (shed)`, errs.length === 0, errs.join(" | "));
     } finally { await ctx.close(); }
+  }
+
+  // ---- 3. Tapping the tab you're on goes back to its top
+  for (const size of SIZES.filter((s) => s.name !== "760")) {
+    for (const motion of ["no-preference", "reduce"]) {
+      const { ctx, page, errs } = await sampleGarden(browser, { ...size, reducedMotion: motion });
+      try {
+        const w = `${size.name}${motion === "reduce" ? " reduce-motion" : ""}`;
+        const tabBtn = (name) => page.locator("nav").getByRole("button", { name: new RegExp(name) });
+        /** From `y` (or as far as the page goes), tap the current tab: the
+         * scroll two frames later (a glide has barely begun), then once it
+         * has settled. */
+        const tapCurrent = async (name, y) => {
+          await page.evaluate((y) => window.scrollTo(0, y), y);
+          await page.waitForTimeout(100);
+          const before = await page.evaluate(() => Math.round(scrollY));
+          await page.evaluate(() => {
+            window.__firstFrameY = null;
+            document.addEventListener("click", () => requestAnimationFrame(() => requestAnimationFrame(() => { window.__firstFrameY = scrollY; })), { capture: true, once: true });
+          });
+          // Phone: a real tap (the bar is fixed, so nothing scrolls first, and
+          // it proves the bar is tappable once the keyboard's away). Laptop:
+          // a DOM click — Playwright's click() first scrolls the button into
+          // view, and there the tab row is up in the header; that alone moved
+          // the page and passed the checks without the fix.
+          if (size.hasTouch) await tabBtn(name).click(); else await tabBtn(name).evaluate((b) => b.click());
+          const settled = await page.waitForFunction(() => scrollY === 0, null, { timeout: 2000 }).then(() => true, () => false);
+          await page.waitForFunction(() => window.__firstFrameY !== null, null, { timeout: 2000 }).catch(() => {});
+          const r = await page.evaluate(() => ({ firstFrameY: window.__firstFrameY, y: Math.round(scrollY), tab: document.querySelector('nav [aria-current="page"]')?.textContent }));
+          return { before, settled, ...r };
+        };
+
+        let r = await tapCurrent("Overview", 400);
+        check(`${w}: tapping Overview on Overview goes back to the top`, r.before > 100 && r.settled && /Overview/.test(r.tab), JSON.stringify(r));
+        if (motion === "reduce") check(`${w}: …at once`, r.firstFrameY === 0, JSON.stringify(r));
+        else check(`${w}: …gliding there (not there on the next frame)`, r.settled && r.firstFrameY > 0, JSON.stringify(r)); // a glide may not have begun yet; a jump is already at 0
+
+        // The Log, mid-search: tapping Log keeps the search as it was.
+        await tabBtn("Log").click();
+        await page.getByRole("button", { name: "Search the ledger" }).click();
+        // the 🔍 focuses the box a frame later — let it, or it lands after
+        // the blur below and the keyboard (and hidden bar) come back
+        await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Search the ledger" && document.activeElement.tagName === "INPUT");
+        await page.getByRole("textbox", { name: "Search the ledger" }).fill("o");
+        // put the keyboard away: the phone bar steps aside while you type
+        await page.evaluate(() => document.activeElement.blur());
+        await page.waitForTimeout(400);
+        r = await tapCurrent("Log", 100000);
+        // null if the search closed (a remounted Log would lose it)
+        const query = await page.evaluate(() => document.querySelector('input[aria-label="Search the ledger"]')?.value ?? null);
+        check(`${w}: tapping Log on the Log goes back to the top, search kept`, r.before > 100 && r.settled && /Log/.test(r.tab) && query === "o", JSON.stringify({ ...r, query }));
+        check(`${w}: no page errors (current tab)`, errs.length === 0, errs.join(" | "));
+      } finally { await ctx.close(); }
+    }
   }
 } catch (e) {
   out.push("ERROR " + (e.stack || e).toString().split("\n").slice(0, 3).join(" | "));
