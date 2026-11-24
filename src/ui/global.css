@@ -360,6 +360,27 @@ button.mg-tab {
     /* whatever the browser scrolls into view for you (Tab to a field, a
        jump) lands above the bar, not under it */
     scroll-padding-bottom: var(--tabbar-space);
+    /* The bar's drop shadow, three soft layers: a crisp contact edge, a
+       short drop, a faint halo all round. Each has all but faded out within
+       8px, inside the smallest --tabbar-gap (10px), because a browser tab
+       cuts pinned things off at the bottom of the page area (iOS Safari,
+       just above its address bar) while the page carries on below: a longer
+       shadow stops there in a hard line. A blur never quite reaches zero
+       (a Gaussian tail; Safari draws more of it than Chrome), hence the 2px
+       spare. Reach below = offset + blur + spread: 3 − 4 + 9 = 8, and the
+       halo's 0 + 16 − 8 = 8. */
+    --tabbar-float:
+      0 1px 2px var(--tabbar-drop),
+      0 3px 9px -4px var(--tabbar-drop),
+      0 0 16px -8px var(--tabbar-drop);
+  }
+  /* Installed, the page runs to the screen's edge, so nothing is cut and the
+     bar can float on the long original shadow. (Browsers that can't say
+     they're installed get the short one, which is safe anywhere.) */
+  @media (display-mode: standalone), (display-mode: fullscreen) {
+    html {
+      --tabbar-float: 0 12px 32px var(--tabbar-drop);
+    }
   }
   .mg-tabs {
     position: fixed;
@@ -379,11 +400,12 @@ button.mg-tab {
        tint's job, so the blur can stay light. */
     -webkit-backdrop-filter: blur(12px) saturate(1.9) brightness(1.03);
     backdrop-filter: blur(12px) saturate(1.9) brightness(1.03);
-    /* edge light: drop shadow, bright top line, faint side lines, a soft
-       glow inside the top and a darker edge underneath — inset shadows
-       follow the rounded ends, which a drawn line wouldn't */
+    /* edge light: drop shadow (--tabbar-float, above), bright top line,
+       faint side lines, a soft glow inside the top and a darker edge
+       underneath — inset shadows follow the rounded ends, which a drawn line
+       wouldn't */
     box-shadow:
-      0 12px 32px var(--tabbar-drop),
+      var(--tabbar-float),
       inset 0 1px 0 var(--tabbar-shine),
       inset 1px 0 0 var(--tabbar-edge),
       inset -1px 0 0 var(--tabbar-edge),
