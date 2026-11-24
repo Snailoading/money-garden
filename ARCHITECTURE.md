@@ -267,7 +267,11 @@ scroller under 350px). It stays inside `<header>` so the install pop-up's
 `inert` covers it. Selection is read from `aria-current`, so the pill can't
 disagree with what a screen reader announces. `--tabbar-space` (set only
 below 480px) is the bar's footprint; `App.tsx` adds it to main's bottom
-padding and the toast's offset. Hiding the bar while typing is pure CSS
+padding and the toast's offset. Its drop shadow is `--tabbar-float`: short
+layers that fade out inside the 10px gap in a browser tab (iOS Safari cuts
+pinned things off at the page area's bottom edge, which turned a longer
+shadow into a hard line), the long original shadow when installed
+(`display-mode: standalone`). Hiding the bar while typing is pure CSS
 (`body:has(...)`, touch screens only). `App.tsx` has two tab-change layout
 effects: every switch scrolls the page to the top, and where the row
 overflows the selected tab is centred in it. Tapping the tab you're already

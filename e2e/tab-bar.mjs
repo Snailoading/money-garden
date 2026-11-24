@@ -11,9 +11,13 @@
 // a dropdown doesn't; Reduce Transparency makes it solid; the 320px row's
 // fades follow its scroll and the selected tab stays in view; a keyboard-
 // focused tab keeps its pill shape; the install pop-up locks the bar too;
-// and a tab switch from mid-page opens the new tab at its top.
+// and a tab switch from mid-page opens the new tab at its top. (v0.18.12)
+// In a browser tab the bar's shadow fades out inside the gap below it —
+// Safari cuts pinned things off at the page area's bottom edge, and a longer
+// shadow ended there in a hard line; installed, it keeps the long shadow.
 import { chromium } from "playwright";
 import { spawn, execSync } from "node:child_process";
+import { inflateSync } from "node:zlib";
 import { SP, DIST, shot } from "./paths.mjs";
 const PORT = 8160; const BASE = `http://127.0.0.1:${PORT}/`;
 try { execSync(`lsof -tnP -iTCP:${PORT} -sTCP:LISTEN | xargs kill`, { stdio: "ignore" }); } catch {}
@@ -69,6 +73,38 @@ const tabState = (page, name) => page.evaluate((n) => {
     top: b.getBoundingClientRect().top, barTop: document.querySelector("nav").getBoundingClientRect().top,
   };
 }, name);
+/** A PNG's pixel rows as [r, g, b] arrays (8-bit RGB/RGBA, as Playwright
+ * writes them) — enough to compare screenshots without an image library. */
+function pngRows(buf) {
+  let i = 8, w = 0, h = 0, ct = 0; const idat = [];
+  while (i < buf.length) {
+    const len = buf.readUInt32BE(i), type = buf.toString("ascii", i + 4, i + 8), data = buf.subarray(i + 8, i + 8 + len);
+    if (type === "IHDR") { w = data.readUInt32BE(0); h = data.readUInt32BE(4); ct = data[9]; }
+    if (type === "IDAT") idat.push(data);
+    i += 12 + len;
+  }
+  const raw = inflateSync(Buffer.concat(idat)), bpp = ct === 6 ? 4 : 3, stride = w * bpp, rows = [];
+  let prev = new Uint8Array(stride), o = 0;
+  for (let y = 0; y < h; y++) {
+    const f = raw[o++], line = Uint8Array.from(raw.subarray(o, o + stride)); o += stride;
+    for (let x = 0; x < stride; x++) {
+      const a = x >= bpp ? line[x - bpp] : 0, b = prev[x], c = x >= bpp ? prev[x - bpp] : 0;
+      if (f === 1) line[x] += a; else if (f === 2) line[x] += b; else if (f === 3) line[x] += (a + b) >> 1;
+      else if (f === 4) { const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c); line[x] += pa <= pb && pa <= pc ? a : pb <= pc ? b : c; }
+    }
+    rows.push(Array.from({ length: w }, (_, x) => [line[x * bpp], line[x * bpp + 1], line[x * bpp + 2]])); prev = line;
+  }
+  return rows;
+}
+/** The bar's outer (non-inset) shadow layers, and how far each reaches below it. */
+const outerShadows = (page) => page.evaluate(() => {
+  const nav = document.querySelector("nav"), r = nav.getBoundingClientRect();
+  // computed form: "rgba(…) 0px 4px 10px -4px, …, rgba(…) 0px 1px 0px 0px inset"
+  const layers = getComputedStyle(nav).boxShadow.split(/,(?![^(]*\))/).map((l) => l.trim()).filter((l) => !l.endsWith("inset"));
+  const reach = layers.map((l) => { const [, y, blur, spread] = l.replace(/^rgba?\([^)]*\)\s*/, "").split(/\s+/).map(parseFloat); return y + blur + spread; });
+  return { layers, reach, gap: innerHeight - r.bottom };
+});
+
 /** Is the bar shown, and does a tap at its centre reach it? */
 const barState = (page) => page.evaluate(() => {
   const nav = document.querySelector("nav"), r = nav.getBoundingClientRect();
@@ -312,6 +348,46 @@ try {
       check(`390 ${theme} Reduce Transparency: a solid card, no gloss, no blur`, solid.bg === solid.card && solid.image === "none" && solid.filter === "none", JSON.stringify(solid));
     });
   }
+
+  // ---- the shadow in a browser tab: faded out inside the gap below the bar.
+  // Safari cuts pinned things off at the page area's bottom edge while the
+  // page carries on below; anything of the shadow left there is a hard line.
+  for (const theme of ["day", "night"]) {
+    await scenario(`shadow ${theme}`, { width: 390, theme }, async (page) => {
+      const s = await outerShadows(page);
+      // 2px spare: a blur's Gaussian tail runs past its nominal reach, and
+      // Safari draws more of that tail than this Chrome does
+      check(`390 ${theme}: every layer of the bar's shadow ends 2px inside the ${Math.round(s.gap)}px gap`, s.layers.length >= 1 && s.reach.every((r) => r <= s.gap - 2 + 0.01),
+        `reach ${s.reach.join(", ")} — ${s.layers.join(" | ")}`);
+      // The real paint, over a plain white card (the ledger): the screen's
+      // bottom row — where Safari cuts — with the bar shown and hidden.
+      await tab(page, "Log").click();
+      await page.evaluate(() => { const c = [...document.querySelectorAll("section.mg-card")].find((x) => /ledger/.test(x.textContent)); window.scrollTo(0, c.getBoundingClientRect().bottom + scrollY - 150 - innerHeight); });
+      await page.mouse.move(1, 1); await settle(page);
+      const row = async () => pngRows(await page.screenshot({ clip: { x: 0, y: 843, width: 390, height: 1 } }))[0];
+      const shown = await row();
+      await page.addStyleTag({ content: "nav { visibility: hidden !important; }" }); await frames(page);
+      const hidden = await row();
+      const step = Math.max(...shown.map((px, x) => Math.max(...px.map((v, k) => Math.abs(v - hidden[x][k])))));
+      check(`390 ${theme}: no shadow left on the bottom row (≤ 2 levels), so no cut line`, step <= 2, `${step} levels`);
+    });
+  }
+  // Installed, the page runs to the screen's edge: the long shadow stays.
+  // Chrome can't emulate an installed app (display-mode), so read the rule.
+  await scenario("shadow installed", { width: 390 }, async (page) => {
+    const found = await page.evaluate(() => {
+      const hits = [];
+      const walk = (rules, media) => { for (const r of rules) {
+        if (r.media) walk(r.cssRules, [...media, r.media.mediaText]);
+        else if (r.style?.getPropertyValue("--tabbar-float")) hits.push({ media: media.join(" & "), value: r.style.getPropertyValue("--tabbar-float").trim() });
+      } };
+      for (const sh of document.styleSheets) walk(sh.cssRules, []);
+      return hits;
+    });
+    const installed = found.filter((h) => /display-mode:\s*standalone/.test(h.media));
+    check("390 installed: an installed app keeps the long floating shadow", installed.length === 1 && /^0(px)? 12px 32px /.test(installed[0].value) && /max-width: 479px|width <= 479px|width<=479px/.test(installed[0].media),
+      JSON.stringify(found));
+  });
 
   // ---- the 320px scrolling row
   await scenario("scroll mode", { width: 320 }, async (page) => {
