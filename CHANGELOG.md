@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.18.12 — 2026-11-23 · *Soft edges* 🌫️
+
+### Fixed
+
+- **No more hard line under the tab bar in Safari.** On a phone, in a
+  Safari tab, the bar's shadow ended in a straight grey edge just above
+  the address bar, because Safari cuts off anything pinned to the screen
+  there. In a browser tab the bar now floats on a shorter, layered shadow
+  (a crisp edge, a soft drop and a faint halo) that fades out before that
+  point. The installed app keeps the long shadow it had, since nothing
+  cuts it there.
+
 ## 0.18.11 — 2026-11-23 · *Garden paths* 🪨
 
 ### Fixed
