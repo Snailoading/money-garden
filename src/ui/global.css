@@ -72,7 +72,7 @@
      card, mist, bg and tint-amber (theme.test.ts guards it); marigold
      itself is 1.86:1 on white, so it stays for fills, lines and dots */
   --amber: #9f6000;
-  /* marigold's text shade ("Sent to goals", saving amounts): the same deep
+  /* marigold's text shade ("Saved", saving amounts): the same deep
      gold by day; at night marigold itself (light on dark reads fine) */
   --marigold-text: #9f6000;
   /* priority-pill and chip tints */

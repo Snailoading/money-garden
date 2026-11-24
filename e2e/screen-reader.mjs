@@ -61,7 +61,7 @@ try {
   // Every tab, tapped by its exact accessible name: it, and only it, is current.
   await page.getByRole("button", { name: "Overview", exact: true }).click();
   await page.getByRole("button", { name: "Plant sample data", exact: true }).click();
-  await page.getByText("Sent to goals", { exact: true }).waitFor();
+  await page.getByText("Saved", { exact: true }).waitFor();
   const wrong = [];
   for (const tab of TABS) {
     await page.getByRole("button", { name: tab, exact: true }).click();

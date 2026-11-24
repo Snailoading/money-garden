@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.18.13 — 2026-11-24 · *Plain words* 🏷️
+
+### Changed
+
+- **"Sent to goals" is now "Saved"** on the Overview and in the Seasons
+  chart's legend. That figure has always counted everything you put
+  aside, Orchard watering included, so an index-fund top-up appeared under
+  "Sent to goals". The Overview now reads Earned / Spent / Saved, and the
+  chart's legend matches what its tooltip already said. The Log's filter
+  keeps "💧 Sent to goals" for the goal-only entries.
+
 ## 0.18.12 — 2026-11-23 · *Soft edges* 🌫️
 
 ### Fixed

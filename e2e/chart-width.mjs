@@ -173,7 +173,7 @@ try {
     const page = await ctx.newPage(); const errs = []; page.on("pageerror", (e) => errs.push(e.message)); page.setDefaultTimeout(5000);
     await page.goto(BASE); await page.getByText("Money Garden", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Plant sample data", exact: true }).click();
-    await page.getByText("Sent to goals", { exact: true }).waitFor();
+    await page.getByText("Saved", { exact: true }).waitFor();
 
     for (const chart of CHARTS) await checkChart(page, W, chart, "");
 

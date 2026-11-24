@@ -87,6 +87,10 @@ try {
     await page.getByRole("button", { name: /Seasons/ }).first().click();
     await page.locator('svg[aria-label^="Earned vs spent"]').waitFor();
     await checkCharts(page, "S");
+    // The marigold line is everything saved (goals AND orchard watering), so
+    // its legend says "saved" — as its tooltip and the Overview do (v0.18.13).
+    const legend = await page.locator("section.mg-card", { hasText: "The harvest ledger" }).first().innerText();
+    check('S the harvest ledger\'s legend says "saved", not "sent to goals"', /\bsaved\b/.test(legend) && !/sent to goals/i.test(legend), legend.split("\n").slice(0, 4).join(" | "));
     check("S no page errors", errs.length === 0, errs.join(" | "));
     // Bars grow in over 0.9s — wait it out so a screenshot shows them.
     if (process.env.E2E_SHOTS) await page.waitForTimeout(1500);

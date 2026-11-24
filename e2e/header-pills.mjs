@@ -30,7 +30,7 @@ try {
     for (const garden of ["fresh", "sample"]) {
       if (garden === "sample") {
         await page.getByRole("button", { name: "Plant sample data", exact: true }).click();
-        await page.getByText("Sent to goals", { exact: true }).waitFor();
+        await page.getByText("Saved", { exact: true }).waitFor();
       }
       await page.evaluate(() => document.fonts.ready); // measure with the real fonts
       const tag = `H${width}-${theme}-${garden}`;

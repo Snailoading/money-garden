@@ -39,7 +39,7 @@ async function open(width, { theme = "day", touch = false, reduced = "no-prefere
   await page.goto(BASE); await page.getByText("Money Garden", { exact: true }).waitFor();
   if (sample) {
     await page.getByRole("button", { name: "Plant sample data", exact: true }).click();
-    await page.getByText("Sent to goals", { exact: true }).waitFor();
+    await page.getByText("Saved", { exact: true }).waitFor();
   }
   return { ctx, page };
 }
