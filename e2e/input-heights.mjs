@@ -60,7 +60,7 @@ try {
       }
       if (garden === "sample") {
         await page.getByRole("button", { name: "Plant sample data", exact: true }).click();
-        await page.getByText("Sent to goals", { exact: true }).waitFor();
+        await page.getByText("Saved", { exact: true }).waitFor();
       }
       const all = [];
       for (const tab of TABS) {

@@ -42,7 +42,7 @@ try {
     await shot(page, "fresh-garden-pill", { clip: { x: 0, y: 0, width: 1280, height: 200 } });
 
     await page.getByRole("button", { name: "Plant sample data", exact: true }).click();
-    await page.getByText("Sent to goals", { exact: true }).waitFor();
+    await page.getByText("Saved", { exact: true }).waitFor();
     const planted = await pill(page);
     check("sample data: the real weather and score return", isScored(planted), planted);
 

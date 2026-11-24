@@ -83,7 +83,7 @@ export function Seasons({ state, today, goToMonth }: {
         <p style={{ margin: "0 0 8px", fontSize: 13, color: C.inkSoft, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
           <span>What came in and went out, month by month. Tap a month to wander through it.</span>
           <Legend items={[
-            ["earned", C.leafDark], ["spent", C.tomato], ["sent to goals", C.marigold],
+            ["earned", C.leafDark], ["spent", C.tomato], ["saved", C.marigold],
             // The harvest chip only appears when the window actually has draws.
             ...(trends.some((p) => p.drawn > 0)
               ? [["spent from goals", "🌸", "emoji"] as [string, string, "emoji"]]

@@ -64,7 +64,7 @@ try {
     const page = await ctx.newPage(); const errs = []; page.on("pageerror", (e) => errs.push(e.message)); page.setDefaultTimeout(5000);
     await page.goto(BASE); await page.getByText("Money Garden", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Plant sample data", exact: true }).click();
-    await page.getByText("Sent to goals", { exact: true }).waitFor();
+    await page.getByText("Saved", { exact: true }).waitFor();
     const all = [];
     for (const tab of TABS) {
       await page.getByRole("button", { name: new RegExp(tab) }).first().click();
@@ -78,14 +78,14 @@ try {
     all.push(...(await page.evaluate(goldText)).map((f) => ({ ...f, where: "past month" })));
     await shot(page, `gold-text-${theme}-past-month`, { clip: { x: 0, y: 0, width: 1280, height: 520 } });
 
-    // Night keeps its exact old colours: "Sent to goals" in night marigold,
+    // Night keeps its exact old colours: "Saved" in night marigold,
     // the "↩ today" pill in night amber (the values before v0.18.5).
     if (theme === "night") {
       const colorOf = (loc) => loc.evaluate((el) => getComputedStyle(el).color);
-      const sent = await colorOf(page.getByText("Sent to goals", { exact: true }).locator("xpath=following-sibling::span[1]/b").first());
+      const sent = await colorOf(page.getByText("Saved", { exact: true }).locator("xpath=following-sibling::span[1]/b").first());
       const pill = await colorOf(page.getByText("↩ today", { exact: true }));
       check("night: colours unchanged (marigold #f5c34d, amber #d9b054)",
-        sent === "rgb(245, 195, 77)" && pill === "rgb(217, 176, 84)", `sent to goals ${sent}, ↩ today ${pill}`);
+        sent === "rgb(245, 195, 77)" && pill === "rgb(217, 176, 84)", `saved ${sent}, ↩ today ${pill}`);
     }
 
     // Budgets while browsing: the amber "Viewing …'s spending" note.
